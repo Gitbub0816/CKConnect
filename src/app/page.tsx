@@ -15,7 +15,7 @@ import {
 const capabilities = [
   { icon: Users, title: "Relationships, understood", copy: "CRM, pipeline, service, and every customer conversation in one useful record." },
   { icon: BookOpenCheck, title: "Books you can trust", copy: "Purpose-built double-entry accounting, billing, expenses, banking, payroll, and reporting." },
-  { icon: CreditCard, title: "Money in motion", copy: "Invoices, subscriptions, payment links, and connected-account payments through Stripe." },
+  { icon: CreditCard, title: "Money in motion", copy: "Invoices, subscriptions, payment links, and direct settlement through each tenant's configured merchant provider." },
   { icon: Palette, title: "Your brand, everywhere", copy: "Give each organization its own portal, forms, booking pages, domains, colors, type, and voice." },
   { icon: BarChart3, title: "Operations in focus", copy: "Dashboards, workflows, inventory, files, approvals, and scheduled work without tool sprawl." },
   { icon: ShieldCheck, title: "Control by design", copy: "Tenant isolation, granular access, signed endpoints, and tamper-evident audit history." },

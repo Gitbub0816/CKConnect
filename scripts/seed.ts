@@ -205,6 +205,15 @@ async function seedOrganization(spec: (typeof organizations)[number], ownerId: s
       } : undefined,
     },
   });
+  await db.tenantSettings.create({
+    data: {
+      organizationId: organization.id,
+      profileJson: { supportEmail: `support@${spec.slug}.example`, billingEmail: `billing@${spec.slug}.example`, mainPhone: "555-0100" },
+      securityJson: { requireMfa: true, requirePasskeys: false, sessionTimeoutMinutes: 480 },
+      bookingJson: { enabled: true, defaultDurationMinutes: 60 },
+      portalJson: { enabled: true, messaging: true, invoices: true, booking: true, files: true },
+    },
+  });
 
   const accounts = await Promise.all([
     db.crmAccount.create({ data: { organizationId: organization.id, name: index === 0 ? "Hearth & Pine HOA" : index === 1 ? "Atlas Health" : "Seaside Pediatrics", accountType: "CUSTOMER", industry: index === 0 ? "Property Management" : index === 1 ? "Healthcare" : "Medical", annualRevenue: 420000 } }),
@@ -239,6 +248,14 @@ async function seedOrganization(spec: (typeof organizations)[number], ownerId: s
     { organizationId: organization.id, title: `Meeting with ${accounts[0].name}`, eventType: "MEETING", startsAt: date(1), endsAt: new Date(date(1).getTime() + 3_600_000), location: "Video", ownerUserId: ownerId, attendeeJson: [contacts[0].email] },
     { organizationId: organization.id, title: index === 0 ? "Crew capacity review" : index === 1 ? "Creative review" : "Clinical team huddle", eventType: "INTERNAL", startsAt: date(3), endsAt: new Date(date(3).getTime() + 2_700_000), ownerUserId: ownerId },
   ] });
+  const internalChannel = await db.collaborationChannel.create({ data: { organizationId: organization.id, name: "operations", description: "Daily coordination, decisions, and handoffs.", channelType: "INTERNAL", videoRoomKey: `ck-${spec.slug}-operations` } });
+  const customerChannel = await db.collaborationChannel.create({ data: { organizationId: organization.id, name: `${accounts[0].name} workspace`, description: "Shared customer project, files, meetings, and messages.", channelType: "CUSTOMER", visibility: "CUSTOMER_AND_MEMBERS", relatedType: "ACCOUNT", relatedId: accounts[0].id, videoRoomKey: `ck-${spec.slug}-customer` } });
+  await db.collaborationMessage.createMany({ data: [
+    { channelId: internalChannel.id, authorUserId: ownerId, body: "Use this workspace for operational decisions and meeting follow-up." },
+    { channelId: customerChannel.id, authorUserId: ownerId, body: "Welcome to your shared workspace. Updates, meetings, and documents will stay together here." },
+    { channelId: customerChannel.id, contactId: contacts[0].id, body: "Thanks. I can see the upcoming appointment and invoice context.", messageType: "CUSTOMER_REPLY" },
+  ] });
+  await db.platformSupportTicket.create({ data: { organizationId: organization.id, openedById: ownerId, subject: "Seeded setup review", category: "TECHNICAL", priority: "NORMAL", status: "WAITING_TENANT", messages: { create: [{ authorUserId: ownerId, authorType: "TENANT", body: "Please review our website, payment, and domain setup." }, { authorUserId: ownerId, authorType: "CLEARKEY", body: "The initial configuration review is complete. The remaining provider-specific items are shown in Integrations." }] } } });
   await db.booking.create({
     data: {
       organizationId: organization.id,
@@ -315,7 +332,8 @@ async function seedOrganization(spec: (typeof organizations)[number], ownerId: s
     { organizationId: organization.id, provider: "QUICKBOOKS", status: index === 1 ? IntegrationStatus.ACTIVE : IntegrationStatus.DISCONNECTED, settings: { environment: "sandbox" }, lastSyncAt: index === 1 ? now : null },
     { organizationId: organization.id, provider: "POSTHOG", status: IntegrationStatus.ACTIVE, settings: { purpose: "product_analytics" }, lastSyncAt: now },
   ] });
-  await db.webhookEvent.create({ data: { organizationId: organization.id, provider: "STRIPE", externalEventId: `evt_seed_failed_${index}`, eventType: "payment_intent.payment_failed", payload: { seeded: true, invoiceId: invoice.id }, status: "FAILED", attempts: 2, lastError: "Seeded provider timeout for replay testing." } });
+  await db.paymentProviderConnection.create({ data: { organizationId: organization.id, provider: "MANUAL", status: "ACTIVE", isDefault: true, metadata: { methods: ["CASH", "CHECK", "EXTERNAL_ACH"] } } });
+  await db.webhookEvent.create({ data: { organizationId: organization.id, provider: "STRIPE", externalEventId: `evt_seed_failed_${organization.slug}_${index}`, eventType: "payment_intent.payment_failed", payload: { seeded: true, invoiceId: invoice.id }, status: "FAILED", attempts: 2, lastError: "Seeded provider timeout for replay testing." } });
   await db.automationRule.create({ data: { organizationId: organization.id, name: "Overdue invoice reminder", triggerType: "INVOICE_OVERDUE", conditions: [{ field: "balanceDue", operator: "gt", value: 0 }], actions: [{ type: "SEND_EMAIL", template: "Payment reminder" }], active: true, lastRunAt: date(-1) } });
   await db.emailTemplate.create({ data: { organizationId: organization.id, name: "Payment reminder", subject: `A friendly reminder from ${spec.name}`, bodyHtml: "<p>Your invoice is ready for review. Please contact us with any questions.</p>", category: "BILLING" } });
   await db.emailMessage.create({ data: { organizationId: organization.id, recipientEmail: contacts[0].email!, recipientName: `${contacts[0].firstName} ${contacts[0].lastName}`, subject: `Invoice ${invoice.invoiceNumber}`, bodyHtml: "<p>Your invoice is available in your secure portal.</p>", status: "DELIVERED", sentAt: date(-3), deliveredAt: date(-3), relatedType: "INVOICE", relatedId: invoice.id } });
@@ -379,8 +397,8 @@ async function main() {
   }
   const owner = await db.user.upsert({
     where: { email: "1morecruise@gmail.com" },
-    update: { firstName: "Caleb", lastName: "Owen", platformAdmin: true },
-    create: { clerkUserId: "seed_caleb_owner", email: "1morecruise@gmail.com", firstName: "Caleb", lastName: "Owen", platformAdmin: true },
+    update: { firstName: "Caleb", lastName: "Owen", platformAdmin: true, adminRole: "super_admin" },
+    create: { clerkUserId: "seed_caleb_owner", email: "1morecruise@gmail.com", firstName: "Caleb", lastName: "Owen", platformAdmin: true, adminRole: "super_admin" },
   });
   for (const [index, organization] of organizations.entries()) await seedOrganization(organization, owner.id, index);
   console.log(`Seeded ${organizations.length} organizations`);

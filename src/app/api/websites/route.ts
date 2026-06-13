@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { requireOrganizationAccess } from "@/lib/authorization";
 import { getDb } from "@/lib/db";
+import { tenantSlugSchema } from "@/lib/identifiers";
+import { assertTrustedMutationOrigin } from "@/lib/request-security";
 
 export async function GET(request: Request) {
   const slug = new URL(request.url).searchParams.get("organizationSlug") ?? "";
@@ -9,7 +11,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const input = z.object({ organizationSlug: z.string(), slug: z.string().regex(/^[a-z0-9-]+$/), title: z.string().min(1) }).parse(await request.json());
+  assertTrustedMutationOrigin(request);
+  const input = z.object({ organizationSlug: z.string(), slug: tenantSlugSchema, title: z.string().min(1) }).parse(await request.json());
   const { organization } = await requireOrganizationAccess(input.organizationSlug, "websites.write");
   const website = await getDb().website.create({
     data: {

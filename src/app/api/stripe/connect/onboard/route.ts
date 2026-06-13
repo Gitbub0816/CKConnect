@@ -18,7 +18,14 @@ export async function POST(request: Request) {
       metadata: { organizationId: organization.id, organizationSlug: organization.slug },
     });
     accountId = account.id;
-    await getDb().organization.update({ where: { id: organization.id }, data: { stripeConnectedAccountId: accountId } });
+    await getDb().$transaction([
+      getDb().organization.update({ where: { id: organization.id }, data: { stripeConnectedAccountId: accountId } }),
+      getDb().paymentProviderConnection.upsert({
+        where: { organizationId_provider: { organizationId: organization.id, provider: "STRIPE" } },
+        update: { externalAccountId: accountId, status: "CONNECTING" },
+        create: { organizationId: organization.id, provider: "STRIPE", externalAccountId: accountId, status: "CONNECTING" },
+      }),
+    ]);
   }
   const link = await stripe.v2.core.accountLinks.create({
     account: accountId,

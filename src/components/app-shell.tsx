@@ -29,6 +29,7 @@ import {
   Sparkles,
   Users,
   Workflow,
+  MessageSquare,
 } from "lucide-react";
 import { getDb } from "@/lib/db";
 
@@ -41,6 +42,7 @@ const sections = [
       ["tasks", "Tasks", ListTodo],
       ["calendar", "Calendar", CalendarDays],
       ["bookings", "Bookings", CalendarDays],
+      ["collaboration", "Collaboration", MessageSquare],
     ],
   },
   {
@@ -77,6 +79,8 @@ const sections = [
       ["submissions", "Form inbox", Headphones],
       ["notifications", "Notifications", Bell],
       ["integrations", "Integrations", Plug],
+      ["payment-settings", "Payment providers", CircleDollarSign],
+      ["support", "ClearKey support", Headphones],
       ["team", "Team & roles", Users],
       ["appearance", "Appearance", Palette],
       ["websites", "Website builder", Globe2],
@@ -161,7 +165,7 @@ export async function AppShell({
           Workspace: <span className="text-slate-300">{organizationSlug}</span>
         </div>
       </aside>
-      <div className="min-w-0">
+      <div className="flex min-w-0 flex-col">
         <header className="flex h-16 items-center justify-between border-b bg-white px-5 lg:px-7">
           <div>
             <div className="text-xs text-slate-500">ClearKey workspace</div>
@@ -172,7 +176,8 @@ export async function AppShell({
             <div className="grid size-9 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white">CB</div>
           </div>
         </header>
-        <main>{children}</main>
+        <main className="flex-1">{children}</main>
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t bg-white px-5 py-3 text-[10px] text-slate-400 lg:px-7"><span>ClearKey Connect · Tenant {organization?.publicId}</span><span><Link href="/legal/terms">Terms</Link> · <Link href="/legal/privacy">Privacy</Link> · <Link href="/legal/security">Security</Link> · <Link href="/legal/accessibility">Accessibility</Link></span></footer>
       </div>
     </div>
   );

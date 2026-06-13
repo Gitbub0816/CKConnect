@@ -27,6 +27,10 @@ async function processEvent(event: Stripe.Event, source: string) {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       organizationId = session.metadata?.organizationId ?? organizationId;
+      await db.paymentTransaction.updateMany({
+        where: { externalCheckoutId: session.id },
+        data: { status: session.payment_status === "paid" ? "SUCCEEDED" : "COMPLETED", externalPaymentId: stripeId(session.payment_intent), providerPayload: payload },
+      });
       if (organizationId && session.mode === "subscription") {
         const billingTier = session.metadata?.billingTier?.toUpperCase();
         await db.organization.update({
@@ -81,6 +85,14 @@ async function processEvent(event: Stripe.Event, source: string) {
           });
         });
       }
+    }
+
+    if (event.account && organizationId) {
+      await db.paymentProviderConnection.upsert({
+        where: { organizationId_provider: { organizationId, provider: "STRIPE" } },
+        update: { externalAccountId: event.account, status: "ACTIVE" },
+        create: { organizationId, provider: "STRIPE", externalAccountId: event.account, status: "ACTIVE" },
+      });
     }
 
     if (event.type.startsWith("customer.subscription.")) {

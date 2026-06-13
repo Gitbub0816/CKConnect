@@ -29,7 +29,7 @@ export function InvoicePaymentButton({ token }: { token: string }) {
     <div>
       <button className="ck-button w-full !min-h-12" disabled={loading} onClick={checkout} type="button">
         {loading ? <LoaderCircle className="animate-spin" size={17}/> : <CreditCard size={17}/>}
-        {loading ? "Opening secure checkout" : "Pay securely with Stripe"}
+        {loading ? "Opening secure checkout" : "Pay securely"}
       </button>
       {error && <p className="mt-3 text-center text-xs font-medium text-red-700">{error}</p>}
     </div>

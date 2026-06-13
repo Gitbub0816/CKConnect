@@ -14,6 +14,7 @@ import { PlatformWorkbench } from "@/components/platform-workbenches";
 import { ServiceWorkbench } from "@/components/service-workbenches";
 import { FinanceWorkbench } from "@/components/finance-workbenches";
 import { PlatformOperationsWorkbench } from "@/components/platform-operations-workbench";
+import { CommunicationsWorkbench } from "@/components/communications-workbench";
 
 type Metric = { label: string; value: number; format?: string; suffix?: string };
 type ModuleData = { kind: string; metrics?: Metric[]; records?: Record<string, unknown>[]; [key: string]: unknown };
@@ -48,6 +49,9 @@ const copy: Record<string, { title: string; description: string; action: string 
   documents: { title: "Documents", description: "Private files, generated documents, signatures, and client delivery.", action: "Upload" },
   bookings: { title: "Booking operations", description: "Confirm, complete, and manage customer appointments created from public endpoints.", action: "New booking" },
   submissions: { title: "Form inbox", description: "Triage public inquiries, route work, and retain the original structured submission.", action: "New form" },
+  collaboration: { title: "Collaboration", description: "Team channels, customer workspaces, video rooms, messaging, and shared calendar context.", action: "New workspace" },
+  support: { title: "ClearKey support", description: "Auditable conversations with ClearKey personnel, system context, and account assistance.", action: "Open ticket" },
+  "payment-settings": { title: "Customer payment providers", description: "Connect tenant-owned merchant accounts and choose how customer checkouts are routed.", action: "Connect provider" },
 };
 
 const labels: Record<string, string> = {
@@ -151,6 +155,7 @@ export function ModulePage({ module, data, organizationSlug }: { module: string;
   const serviceModules = new Set(["cases", "campaigns", "calendar", "email", "payroll"]);
   const financeModules = new Set(["payments", "expenses", "vendors", "accounting"]);
   const platformOperations = new Set(["documents", "integrations", "bookings", "submissions"]);
+  const communicationModules = new Set(["collaboration", "support", "payment-settings"]);
   return (
     <div className="p-5 lg:p-7">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -164,6 +169,7 @@ export function ModulePage({ module, data, organizationSlug }: { module: string;
           : serviceModules.has(module) ? <ServiceWorkbench data={data} module={module} organizationSlug={organizationSlug}/>
           : financeModules.has(module) ? <FinanceWorkbench data={data} module={module} organizationSlug={organizationSlug}/>
           : platformOperations.has(module) ? <PlatformOperationsWorkbench data={data} module={module} organizationSlug={organizationSlug}/>
+          : communicationModules.has(module) ? <CommunicationsWorkbench data={data} module={module} organizationSlug={organizationSlug}/>
           : module === "billing" ? <BillingView data={data} organizationSlug={organizationSlug} />
           : <section className="ck-card overflow-hidden">
             <div className="flex flex-wrap items-center gap-3 border-b p-4">
@@ -174,7 +180,7 @@ export function ModulePage({ module, data, organizationSlug }: { module: string;
             <DataTable records={data.records} />
           </section>}
       </div>
-      {["invoices", "payments"].includes(module) && <div className="mt-4 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 text-sm"><span className="flex items-center gap-2"><CircleDollarSign className="text-amber-700" size={18} />Public collection pages use signed tokens and Stripe-hosted payment fields.</span><Link className="font-semibold text-amber-800" href={`/p/${organizationSlug}`}>Open endpoint <ArrowRight className="inline" size={14} /></Link></div>}
+      {["invoices", "payments"].includes(module) && <div className="mt-4 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 text-sm"><span className="flex items-center gap-2"><CircleDollarSign className="text-amber-700" size={18} />Public collection pages use signed tokens and the tenant&apos;s configured payment provider.</span><Link className="font-semibold text-amber-800" href={`/p/${organizationSlug}`}>Open endpoint <ArrowRight className="inline" size={14} /></Link></div>}
       {module === "automations" && <div className="mt-4 rounded-lg border bg-[#1c1917] p-6 text-white"><div className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="text-[#e8c96a]" size={18} />Automation canvas</div><p className="mt-2 max-w-xl text-sm leading-6 text-slate-400">Triggers, conditions, delays, branches, and actions are stored as structured JSON so workflows remain inspectable and portable.</p></div>}
     </div>
   );

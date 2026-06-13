@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
@@ -9,6 +10,8 @@ import { getDb } from "@/lib/db";
 import { appendAuditEvent } from "@/lib/logging/audit";
 import { CloudflareDnsProvider } from "@/lib/integrations/dns-provider";
 import { publishSiteManifest } from "@/lib/integrations/cloudflare-edge";
+import { getStripe } from "@/lib/integrations/stripe";
+import { appUrl } from "@/lib/integrations/stripe-workflows";
 
 const escapeHtml = (value: string) => value
   .replaceAll("&", "&amp;")
@@ -1062,6 +1065,146 @@ export async function replayWebhook(formData: FormData) {
   revalidatePath(`/app/${input.organizationSlug}/integrations`);
 }
 
+export async function createCollaborationChannel(formData: FormData) {
+  const input = z.object({
+    organizationSlug: z.string(),
+    name: z.string().trim().min(2).max(80),
+    description: z.string().trim().max(300).optional(),
+    channelType: z.enum(["INTERNAL", "CUSTOMER", "PROJECT"]),
+  }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "collaboration.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const channel = await getDb().collaborationChannel.create({
+    data: {
+      organizationId: organization.id,
+      name: input.name,
+      description: input.description,
+      channelType: input.channelType,
+      visibility: input.channelType === "CUSTOMER" ? "CUSTOMER_AND_MEMBERS" : "MEMBERS",
+      videoRoomKey: `ck-${organization.publicId}-${nanoid(12)}`,
+    },
+  });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "collaboration.channel.created", entityType: "CollaborationChannel", entityId: channel.id, after: { publicId: channel.publicId, name: channel.name, channelType: channel.channelType }, category: "BUSINESS" });
+  revalidatePath(`/app/${input.organizationSlug}/collaboration`);
+}
+
+export async function sendCollaborationMessage(formData: FormData) {
+  const input = z.object({ organizationSlug: z.string(), channelId: z.string().uuid(), body: z.string().trim().min(1).max(5000) }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "collaboration.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const channel = await getDb().collaborationChannel.findFirstOrThrow({ where: { id: input.channelId, organizationId: organization.id, archivedAt: null } });
+  const message = await getDb().collaborationMessage.create({ data: { channelId: channel.id, authorUserId: user.id, body: input.body } });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "collaboration.message.sent", entityType: "CollaborationMessage", entityId: message.id, after: { channelId: channel.id, messageType: message.messageType }, category: "BUSINESS" });
+  revalidatePath(`/app/${input.organizationSlug}/collaboration`);
+}
+
+export async function createPlatformSupportTicket(formData: FormData) {
+  const input = z.object({ organizationSlug: z.string(), subject: z.string().trim().min(3).max(160), category: z.enum(["GENERAL", "BILLING", "TECHNICAL", "SECURITY", "MIGRATION"]), priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]), body: z.string().trim().min(3).max(5000) }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "support.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const ticket = await getDb().platformSupportTicket.create({
+    data: { organizationId: organization.id, openedById: user.id, subject: input.subject, category: input.category, priority: input.priority, messages: { create: { authorUserId: user.id, authorType: "TENANT", body: input.body } } },
+  });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "platform_support.ticket.created", entityType: "PlatformSupportTicket", entityId: ticket.id, after: { publicId: ticket.publicId, category: ticket.category, priority: ticket.priority }, category: "BUSINESS" });
+  revalidatePath(`/app/${input.organizationSlug}/support`);
+}
+
+export async function replyPlatformSupportTicket(formData: FormData) {
+  const input = z.object({ organizationSlug: z.string(), ticketId: z.string().uuid(), body: z.string().trim().min(1).max(5000) }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "support.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const ticket = await getDb().platformSupportTicket.findFirstOrThrow({ where: { id: input.ticketId, organizationId: organization.id } });
+  await getDb().$transaction([
+    getDb().platformSupportMessage.create({ data: { ticketId: ticket.id, authorUserId: user.id, authorType: "TENANT", body: input.body } }),
+    getDb().platformSupportTicket.update({ where: { id: ticket.id }, data: { status: ticket.status === "CLOSED" ? "OPEN" : ticket.status } }),
+  ]);
+  revalidatePath(`/app/${input.organizationSlug}/support`);
+}
+
+export async function updatePaymentProvider(formData: FormData) {
+  const input = z.object({ organizationSlug: z.string(), provider: z.enum(["STRIPE", "SQUARE", "PAYPAL", "MANUAL"]), command: z.enum(["SET_DEFAULT", "DISCONNECT", "ENABLE_MANUAL"]) }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "payments.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  const before = await db.paymentProviderConnection.findUnique({ where: { organizationId_provider: { organizationId: organization.id, provider: input.provider } } });
+  if (input.command === "SET_DEFAULT") {
+    if (!before || before.status !== "ACTIVE") throw new Error("Connect the provider before making it default");
+    await db.$transaction([
+      db.paymentProviderConnection.updateMany({ where: { organizationId: organization.id }, data: { isDefault: false } }),
+      db.paymentProviderConnection.update({ where: { id: before.id }, data: { isDefault: true } }),
+    ]);
+  } else if (input.command === "ENABLE_MANUAL") {
+    await db.paymentProviderConnection.upsert({ where: { organizationId_provider: { organizationId: organization.id, provider: "MANUAL" } }, update: { status: "ACTIVE" }, create: { organizationId: organization.id, provider: "MANUAL", status: "ACTIVE" } });
+  } else {
+    if (!before) throw new Error("Provider connection not found");
+    await db.paymentProviderConnection.update({ where: { id: before.id }, data: { status: "DISCONNECTED", isDefault: false, encryptedAccessToken: null, encryptedRefreshToken: null } });
+  }
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: `payment_provider.${input.command.toLowerCase()}`, entityType: "PaymentProviderConnection", entityId: before?.id, before, after: { provider: input.provider }, category: "FINANCIAL", retentionClass: "FINANCIAL_7Y" });
+  revalidatePath(`/app/${input.organizationSlug}/payment-settings`);
+}
+
+export async function startStripeCustomerPayments(formData: FormData) {
+  const input = z.object({ organizationSlug: z.string() }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "payments.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const stripe = getStripe();
+  let accountId = organization.stripeConnectedAccountId;
+  if (!accountId) {
+    const account = await stripe.v2.core.accounts.create({
+      display_name: organization.legalName ?? organization.name,
+      dashboard: "express",
+      defaults: { currency: organization.defaultCurrency.toLowerCase() },
+      configuration: { merchant: { capabilities: { card_payments: { requested: true } } } },
+      metadata: { organizationId: organization.id, organizationSlug: organization.slug },
+    });
+    accountId = account.id;
+  }
+  await getDb().$transaction([
+    getDb().organization.update({ where: { id: organization.id }, data: { stripeConnectedAccountId: accountId } }),
+    getDb().paymentProviderConnection.upsert({ where: { organizationId_provider: { organizationId: organization.id, provider: "STRIPE" } }, update: { externalAccountId: accountId, status: "CONNECTING" }, create: { organizationId: organization.id, provider: "STRIPE", externalAccountId: accountId, status: "CONNECTING" } }),
+  ]);
+  const link = await stripe.v2.core.accountLinks.create({
+    account: accountId,
+    use_case: { type: "account_onboarding", account_onboarding: { configurations: ["merchant"], collection_options: { fields: "eventually_due", future_requirements: "include" }, refresh_url: appUrl(`/app/${organization.slug}/payment-settings?stripe=refresh`), return_url: appUrl(`/app/${organization.slug}/payment-settings?stripe=returned`) } },
+  });
+  redirect(link.url);
+}
+
+export async function updateTenantSettings(formData: FormData) {
+  const input = z.object({
+    organizationSlug: z.string(),
+    supportEmail: z.string().email().or(z.literal("")),
+    billingEmail: z.string().email().or(z.literal("")),
+    mainPhone: z.string().trim().max(40),
+    requireMfa: z.coerce.boolean().default(false),
+    requirePasskeys: z.coerce.boolean().default(false),
+    sessionTimeoutMinutes: z.coerce.number().int().min(15).max(1440),
+    bookingEnabled: z.coerce.boolean().default(false),
+    portalEnabled: z.coerce.boolean().default(false),
+  }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "settings.manage");
+  if (!user) throw new Error("A signed-in user is required");
+  const before = await getDb().tenantSettings.findUnique({ where: { organizationId: organization.id } });
+  const settings = await getDb().tenantSettings.upsert({
+    where: { organizationId: organization.id },
+    update: {
+      profileJson: { supportEmail: input.supportEmail || null, billingEmail: input.billingEmail || null, mainPhone: input.mainPhone || null },
+      securityJson: { requireMfa: input.requireMfa, requirePasskeys: input.requirePasskeys, sessionTimeoutMinutes: input.sessionTimeoutMinutes },
+      bookingJson: { enabled: input.bookingEnabled },
+      portalJson: { enabled: input.portalEnabled },
+    },
+    create: {
+      organizationId: organization.id,
+      profileJson: { supportEmail: input.supportEmail || null, billingEmail: input.billingEmail || null, mainPhone: input.mainPhone || null },
+      securityJson: { requireMfa: input.requireMfa, requirePasskeys: input.requirePasskeys, sessionTimeoutMinutes: input.sessionTimeoutMinutes },
+      bookingJson: { enabled: input.bookingEnabled },
+      portalJson: { enabled: input.portalEnabled },
+    },
+  });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "tenant.settings.updated", entityType: "TenantSettings", entityId: organization.id, before, after: settings, category: "SECURITY", retentionClass: "SECURITY_7Y" });
+  revalidatePath(`/app/${input.organizationSlug}/settings`);
+}
+
 const permissionCatalog = [
   "leads.read", "leads.write", "accounts.read", "accounts.write", "contacts.read", "contacts.write",
   "deals.read", "deals.write", "cases.read", "cases.write", "invoices.read", "invoices.write",
@@ -1070,6 +1213,7 @@ const permissionCatalog = [
   "payroll.read", "payroll.write", "banking.read", "banking.write", "email.read", "email.write",
   "automations.read", "automations.write", "websites.read", "websites.write", "websites.publish",
   "domains.read", "domains.manage", "documents.read", "documents.write", "team.read", "team.manage", "settings.manage", "integrations.manage",
+  "collaboration.read", "collaboration.write", "support.read", "support.write",
 ] as const;
 
 export async function updateMembershipAccess(formData: FormData) {

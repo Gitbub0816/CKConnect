@@ -4,10 +4,12 @@ import { requireOrganizationAccess } from "@/lib/authorization";
 import { getDb } from "@/lib/db";
 import { signR2Upload } from "@/lib/integrations/r2";
 import { appendAuditEvent } from "@/lib/logging/audit";
+import { assertTrustedMutationOrigin } from "@/lib/request-security";
 
 const allowedTypes = new Set(["application/pdf", "image/png", "image/jpeg", "text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]);
 
 export async function POST(request: Request) {
+  assertTrustedMutationOrigin(request);
   const input = z.object({
     organizationSlug: z.string().min(1),
     fileName: z.string().trim().min(1).max(180),
@@ -39,6 +41,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  assertTrustedMutationOrigin(request);
   const input = z.object({ organizationSlug: z.string(), fileId: z.string().uuid() }).parse(await request.json());
   const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "documents.write");
   const file = await getDb().storedFile.findFirstOrThrow({ where: { id: input.fileId, organizationId: organization.id } });

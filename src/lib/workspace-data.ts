@@ -1,6 +1,7 @@
 import "server-only";
 
 import { calculateOrganizationPrice } from "@/lib/billing/pricing";
+import { createCustomerWorkspaceToken } from "@/lib/customer-workspace-token";
 import { getDb } from "@/lib/db";
 
 const money = (value: unknown) => Number(value ?? 0);
@@ -378,13 +379,14 @@ export async function getModuleData(slug: string, module: string) {
       return { kind: "team", records: records.map((r) => ({ id: r.id, name: `${r.user.firstName ?? ""} ${r.user.lastName ?? ""}`.trim() || r.user.email, email: r.user.email, role: r.role, permissions: r.permissions, platformAdmin: r.user.platformAdmin, joinedAt: iso(r.createdAt) })), permissionCatalog: ["leads.read","leads.write","accounts.read","accounts.write","contacts.read","contacts.write","deals.read","deals.write","cases.read","cases.write","invoices.read","invoices.write","payments.read","payments.write","accounting.read","accounting.write","reports.read","tasks.read","tasks.write","calendar.read","calendar.write","campaigns.read","campaigns.write","payroll.read","payroll.write","banking.read","banking.write","email.read","email.write","automations.read","automations.write","websites.read","websites.write","websites.publish","domains.read","domains.manage","documents.read","documents.write","team.read","team.manage","settings.manage","integrations.manage"], metrics: [{ label: "Members", value: records.length }, { label: "Admins", value: records.filter((r) => ["OWNER", "ADMIN"].includes(r.role)).length }, { label: "Licensed users", value: records.filter((r) => r.role !== "PORTAL_USER").length }] };
     }
     case "settings": {
-      const [theme, domains, customFields, modules] = await Promise.all([
+      const [theme, domains, customFields, modules, tenantSettings] = await Promise.all([
         db.organizationTheme.findUnique({ where: { organizationId } }),
         db.organizationDomain.findMany({ where: { organizationId }, orderBy: { isPrimary: "desc" } }),
         db.customFieldDefinition.findMany({ where: { organizationId }, orderBy: [{ objectType: "asc" }, { sortOrder: "asc" }] }),
         db.organizationModule.findUnique({ where: { organizationId } }),
+        db.tenantSettings.findUnique({ where: { organizationId } }),
       ]);
-      return { kind: "settings", theme, modules, records: [
+      return { kind: "settings", theme, modules, tenantSettings, organization: { name: organization.name, legalName: organization.legalName, orgCode: organization.orgCode, slug: organization.slug, publicId: organization.publicId, timezone: organization.timezone, currency: organization.defaultCurrency }, records: [
         { name: "Legal name", value: organization.legalName, scope: "Organization", status: "Configured" },
         { name: "Timezone", value: organization.timezone, scope: "Organization", status: "Configured" },
         { name: "Currency", value: organization.defaultCurrency, scope: "Accounting", status: "Configured" },
@@ -405,6 +407,28 @@ export async function getModuleData(slug: string, module: string) {
     case "documents": {
       const records = await db.storedFile.findMany({ where: { organizationId, deletedAt: null }, orderBy: { createdAt: "desc" } });
       return { kind: "documents", records: records.map((r) => ({ id: r.id, name: r.fileName, type: r.contentType, size: Number(r.sizeBytes), relatedType: r.relatedType, status: r.status, scanStatus: r.scanStatus, version: r.version, downloadUrl: `/api/documents/${r.id}/download`, createdAt: iso(r.createdAt) })), metrics: [{ label: "Documents", value: records.length }, { label: "Available", value: records.filter((r) => r.status === "AVAILABLE").length }, { label: "Scan review", value: records.filter((r) => !["CLEAN", "NOT_REQUIRED"].includes(r.scanStatus)).length }, { label: "Storage used", value: Math.round(records.reduce((s, r) => s + Number(r.sizeBytes), 0) / 1024 / 1024), suffix: " MB" }] };
+    }
+    case "collaboration": {
+      const [channels, calendar] = await Promise.all([
+        db.collaborationChannel.findMany({ where: { organizationId, archivedAt: null }, include: { messages: { where: { deletedAt: null }, include: { author: true }, orderBy: { createdAt: "asc" }, take: 100 } }, orderBy: { updatedAt: "desc" } }),
+        db.calendarEvent.findMany({ where: { organizationId, startsAt: { gte: new Date() } }, orderBy: { startsAt: "asc" }, take: 8 }),
+      ]);
+      return { kind: "collaboration", records: channels.map((channel) => ({ id: channel.id, publicId: channel.publicId, name: channel.name, description: channel.description, type: channel.channelType, visibility: channel.visibility, videoUrl: channel.videoRoomKey ? `https://meet.jit.si/${channel.videoRoomKey}` : null, customerWorkspaceUrl: channel.channelType === "CUSTOMER" ? `/workspace/${channel.publicId}?token=${encodeURIComponent(createCustomerWorkspaceToken(channel.publicId))}` : null, messages: channel.messages.map((message) => ({ id: message.id, body: message.body, author: message.author ? `${message.author.firstName ?? ""} ${message.author.lastName ?? ""}`.trim() || message.author.email : "Customer", authorType: message.authorUserId ? "MEMBER" : "CUSTOMER", createdAt: iso(message.createdAt) })) })), calendar: calendar.map((event) => ({ id: event.id, title: event.title, startsAt: iso(event.startsAt), endsAt: iso(event.endsAt), location: event.location })), metrics: [{ label: "Channels", value: channels.length }, { label: "Customer spaces", value: channels.filter((channel) => channel.channelType === "CUSTOMER").length }, { label: "Messages", value: channels.reduce((sum, channel) => sum + channel.messages.length, 0) }, { label: "Upcoming meetings", value: calendar.length }] };
+    }
+    case "support": {
+      const tickets = await db.platformSupportTicket.findMany({ where: { organizationId }, include: { messages: { where: { internalOnly: false }, include: { author: true }, orderBy: { createdAt: "asc" } } }, orderBy: { updatedAt: "desc" } });
+      return { kind: "support", records: tickets.map((ticket) => ({ id: ticket.id, publicId: ticket.publicId, subject: ticket.subject, category: ticket.category, priority: ticket.priority, status: ticket.status, createdAt: iso(ticket.createdAt), messages: ticket.messages.map((message) => ({ id: message.id, body: message.body, authorType: message.authorType, author: message.author ? `${message.author.firstName ?? ""} ${message.author.lastName ?? ""}`.trim() || message.author.email : "ClearKey Support", createdAt: iso(message.createdAt) })) })), metrics: [{ label: "Open tickets", value: tickets.filter((ticket) => !["RESOLVED", "CLOSED"].includes(ticket.status)).length }, { label: "Awaiting ClearKey", value: tickets.filter((ticket) => ticket.status === "OPEN").length }, { label: "Urgent", value: tickets.filter((ticket) => ticket.priority === "URGENT").length }, { label: "Resolved", value: tickets.filter((ticket) => ["RESOLVED", "CLOSED"].includes(ticket.status)).length }] };
+    }
+    case "payment-settings": {
+      const [connections, transactions] = await Promise.all([
+        db.paymentProviderConnection.findMany({ where: { organizationId }, orderBy: { provider: "asc" } }),
+        db.paymentTransaction.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 25 }),
+      ]);
+      const providers = ["STRIPE", "SQUARE", "PAYPAL", "MANUAL"].map((provider) => {
+        const connection = connections.find((item) => item.provider === provider);
+        return { id: connection?.id ?? provider, provider, status: connection?.status ?? "DISCONNECTED", isDefault: connection?.isDefault ?? false, merchantId: connection?.merchantId ?? connection?.externalAccountId, updatedAt: iso(connection?.updatedAt) };
+      });
+      return { kind: "payment-settings", records: providers, transactions: transactions.map((transaction) => ({ id: transaction.id, publicId: transaction.publicId, provider: transaction.provider, status: transaction.status, amountCents: transaction.amountCents, currency: transaction.currency, createdAt: iso(transaction.createdAt) })), metrics: [{ label: "Connected providers", value: connections.filter((connection) => connection.status === "ACTIVE").length }, { label: "Default providers", value: connections.filter((connection) => connection.isDefault).length }, { label: "Pending checkouts", value: transactions.filter((transaction) => transaction.status === "CHECKOUT_CREATED").length }, { label: "Provider failures", value: transactions.filter((transaction) => transaction.status === "FAILED").length }] };
     }
     case "bookings": {
       const records = await db.booking.findMany({ where: { organizationId }, include: { contact: true }, orderBy: { startsAt: "asc" } });

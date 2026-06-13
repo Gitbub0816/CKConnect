@@ -11,7 +11,7 @@ const modules = new Set([
   "reports", "invoices", "payments", "expenses", "vendors", "accounting", "banking",
   "products", "tax-documents", "automations", "email", "documents", "notifications",
   "integrations", "team", "appearance", "audit", "admin", "settings",
-  "payroll", "billing", "websites", "domains", "bookings", "submissions",
+  "payroll", "billing", "websites", "domains", "bookings", "submissions", "collaboration", "support", "payment-settings",
 ]);
 
 export default async function WorkspaceModulePage({

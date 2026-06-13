@@ -34,6 +34,9 @@ Each tenant starts with:
 - 2 calendar events
 - 1 confirmed customer booking created from a public endpoint
 - 1 new public form submission awaiting triage
+- 2 collaboration workspaces: one internal channel and one customer workspace
+- 3 seeded collaboration messages and reusable video-room links
+- 1 ClearKey support ticket with a tenant and support response
 - 2 products or services
 - 1 partially paid invoice with 2 line items
 - 1 successful payment allocated to that invoice
@@ -46,6 +49,7 @@ Each tenant starts with:
 - 1 pending PTO request for 16 hours
 - 1 payroll run awaiting approval
 - Stripe, QuickBooks, and PostHog integration records
+- Manual customer payments enabled as the seeded default provider
 - 1 failed Stripe webhook event for replay testing
 - 1 overdue-invoice automation
 - 1 billing email template and 1 delivered invoice email
@@ -137,6 +141,14 @@ The invoices are partially paid and retain an outstanding balance, which makes c
 3. Submit the public contact form, then triage it in **Form inbox** and confirm the linked support case.
 4. Open **Integrations** and queue the seeded failed Stripe webhook for replay.
 5. Open **Documents** and upload a PDF or image to verify signed private R2 upload and download.
+
+### Collaboration and ClearKey Support
+
+1. Open **Collaboration** and review the internal and customer workspaces.
+2. Send messages in both spaces and open the channel video room.
+3. Confirm upcoming calendar items appear beside the conversation.
+4. Open **ClearKey support**, reply to the seeded ticket, and create a new ticket.
+5. Open the internal admin console and confirm the tenant conversation is visible to ClearKey personnel.
 
 ## Environment-Dependent Results
 

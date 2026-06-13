@@ -31,6 +31,7 @@ export async function requireOrganizationAccess(slug: string, permission?: strin
     where: { organizationId_userId: { organizationId: organization.id, userId: user.id } },
   });
   if (!membership && !user.platformAdmin) throw new Error("Organization access denied");
+  if (organization.operationalStatus !== "ACTIVE" && !user.platformAdmin) throw new Error(`Organization access is ${organization.operationalStatus.toLowerCase().replaceAll("_", " ")}`);
   if (permission && membership && !["OWNER", "ADMIN"].includes(membership.role) && !membership.permissions.includes("*") && !membership.permissions.includes(permission)) {
     throw new Error(`Missing permission: ${permission}`);
   }

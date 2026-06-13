@@ -149,6 +149,8 @@ model Organization {
   createdAt                DateTime                  @default(now())
   updatedAt                DateTime                  @updatedAt
   deletedAt                DateTime?
+  publicId                 String                    @unique @default(cuid())
+  operationalStatus        String                    @default("ACTIVE")
   memberships              OrganizationMembership[]
   theme                    OrganizationTheme?
   accounts                 CrmAccount[]
@@ -203,6 +205,13 @@ model Organization {
   websites                 Website[]
   managedMailboxes         ManagedMailbox[]
   billingAuditLogs         BillingAuditLog[]
+  collaborationChannels    CollaborationChannel[]
+  supportTickets           PlatformSupportTicket[]
+  paymentProviderConnections PaymentProviderConnection[]
+  paymentTransactions      PaymentTransaction[]
+  tenantSettings           TenantSettings?
+  adminActions             AdminActionLog[]
+  oauthStates              OAuthState[]
 
   @@index([status])
 }
@@ -214,12 +223,186 @@ model User {
   firstName      String?
   lastName       String?
   platformAdmin  Boolean                  @default(false)
+  adminRole      String?
   createdAt      DateTime                 @default(now())
   updatedAt      DateTime                 @updatedAt
   memberships    OrganizationMembership[]
   createdTasks   Task[]                   @relation("TaskCreator")
   assignedTasks  Task[]                   @relation("TaskAssignee")
   auditLogs      AuditLog[]
+  collaborationMessages CollaborationMessage[]
+  platformSupportMessages PlatformSupportMessage[]
+  adminActions   AdminActionLog[]
+}
+
+model TenantSettings {
+  organizationId       String       @id @db.Uuid
+  profileJson          Json         @default("{}")
+  bookingJson          Json         @default("{}")
+  portalJson           Json         @default("{}")
+  notificationJson     Json         @default("{}")
+  securityJson         Json         @default("{}")
+  accountingJson       Json         @default("{}")
+  inventoryJson        Json         @default("{}")
+  workforceJson        Json         @default("{}")
+  updatedAt            DateTime     @updatedAt
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model CollaborationChannel {
+  id             String       @id @default(uuid()) @db.Uuid
+  publicId       String       @unique @default(cuid())
+  organizationId String       @db.Uuid
+  name           String
+  description    String?
+  channelType    String       @default("INTERNAL")
+  visibility     String       @default("MEMBERS")
+  relatedType    String?
+  relatedId      String?      @db.Uuid
+  videoRoomKey   String?      @unique
+  archivedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  messages       CollaborationMessage[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, channelType, archivedAt])
+}
+
+model CollaborationMessage {
+  id             String               @id @default(uuid()) @db.Uuid
+  publicId       String               @unique @default(cuid())
+  channelId      String               @db.Uuid
+  authorUserId   String?              @db.Uuid
+  contactId      String?              @db.Uuid
+  body           String
+  messageType    String               @default("TEXT")
+  metadata       Json                 @default("{}")
+  editedAt       DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime             @default(now())
+  channel        CollaborationChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  author         User?                @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([channelId, createdAt])
+}
+
+model PlatformSupportTicket {
+  id             String       @id @default(uuid()) @db.Uuid
+  publicId       String       @unique @default(cuid())
+  organizationId String       @db.Uuid
+  openedById     String?      @db.Uuid
+  assignedAdminId String?     @db.Uuid
+  subject        String
+  category       String       @default("GENERAL")
+  priority       String       @default("NORMAL")
+  status         String       @default("OPEN")
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  closedAt       DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  messages       PlatformSupportMessage[]
+
+  @@index([organizationId, status, updatedAt])
+  @@index([assignedAdminId, status])
+}
+
+model PlatformSupportMessage {
+  id             String                @id @default(uuid()) @db.Uuid
+  ticketId       String                @db.Uuid
+  authorUserId   String?               @db.Uuid
+  authorType     String
+  body           String
+  internalOnly   Boolean               @default(false)
+  createdAt      DateTime              @default(now())
+  ticket         PlatformSupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author         User?                 @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
+}
+
+model PaymentProviderConnection {
+  id                    String       @id @default(uuid()) @db.Uuid
+  publicId              String       @unique @default(cuid())
+  organizationId        String       @db.Uuid
+  provider              String
+  status                String       @default("DISCONNECTED")
+  isDefault             Boolean      @default(false)
+  externalAccountId     String?
+  merchantId            String?
+  encryptedAccessToken  String?
+  encryptedRefreshToken String?
+  tokenExpiresAt        DateTime?
+  metadata              Json         @default("{}")
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transactions          PaymentTransaction[]
+
+  @@unique([organizationId, provider])
+  @@index([organizationId, status])
+}
+
+model PaymentTransaction {
+  id                   String                    @id @default(uuid()) @db.Uuid
+  publicId             String                    @unique @default(cuid())
+  organizationId       String                    @db.Uuid
+  providerConnectionId String?                   @db.Uuid
+  provider             String
+  invoiceId            String?                   @db.Uuid
+  bookingId            String?                   @db.Uuid
+  contactId            String?                   @db.Uuid
+  amountCents          Int
+  currency             String                    @default("USD")
+  status               String                    @default("PENDING")
+  externalCheckoutId   String?
+  externalPaymentId    String?
+  checkoutUrl          String?
+  providerPayload      Json                      @default("{}")
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  organization         Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  providerConnection   PaymentProviderConnection? @relation(fields: [providerConnectionId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, createdAt])
+  @@index([provider, externalPaymentId])
+}
+
+model AdminActionLog {
+  id             String        @id @default(uuid()) @db.Uuid
+  actorUserId    String        @db.Uuid
+  organizationId String?       @db.Uuid
+  action         String
+  resourceType   String
+  resourceId     String?
+  reason         String?
+  beforeJson     Json?
+  afterJson      Json?
+  requestId      String?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime      @default(now())
+  actor          User          @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+}
+
+model OAuthState {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  provider       String
+  nonce          String       @unique
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([provider, expiresAt, usedAt])
 }
 
 model OrganizationMembership {
