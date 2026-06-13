@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, Globe2, Monitor, Palette, Smartphone } from "lucide-react";
 
 const palettes = [
-  ["ClearKey", "#1f6feb", "#14b8a6", "#f3f6fb"],
+  ["ClearKey Gold", "#c9a033", "#504a44", "#f5f0e8"],
   ["Copper", "#a4492d", "#d69e5b", "#fbf7f2"],
   ["Evergreen", "#176b4d", "#8cb369", "#f2f7f3"],
   ["Midnight", "#635bff", "#22d3ee", "#0c1222"],
@@ -35,7 +35,7 @@ export function AppearanceStudio({ organizationSlug }: { organizationSlug: strin
           <div className="mt-2 grid grid-cols-2 gap-2">
             {palettes.map(([name, primary, accent, background], index) => (
               <button
-                className={`rounded-xl border p-3 text-left ${selected === index ? "border-blue-500 ring-2 ring-blue-100" : ""}`}
+                className={`rounded-xl border p-3 text-left ${selected === index ? "border-amber-600 ring-2 ring-amber-100" : ""}`}
                 key={name}
                 onClick={() => setSelected(index)}
               >
@@ -53,10 +53,10 @@ export function AppearanceStudio({ organizationSlug }: { organizationSlug: strin
           <label className="mt-6 flex justify-between text-xs font-semibold text-slate-600">
             <span>Corner radius</span><span>{radius}px</span>
           </label>
-          <input className="mt-3 w-full accent-blue-600" max="24" min="0" onChange={(event) => setRadius(Number(event.target.value))} type="range" value={radius} />
+          <input className="mt-3 w-full accent-amber-600" max="24" min="0" onChange={(event) => setRadius(Number(event.target.value))} type="range" value={radius} />
 
           <div className="mt-6 grid grid-cols-2 gap-3">
-            <label className="text-xs font-semibold text-slate-600">Heading font<select className="ck-input mt-2"><option>Geist</option><option>Inter</option><option>Manrope</option></select></label>
+            <label className="text-xs font-semibold text-slate-600">Heading font<select className="ck-input mt-2"><option>Cormorant Garamond</option><option>Geist</option><option>Inter</option><option>Manrope</option></select></label>
             <label className="text-xs font-semibold text-slate-600">Density<select className="ck-input mt-2"><option>Comfortable</option><option>Compact</option><option>Spacious</option></select></label>
           </div>
         </section>

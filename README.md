@@ -13,6 +13,8 @@ ClearKey Connect is a multi-tenant operating platform for small businesses. It c
 - Cloudflare R2 and queue environment boundaries
 - PostHog and Sentry environment boundaries
 - Branded public client endpoints and appearance studio
+- Custom organization hostnames with verification state
+- Redacted structured logging and a hash-chained audit ledger
 - Vitest coverage for financial invariants
 
 The app runs without secrets in preview mode at:
@@ -129,3 +131,4 @@ The production build is designed to succeed before external services are configu
 - [Payroll architecture](docs/architecture/payroll.md)
 - [Delivery roadmap](docs/architecture/roadmap.md)
 - [Security model](docs/security/model.md)
+- [Logging and audit standard](docs/security/logging-and-audit.md)

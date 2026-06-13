@@ -1,4 +1,8 @@
-export async function GET() {
+import { logger, requestContext } from "@/lib/logging/logger";
+
+export async function GET(request: Request) {
+  const context = requestContext(request);
+  logger.info("health.check", context);
   return Response.json({
     status: "ok",
     service: "clearkey-connect",

@@ -1,20 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f3f6fb;
-  --foreground: #172033;
+  --background: #f5f0e8;
+  --foreground: #1c1917;
   --surface: #ffffff;
-  --surface-muted: #f8fafc;
-  --border: #dce3ee;
-  --muted: #68758a;
-  --primary: #1f6feb;
-  --primary-strong: #1557b0;
-  --accent: #14b8a6;
+  --surface-muted: #fdfcf8;
+  --border: #ded6c8;
+  --muted: #746c64;
+  --primary: #c9a033;
+  --primary-strong: #8b6914;
+  --accent: #504a44;
   --danger: #d92d20;
   --success: #12805c;
   --warning: #b54708;
-  --sidebar: #111b2e;
-  --radius: 12px;
+  --sidebar: #1c1917;
+  --radius: 8px;
 }
 
 @theme inline {
@@ -38,6 +38,19 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+}
+
+.ck-display {
+  font-family: var(--font-cormorant), Georgia, serif;
+  font-weight: 600;
+}
+
+.ck-eyebrow {
+  color: var(--primary-strong);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .22em;
+  text-transform: uppercase;
 }
 
 button,
@@ -73,9 +86,10 @@ a {
   border-radius: calc(var(--radius) - 4px);
   padding: 0 14px;
   background: var(--primary);
-  color: white;
+  color: #211b0d;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 750;
+  letter-spacing: .02em;
   cursor: pointer;
   transition: 140ms ease;
 }

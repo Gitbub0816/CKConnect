@@ -148,6 +148,8 @@ model Organization {
   journalEntries           JournalEntry[]
   integrations             Integration[]
   auditLogs                AuditLog[]
+  auditChainHead           AuditChainHead?
+  domains                  OrganizationDomain[]
   webhookEvents            WebhookEvent[]
   customFieldDefinitions   CustomFieldDefinition[]
   automationRules          AutomationRule[]
@@ -205,12 +207,12 @@ model OrganizationTheme {
   organizationId String       @unique @db.Uuid
   logoUrl        String?
   faviconUrl     String?
-  primaryColor   String       @default("#2563eb")
-  accentColor    String       @default("#14b8a6")
+  primaryColor   String       @default("#c9a033")
+  accentColor    String       @default("#504a44")
   surfaceColor   String       @default("#ffffff")
-  backgroundColor String      @default("#f4f7fb")
-  textColor      String       @default("#172033")
-  headingFont    String       @default("Geist")
+  backgroundColor String      @default("#f5f0e8")
+  textColor      String       @default("#1c1917")
+  headingFont    String       @default("Cormorant Garamond")
   bodyFont       String       @default("Geist")
   borderRadius   Int          @default(12)
   density        String       @default("comfortable")
@@ -224,6 +226,22 @@ model OrganizationTheme {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model OrganizationDomain {
+  id                String       @id @default(uuid()) @db.Uuid
+  organizationId    String       @db.Uuid
+  hostname          String       @unique
+  kind              String       @default("CUSTOM")
+  status            String       @default("PENDING")
+  isPrimary         Boolean      @default(false)
+  verificationToken String       @unique @default(uuid())
+  verifiedAt        DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
 }
 
 model CrmAccount {
@@ -683,8 +701,13 @@ model WebhookEvent {
 
 model AuditLog {
   id             String       @id @default(uuid()) @db.Uuid
+  eventId        String       @unique @default(uuid())
   organizationId String?      @db.Uuid
   actorUserId    String?      @db.Uuid
+  sequence       BigInt?
+  category       String       @default("BUSINESS")
+  severity       String       @default("INFO")
+  outcome        String       @default("SUCCESS")
   action         String
   entityType     String
   entityId       String?
@@ -693,12 +716,30 @@ model AuditLog {
   ipAddress      String?
   userAgent      String?
   requestId      String?
+  requestMethod  String?
+  requestPath    String?
+  correlationId  String?
+  previousHash   String?
+  recordHash     String
+  metadata       Json?
+  retentionClass String       @default("STANDARD")
   createdAt      DateTime     @default(now())
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   actor          User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, createdAt])
+  @@unique([organizationId, sequence])
+  @@index([category, severity, createdAt])
+  @@index([requestId])
   @@index([entityType, entityId])
+}
+
+model AuditChainHead {
+  organizationId String       @id @db.Uuid
+  lastSequence   BigInt       @default(0)
+  lastHash       String       @default("GENESIS")
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 model CustomFieldDefinition {
