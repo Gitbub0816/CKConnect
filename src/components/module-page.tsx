@@ -2,8 +2,6 @@ import Link from "next/link";
 import {
   ArrowRight,
   CircleDollarSign,
-  Filter,
-  Search,
   Sparkles,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
@@ -15,6 +13,7 @@ import { ServiceWorkbench } from "@/components/service-workbenches";
 import { FinanceWorkbench } from "@/components/finance-workbenches";
 import { PlatformOperationsWorkbench } from "@/components/platform-operations-workbench";
 import { CommunicationsWorkbench } from "@/components/communications-workbench";
+import { DataExplorer } from "@/components/data-explorer";
 
 type Metric = { label: string; value: number; format?: string; suffix?: string };
 type ModuleData = { kind: string; metrics?: Metric[]; records?: Record<string, unknown>[]; [key: string]: unknown };
@@ -171,14 +170,7 @@ export function ModulePage({ module, data, organizationSlug }: { module: string;
           : platformOperations.has(module) ? <PlatformOperationsWorkbench data={data} module={module} organizationSlug={organizationSlug}/>
           : communicationModules.has(module) ? <CommunicationsWorkbench data={data} module={module} organizationSlug={organizationSlug}/>
           : module === "billing" ? <BillingView data={data} organizationSlug={organizationSlug} />
-          : <section className="ck-card overflow-hidden">
-            <div className="flex flex-wrap items-center gap-3 border-b p-4">
-              <label className="relative min-w-64 flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><input className="ck-input !pl-9" placeholder={`Search ${config.title.toLowerCase()}...`} /></label>
-              <button className="ck-button ck-button-secondary"><Filter size={14} />Filter</button>
-              <button className="ck-button ck-button-secondary">Saved views</button>
-            </div>
-            <DataTable records={data.records} />
-          </section>}
+          : <DataExplorer module={module} records={data.records ?? []}/>}
       </div>
       {["invoices", "payments"].includes(module) && <div className="mt-4 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 text-sm"><span className="flex items-center gap-2"><CircleDollarSign className="text-amber-700" size={18} />Public collection pages use signed tokens and the tenant&apos;s configured payment provider.</span><Link className="font-semibold text-amber-800" href={`/p/${organizationSlug}`}>Open endpoint <ArrowRight className="inline" size={14} /></Link></div>}
       {module === "automations" && <div className="mt-4 rounded-lg border bg-[#1c1917] p-6 text-white"><div className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="text-[#e8c96a]" size={18} />Automation canvas</div><p className="mt-2 max-w-xl text-sm leading-6 text-slate-400">Triggers, conditions, delays, branches, and actions are stored as structured JSON so workflows remain inspectable and portable.</p></div>}

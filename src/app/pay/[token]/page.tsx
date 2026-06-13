@@ -32,15 +32,23 @@ export default async function InvoicePaymentPage({
   const pageStyle = {
     "--payment-primary": theme?.paymentPrimaryColor ?? "#c9a033",
     "--payment-header": theme?.paymentHeaderColor ?? "#1c1917",
+    "--payment-background": theme?.paymentBackgroundColor ?? "#f3eee5",
+    "--payment-surface": theme?.paymentSurfaceColor ?? "#ffffff",
+    "--payment-text": theme?.paymentTextColor ?? "#1c1917",
+    "--payment-muted": theme?.paymentMutedColor ?? "#746c64",
+    "--payment-radius": `${theme?.paymentRadius ?? 16}px`,
     backgroundImage: theme?.paymentBackgroundImageUrl
       ? `linear-gradient(rgb(243 238 229 / 88%), rgb(243 238 229 / 88%)), url("${theme.paymentBackgroundImageUrl}")`
       : undefined,
     backgroundSize: "cover",
+    backgroundColor: theme?.paymentBackgroundColor ?? "#f3eee5",
+    color: theme?.paymentTextColor ?? "#1c1917",
+    fontFamily: theme?.paymentFont ?? "Geist",
   } as React.CSSProperties;
 
   return (
-    <main className="min-h-screen bg-[#f3eee5] p-5 sm:p-10" style={pageStyle}>
-      <div className="mx-auto max-w-3xl overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_28px_90px_rgba(54,40,20,.15)]">
+    <main className="min-h-screen p-5 sm:p-10" style={pageStyle}>
+      <div className="mx-auto max-w-3xl overflow-hidden border border-black/10 bg-[var(--payment-surface)] shadow-[0_28px_90px_rgba(54,40,20,.15)]" style={{borderRadius:"var(--payment-radius)"}}>
         <header className="flex flex-wrap items-center justify-between gap-4 border-b bg-[var(--payment-header)] px-7 py-6 text-white">
           <div className="flex items-center gap-4">
             {theme?.paymentLogoUrl && (
@@ -82,6 +90,7 @@ export default async function InvoicePaymentPage({
                 year: "numeric",
               })}
             </p>
+            {theme?.paymentSubtitle && <p className="mt-4 max-w-xl text-sm leading-6 text-[var(--payment-muted)]">{theme.paymentSubtitle}</p>}
             <div className="mt-7 overflow-hidden rounded-xl border">
               {invoice.items.map((item) => (
                 <div
@@ -135,9 +144,8 @@ export default async function InvoicePaymentPage({
                 <InvoicePaymentButton token={token} />
               </div>
             )}
-            <p className="mt-4 text-xs leading-5 text-slate-500">
-              Payment details are collected by the tenant&apos;s configured
-              provider and are never stored by ClearKey Connect.
+            <p className="mt-4 text-xs leading-5 text-[var(--payment-muted)]">
+              {theme?.paymentFooterText ?? "Payment details are collected by the tenant's configured provider and are never stored by ClearKey Connect."}
             </p>
             <div className="mt-5 border-t pt-4 text-[10px] text-slate-400">
               <Link href="/legal/terms">Terms</Link> ·{" "}

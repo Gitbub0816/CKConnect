@@ -1,0 +1,18 @@
+ALTER TABLE "OrganizationTheme"
+  ADD COLUMN "consoleBackgroundColor" TEXT NOT NULL DEFAULT '#f5f0e8',
+  ADD COLUMN "consoleSurfaceColor" TEXT NOT NULL DEFAULT '#ffffff',
+  ADD COLUMN "consoleTextColor" TEXT NOT NULL DEFAULT '#1c1917',
+  ADD COLUMN "consoleMutedColor" TEXT NOT NULL DEFAULT '#746c64',
+  ADD COLUMN "consoleHeaderColor" TEXT NOT NULL DEFAULT '#ffffff',
+  ADD COLUMN "consoleFont" TEXT NOT NULL DEFAULT 'Geist',
+  ADD COLUMN "consoleRadius" INTEGER NOT NULL DEFAULT 8,
+  ADD COLUMN "consoleDensity" TEXT NOT NULL DEFAULT 'comfortable',
+  ADD COLUMN "consoleNavigationStyle" TEXT NOT NULL DEFAULT 'sidebar',
+  ADD COLUMN "paymentSubtitle" TEXT,
+  ADD COLUMN "paymentBackgroundColor" TEXT NOT NULL DEFAULT '#f3eee5',
+  ADD COLUMN "paymentSurfaceColor" TEXT NOT NULL DEFAULT '#ffffff',
+  ADD COLUMN "paymentTextColor" TEXT NOT NULL DEFAULT '#1c1917',
+  ADD COLUMN "paymentMutedColor" TEXT NOT NULL DEFAULT '#746c64',
+  ADD COLUMN "paymentFont" TEXT NOT NULL DEFAULT 'Geist',
+  ADD COLUMN "paymentRadius" INTEGER NOT NULL DEFAULT 16,
+  ADD COLUMN "paymentFooterText" TEXT;

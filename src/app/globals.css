@@ -125,6 +125,18 @@ a {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent);
 }
 
+.console-compact .ck-card {
+  box-shadow: none;
+}
+
+.console-compact main {
+  font-size: .94em;
+}
+
+.console-spacious .ck-card {
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
 .portal-root {
   min-height: 100vh;
   padding: 24px;

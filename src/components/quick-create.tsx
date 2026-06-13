@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { createWorkspaceRecord } from "@/app/app/[organizationSlug]/actions";
 
@@ -18,15 +21,16 @@ const config: Record<string, { primary: string; secondary: string; secondaryPlac
 };
 
 export function QuickCreate({ module, organizationSlug, label }: { module: string; organizationSlug: string; label: string }) {
-  if (!supported.has(module)) return <button className="ck-button !min-h-11"><Plus size={15}/>{label}</button>;
+  const [open, setOpen] = useState(false);
+  if (!supported.has(module)) return null;
   const fields = config[module];
   return (
-    <details className="relative">
-      <summary className="ck-button !min-h-11 list-none"><Plus size={15}/>{label}</summary>
-      <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-5">
-        <form action={createWorkspaceRecord} className="w-full max-w-lg rounded-xl border bg-white p-6 shadow-2xl">
+    <>
+      <button className="ck-button !min-h-11" onClick={() => setOpen(true)} type="button"><Plus size={15}/>{label}</button>
+      {open && <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-5" onMouseDown={(event) => { if (event.currentTarget === event.target) setOpen(false); }}>
+        <form action={createWorkspaceRecord} className="w-full max-w-lg rounded-xl border bg-white p-6 shadow-2xl" onSubmit={() => setOpen(false)}>
           <input name="organizationSlug" type="hidden" value={organizationSlug}/><input name="module" type="hidden" value={module}/>
-          <div className="flex items-start justify-between"><div><div className="ck-eyebrow">Create record</div><h2 className="mt-2 text-2xl font-semibold">{label}</h2></div><span className="grid size-8 place-items-center rounded border text-slate-500"><X size={15}/></span></div>
+          <div className="flex items-start justify-between"><div><div className="ck-eyebrow">Create record</div><h2 className="mt-2 text-2xl font-semibold">{label}</h2></div><button aria-label="Close create dialog" className="grid size-8 place-items-center rounded border text-slate-500" onClick={() => setOpen(false)} type="button"><X size={15}/></button></div>
           <div className="mt-6 grid gap-4">
             <label className="text-xs font-semibold text-slate-600">{fields.primary}<input autoFocus className="ck-input mt-2" name="name" required/></label>
             <label className="text-xs font-semibold text-slate-600">{fields.secondary}<input className="ck-input mt-2" name="secondary" placeholder={fields.secondaryPlaceholder}/></label>
@@ -37,7 +41,7 @@ export function QuickCreate({ module, organizationSlug, label }: { module: strin
           </div>
           <div className="mt-6 flex justify-end"><button className="ck-button !min-h-11" type="submit">Create {module.replace("-"," ")}</button></div>
         </form>
-      </div>
-    </details>
+      </div>}
+    </>
   );
 }

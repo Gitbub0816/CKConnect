@@ -444,11 +444,28 @@ model OrganizationTheme {
   consoleBackgroundImageUrl String?
   consolePrimaryColor String @default("#c9a033")
   consoleSidebarColor String @default("#1c1917")
+  consoleBackgroundColor String @default("#f5f0e8")
+  consoleSurfaceColor String @default("#ffffff")
+  consoleTextColor String @default("#1c1917")
+  consoleMutedColor String @default("#746c64")
+  consoleHeaderColor String @default("#ffffff")
+  consoleFont String @default("Geist")
+  consoleRadius Int @default(8)
+  consoleDensity String @default("comfortable")
+  consoleNavigationStyle String @default("sidebar")
   paymentTitle   String?
+  paymentSubtitle String?
   paymentLogoUrl String?
   paymentBackgroundImageUrl String?
   paymentPrimaryColor String @default("#c9a033")
   paymentHeaderColor String @default("#1c1917")
+  paymentBackgroundColor String @default("#f3eee5")
+  paymentSurfaceColor String @default("#ffffff")
+  paymentTextColor String @default("#1c1917")
+  paymentMutedColor String @default("#746c64")
+  paymentFont String @default("Geist")
+  paymentRadius Int @default(16)
+  paymentFooterText String?
   navigationJson Json         @default("{}")
   pageBlocksJson Json         @default("[]")
   createdAt      DateTime     @default(now())

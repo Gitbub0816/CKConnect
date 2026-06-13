@@ -1,13 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDown, ArrowUp, Check, CopyPlus, Eye, Palette, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, CopyPlus, CreditCard, Eye, LayoutDashboard, Palette, Trash2 } from "lucide-react";
 import { publishAppearance } from "@/app/app/[organizationSlug]/actions";
 
 type Theme = {
   primaryColor: string; accentColor: string; surfaceColor: string; backgroundColor: string; textColor: string;
   headingFont: string; bodyFont: string; borderRadius: number; density: string; darkMode: boolean;
   logoUrl: string | null; coverImageUrl: string | null; portalHeadline: string | null; portalSubhead: string | null;
+  consoleTitle: string | null; consoleLogoUrl: string | null; consoleBackgroundImageUrl: string | null;
+  consolePrimaryColor: string; consoleSidebarColor: string; consoleBackgroundColor: string; consoleSurfaceColor: string;
+  consoleTextColor: string; consoleMutedColor: string; consoleHeaderColor: string; consoleFont: string;
+  consoleRadius: number; consoleDensity: string; consoleNavigationStyle: string;
+  paymentTitle: string | null; paymentSubtitle: string | null; paymentLogoUrl: string | null;
+  paymentBackgroundImageUrl: string | null; paymentPrimaryColor: string; paymentHeaderColor: string;
+  paymentBackgroundColor: string; paymentSurfaceColor: string; paymentTextColor: string; paymentMutedColor: string;
+  paymentFont: string; paymentRadius: number; paymentFooterText: string | null;
 };
 type Block = { type: string; id?: string; eyebrow?: string; title?: string; body?: string; quote?: string; attribution?: string; action?: string; primaryAction?: string; secondaryAction?: string; layout?: string; items?: Array<Record<string, string>>; steps?: Array<Record<string, string>> };
 type NavItem = { label: string; href: string };
@@ -36,6 +44,7 @@ export function AppearanceStudio({
   const [blocks, setBlocks] = useState(initialBlocks);
   const [navigation, setNavigation] = useState(initialNavigation);
   const [selected, setSelected] = useState(0);
+  const [surface, setSurface] = useState<"portal" | "console" | "payment">("portal");
   const block = blocks[selected];
   const updateTheme = (key: keyof Theme, value: string | number | boolean) => setTheme((current) => ({ ...current, [key]: value }));
   const updateBlock = (key: keyof Block, value: string) => setBlocks((current) => current.map((item, index) => index === selected ? { ...item, [key]: value } : item));
@@ -64,12 +73,28 @@ export function AppearanceStudio({
       <input name="navigationJson" type="hidden" value={JSON.stringify(navigation)}/>
       <input name="blocksJson" type="hidden" value={JSON.stringify(blocks)}/>
       <input name="darkMode" type="hidden" value={String(theme.darkMode)}/>
+      {([
+        "consoleTitle", "consoleLogoUrl", "consoleBackgroundImageUrl", "consolePrimaryColor", "consoleSidebarColor",
+        "consoleBackgroundColor", "consoleSurfaceColor", "consoleTextColor", "consoleMutedColor", "consoleHeaderColor",
+        "consoleFont", "consoleRadius", "consoleDensity", "consoleNavigationStyle", "paymentTitle", "paymentSubtitle",
+        "paymentLogoUrl", "paymentBackgroundImageUrl", "paymentPrimaryColor", "paymentHeaderColor",
+        "paymentBackgroundColor", "paymentSurfaceColor", "paymentTextColor", "paymentMutedColor", "paymentFont",
+        "paymentRadius", "paymentFooterText",
+      ] as const).map((key) => <input key={key} name={key} type="hidden" value={String(theme[key] ?? "")}/>)}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div><div className="ck-eyebrow">Endpoint composer</div><h1 className="mt-2 text-3xl font-semibold tracking-tight">Appearance & pages</h1><p className="mt-1 max-w-2xl text-sm text-slate-500">Own every visual token, navigation item, section, message, order, and public endpoint version.</p></div>
         <div className="flex gap-2"><a className="ck-button ck-button-secondary" href={`/p/${organizationSlug}`} target="_blank"><Eye size={15}/>Open published page</a><button className="ck-button !min-h-11" type="submit"><Check size={15}/>Publish new version</button></div>
       </div>
 
-      <div className="mt-6 grid gap-5 2xl:grid-cols-[330px_360px_1fr]">
+      <div className="mt-6 flex flex-wrap gap-2 rounded-xl border bg-white p-2">
+        {([
+          ["portal", Palette, "Customer endpoint"],
+          ["console", LayoutDashboard, "Employee console"],
+          ["payment", CreditCard, "Payment page"],
+        ] as const).map(([value, Icon, label]) => <button className={`flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-semibold ${surface === value ? "bg-slate-950 text-white" : "hover:bg-slate-100"}`} key={value} onClick={() => setSurface(value)} type="button"><Icon size={16}/>{label}</button>)}
+      </div>
+
+      {surface === "portal" && <div className="mt-5 grid gap-5 2xl:grid-cols-[330px_360px_1fr]">
         <section className="ck-card overflow-hidden">
           <div className="border-b p-5"><div className="flex items-center gap-2 font-semibold"><Palette size={17}/>Brand system</div><p className="mt-1 text-xs leading-5 text-slate-500">These tokens apply across every public block.</p></div>
           <div className="space-y-5 p-5">
@@ -114,9 +139,76 @@ export function AppearanceStudio({
             </div>
           </div>
         </section>
-      </div>
+      </div>}
+
+      {surface === "console" && <div className="mt-5 grid gap-5 xl:grid-cols-[380px_1fr]">
+        <section className="ck-card p-5">
+          <div className="flex items-center gap-2 font-semibold"><LayoutDashboard size={17}/>Employee console design</div>
+          <p className="mt-1 text-xs leading-5 text-slate-500">Controls the signed-in workspace shell, navigation, cards, typography, density, and background.</p>
+          <div className="mt-5 grid gap-4">
+            <TextField label="Workspace title" value={theme.consoleTitle ?? ""} onChange={(value) => updateTheme("consoleTitle", value)}/>
+            <TextField label="Logo URL" value={theme.consoleLogoUrl ?? ""} onChange={(value) => updateTheme("consoleLogoUrl", value)}/>
+            <TextField label="Background image URL" value={theme.consoleBackgroundImageUrl ?? ""} onChange={(value) => updateTheme("consoleBackgroundImageUrl", value)}/>
+            <ColorGrid fields={[
+              ["Primary", "consolePrimaryColor"], ["Sidebar", "consoleSidebarColor"], ["Page", "consoleBackgroundColor"],
+              ["Cards", "consoleSurfaceColor"], ["Text", "consoleTextColor"], ["Muted", "consoleMutedColor"], ["Header", "consoleHeaderColor"],
+            ]} theme={theme} updateTheme={updateTheme}/>
+            <SelectField label="Interface font" value={theme.consoleFont} options={["Geist","Inter","Manrope","Arial","Georgia"]} onChange={(value) => updateTheme("consoleFont", value)}/>
+            <SelectField label="Navigation" value={theme.consoleNavigationStyle} options={["sidebar","rail"]} onChange={(value) => updateTheme("consoleNavigationStyle", value)}/>
+            <SelectField label="Density" value={theme.consoleDensity} options={["compact","comfortable","spacious"]} onChange={(value) => updateTheme("consoleDensity", value)}/>
+            <RangeField label="Corner radius" value={theme.consoleRadius} max={32} onChange={(value) => updateTheme("consoleRadius", value)}/>
+          </div>
+        </section>
+        <ConsolePreview organizationSlug={organizationSlug} theme={theme}/>
+      </div>}
+
+      {surface === "payment" && <div className="mt-5 grid gap-5 xl:grid-cols-[380px_1fr]">
+        <section className="ck-card p-5">
+          <div className="flex items-center gap-2 font-semibold"><CreditCard size={17}/>Customer payment design</div>
+          <p className="mt-1 text-xs leading-5 text-slate-500">Customize the tenant-branded invoice checkout customers use to review and pay.</p>
+          <div className="mt-5 grid gap-4">
+            <TextField label="Payment title" value={theme.paymentTitle ?? ""} onChange={(value) => updateTheme("paymentTitle", value)}/>
+            <TextField label="Supporting message" value={theme.paymentSubtitle ?? ""} onChange={(value) => updateTheme("paymentSubtitle", value)}/>
+            <TextField label="Logo URL" value={theme.paymentLogoUrl ?? ""} onChange={(value) => updateTheme("paymentLogoUrl", value)}/>
+            <TextField label="Background image URL" value={theme.paymentBackgroundImageUrl ?? ""} onChange={(value) => updateTheme("paymentBackgroundImageUrl", value)}/>
+            <TextField label="Footer text" value={theme.paymentFooterText ?? ""} onChange={(value) => updateTheme("paymentFooterText", value)}/>
+            <ColorGrid fields={[
+              ["Action", "paymentPrimaryColor"], ["Header", "paymentHeaderColor"], ["Page", "paymentBackgroundColor"],
+              ["Card", "paymentSurfaceColor"], ["Text", "paymentTextColor"], ["Muted", "paymentMutedColor"],
+            ]} theme={theme} updateTheme={updateTheme}/>
+            <SelectField label="Payment font" value={theme.paymentFont} options={["Geist","Inter","Manrope","Arial","Georgia"]} onChange={(value) => updateTheme("paymentFont", value)}/>
+            <RangeField label="Corner radius" value={theme.paymentRadius} max={32} onChange={(value) => updateTheme("paymentRadius", value)}/>
+          </div>
+        </section>
+        <PaymentPreview organizationSlug={organizationSlug} theme={theme}/>
+      </div>}
       <input name="portalHeadline" type="hidden" value={theme.portalHeadline ?? blocks[0]?.title ?? ""}/>
       <input name="portalSubhead" type="hidden" value={theme.portalSubhead ?? blocks[0]?.body ?? ""}/>
     </form>
   );
+}
+
+function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return <label className="text-xs font-semibold text-slate-600">{label}<input className="ck-input mt-2" onChange={(event) => onChange(event.target.value)} value={value}/></label>;
+}
+
+function SelectField({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
+  return <label className="text-xs font-semibold text-slate-600">{label}<select className="ck-input mt-2 capitalize" onChange={(event) => onChange(event.target.value)} value={value}>{options.map((option) => <option key={option}>{option}</option>)}</select></label>;
+}
+
+function RangeField({ label, value, max, onChange }: { label: string; value: number; max: number; onChange: (value: number) => void }) {
+  return <label className="text-xs font-semibold text-slate-600">{label}: {value}px<input className="mt-3 w-full accent-amber-600" max={max} min="0" onChange={(event) => onChange(Number(event.target.value))} type="range" value={value}/></label>;
+}
+
+function ColorGrid({ fields, theme, updateTheme }: { fields: Array<[string, keyof Theme]>; theme: Theme; updateTheme: (key: keyof Theme, value: string | number | boolean) => void }) {
+  return <div className="grid grid-cols-2 gap-3">{fields.map(([label,key]) => <label className="text-xs font-semibold text-slate-600" key={key}>{label}<input className="mt-2 h-10 w-full rounded border p-1" onChange={(event) => updateTheme(key,event.target.value)} type="color" value={String(theme[key])}/></label>)}</div>;
+}
+
+function ConsolePreview({ organizationSlug, theme }: { organizationSlug: string; theme: Theme }) {
+  const compact = theme.consoleDensity === "compact";
+  return <section className="ck-card overflow-hidden"><div className="border-b p-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Live employee console preview</div><div className="p-5" style={{ background: theme.consoleBackgroundColor, fontFamily: theme.consoleFont }}><div className={`mx-auto grid min-h-[640px] max-w-5xl overflow-hidden border shadow-xl ${theme.consoleNavigationStyle === "rail" ? "grid-cols-[82px_1fr]" : "grid-cols-[220px_1fr]"}`} style={{ background: theme.consoleSurfaceColor, color: theme.consoleTextColor, borderRadius: theme.consoleRadius }}><aside className="p-4 text-white" style={{ background: theme.consoleSidebarColor }}><div className="flex items-center gap-3 border-b border-white/10 pb-4"><span className="grid size-9 place-items-center rounded text-xs font-black" style={{background:theme.consolePrimaryColor}}>CK</span>{theme.consoleNavigationStyle === "sidebar" && <strong>{theme.consoleTitle || organizationSlug.replaceAll("-"," ")}</strong>}</div><div className="mt-5 space-y-2">{["Dashboard","Accounts","Invoices","Collaboration","Settings"].map((item,index) => <div className="rounded px-3 py-2 text-xs" key={item} style={index === 0 ? {background:theme.consolePrimaryColor,color:"#211b0d"} : undefined}>{theme.consoleNavigationStyle === "rail" ? item[0] : item}</div>)}</div></aside><div><header className="border-b px-6 py-4" style={{background:theme.consoleHeaderColor}}><strong>Operations overview</strong><p className="text-xs" style={{color:theme.consoleMutedColor}}>Today&apos;s work, revenue, and customer activity</p></header><main className={compact ? "p-4" : theme.consoleDensity === "spacious" ? "p-8" : "p-6"}><div className="grid grid-cols-3 gap-3">{["Pipeline","Receivables","Open tasks"].map((label,index) => <div className="border p-4" key={label} style={{background:theme.consoleSurfaceColor,borderRadius:theme.consoleRadius}}><div className="text-[10px] font-bold uppercase" style={{color:theme.consoleMutedColor}}>{label}</div><div className="mt-2 text-2xl font-semibold">{index === 0 ? "$184k" : index === 1 ? "$42k" : "17"}</div></div>)}</div><div className="mt-4 border p-5" style={{background:theme.consoleSurfaceColor,borderRadius:theme.consoleRadius}}><div className="flex items-center justify-between"><strong>Priority work</strong><button className="rounded px-3 py-2 text-xs font-semibold" style={{background:theme.consolePrimaryColor}}>Create record</button></div>{["Approve payroll","Follow up on proposal","Review failed webhook"].map((item) => <div className="mt-3 border-t pt-3 text-sm" key={item}>{item}</div>)}</div></main></div></div></div></section>;
+}
+
+function PaymentPreview({ organizationSlug, theme }: { organizationSlug: string; theme: Theme }) {
+  return <section className="ck-card overflow-hidden"><div className="border-b p-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Live customer payment preview</div><div className="min-h-[640px] p-8" style={{backgroundColor:theme.paymentBackgroundColor,backgroundImage:theme.paymentBackgroundImageUrl ? `linear-gradient(rgb(255 255 255 / 82%),rgb(255 255 255 / 82%)),url("${theme.paymentBackgroundImageUrl}")` : undefined,backgroundSize:"cover",fontFamily:theme.paymentFont,color:theme.paymentTextColor}}><div className="mx-auto max-w-3xl overflow-hidden border shadow-2xl" style={{background:theme.paymentSurfaceColor,borderRadius:theme.paymentRadius}}><header className="flex items-center justify-between p-6 text-white" style={{background:theme.paymentHeaderColor}}><div><div className="text-xs font-bold uppercase tracking-widest" style={{color:theme.paymentPrimaryColor}}>{theme.paymentTitle || "Secure invoice"}</div><h3 className="mt-1 text-2xl font-semibold capitalize">{organizationSlug.replaceAll("-"," ")}</h3></div><span className="text-xs opacity-70">Provider secured</span></header><div className="grid gap-7 p-7 md:grid-cols-[1fr_250px]"><div><div className="text-xs font-bold uppercase" style={{color:theme.paymentMutedColor}}>Invoice CK-1042</div><div className="mt-3 text-4xl font-semibold">$2,480.00</div><p className="mt-2 text-sm" style={{color:theme.paymentMutedColor}}>{theme.paymentSubtitle || "Review the invoice and continue to the configured secure payment provider."}</p><div className="mt-7 border-y py-4"><div className="flex justify-between"><span>Professional services</span><strong>$2,480.00</strong></div></div></div><aside className="p-5" style={{background:theme.paymentBackgroundColor,borderRadius:Math.max(4,theme.paymentRadius-4)}}><div className="text-xs font-bold uppercase" style={{color:theme.paymentMutedColor}}>Bill to</div><strong className="mt-3 block">Sample Customer</strong><button className="mt-7 w-full px-4 py-3 text-sm font-semibold text-white" style={{background:theme.paymentPrimaryColor,borderRadius:Math.max(3,theme.paymentRadius-7)}}>Pay securely</button><p className="mt-4 text-[10px]" style={{color:theme.paymentMutedColor}}>{theme.paymentFooterText || "Payment details are handled by the tenant's configured provider."}</p></aside></div></div></div></section>;
 }
