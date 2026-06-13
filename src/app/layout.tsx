@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { Suspense } from "react";
+import { PostHogProvider } from "@/components/posthog-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -38,9 +40,9 @@ export default function RootLayout({
     >
       <body className="min-h-full antialiased">
         {process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? (
-          <ClerkProvider>{children}</ClerkProvider>
+          <ClerkProvider><Suspense><PostHogProvider>{children}</PostHogProvider></Suspense></ClerkProvider>
         ) : (
-          children
+          <Suspense><PostHogProvider>{children}</PostHogProvider></Suspense>
         )}
       </body>
     </html>

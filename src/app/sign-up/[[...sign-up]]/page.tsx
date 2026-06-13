@@ -10,7 +10,7 @@ export default function SignUpPage() {
         <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 text-white">
           <h1 className="text-2xl font-semibold">Workspace creation is ready</h1>
           <p className="mt-3 text-sm leading-6 text-slate-400">Once Clerk is connected, this route will handle account creation and organization onboarding.</p>
-          <Link className="ck-button mt-6" href="/app/demo">Preview the product</Link>
+          <Link className="ck-button mt-6" href="/app/northstar-home-services">Preview the product</Link>
         </div>
       )}
     </main>

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { Show, SignUpButton, UserButton } from "@clerk/nextjs";
 import {
   ArrowRight,
   BarChart3,
@@ -41,15 +41,13 @@ export default function Home() {
           {clerkConfigured ? (
             <>
               <Show when="signed-out">
-                <SignInButton mode="modal">
-                  <button className="text-sm font-semibold text-[#504a44] transition hover:text-[#8b6914]">Sign in</button>
-                </SignInButton>
+                <Link className="text-sm font-semibold text-[#504a44] transition hover:text-[#8b6914]" href="/login">Sign in</Link>
                 <SignUpButton mode="modal">
                   <button className="ck-button">Start building <ArrowRight size={15} /></button>
                 </SignUpButton>
               </Show>
               <Show when="signed-in">
-                <Link className="ck-button ck-button-secondary" href="/app/demo">Open workspace</Link>
+                <Link className="ck-button ck-button-secondary" href="/app/northstar-home-services">Open workspace</Link>
                 <UserButton />
               </Show>
             </>
@@ -76,7 +74,7 @@ export default function Home() {
           </p>
           <div className="mt-10 flex flex-wrap gap-3">
             <Link className="ck-button !min-h-12 !px-5" href="/sign-up">Create your workspace <ArrowRight size={16} /></Link>
-            <Link className="ck-button ck-button-secondary !min-h-12 !px-5" href="/p/demo">Explore a client endpoint</Link>
+            <Link className="ck-button ck-button-secondary !min-h-12 !px-5" href="/p/northstar-home-services">Explore a client endpoint</Link>
           </div>
           <div className="mt-11 grid max-w-xl grid-cols-3 border-y border-[#c9a033]/25 py-5 text-center">
             {["CRM + service", "Native accounting", "Branded portals"].map((item) => (
@@ -146,6 +144,18 @@ export default function Home() {
               <div className="mt-7 h-px w-8 bg-[#c9a033] transition-all group-hover:w-16" />
             </article>
           ))}
+        </div>
+      </section>
+
+      <section className="border-t border-[#c9a033]/20 bg-[#f5f0e8] px-6 py-24">
+        <div className="mx-auto max-w-7xl">
+          <div className="max-w-3xl"><div className="ck-eyebrow">Straightforward pricing</div><h2 className="ck-display mt-5 text-5xl">A full operating system without enterprise software pricing.</h2><p className="mt-5 text-base leading-7 text-[#6c645c]">Every plan includes CRM, inventory, reporting, portals, booking, payments, website hosting, SSL, API access, and unlimited business records. Only authenticated workspace users are licensed seats.</p></div>
+          <div className="mt-12 grid gap-4 lg:grid-cols-3">
+            <article className="border border-[#d8cebd] bg-white p-7"><div className="text-xs font-bold uppercase tracking-[.15em] text-[#8b6914]">Starter</div><div className="mt-5 text-4xl font-semibold">$79<span className="text-sm font-normal text-[#81786f]"> / month</span></div><p className="mt-3 text-sm text-[#6c645c]">For 1-49 licensed users. Includes 5 users, then $8 per additional user.</p><Link className="ck-button mt-7 w-full" href="/sign-up">Start with Starter</Link></article>
+            <article className="border border-[#c9a033] bg-[#1c1917] p-7 text-white shadow-xl"><div className="text-xs font-bold uppercase tracking-[.15em] text-[#e8c96a]">Growth</div><div className="mt-5 text-4xl font-semibold">$499<span className="text-sm font-normal text-slate-400"> / month</span></div><p className="mt-3 text-sm text-slate-400">For 50-99 licensed users. Includes 50 users, then $7 per additional user.</p><Link className="ck-button mt-7 w-full" href="/sign-up">Choose Growth</Link></article>
+            <article className="border border-[#d8cebd] bg-white p-7"><div className="text-xs font-bold uppercase tracking-[.15em] text-[#8b6914]">Enterprise</div><div className="mt-5 text-4xl font-semibold">Custom</div><p className="mt-3 text-sm text-[#6c645c]">For 100+ licensed users, negotiated requirements, and administrator-controlled pricing overrides.</p><Link className="ck-button ck-button-secondary mt-7 w-full" href="/login">Talk to ClearKey</Link></article>
+          </div>
+          <p className="mt-6 text-center text-xs text-[#81786f]">Accounting, workforce, scheduling, time clock, marketing, payroll, AI, analytics, premium templates, managed email, and managed domains are configurable add-ons.</p>
         </div>
       </section>
 

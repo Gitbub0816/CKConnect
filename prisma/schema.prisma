@@ -112,10 +112,25 @@ enum PayrollRunStatus {
   CANCELED
 }
 
+enum BillingTier {
+  STARTER
+  GROWTH
+  ENTERPRISE
+}
+
+enum BillingStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  MANUAL_QUOTE_REQUIRED
+}
+
 model Organization {
   id                       String                    @id @default(uuid()) @db.Uuid
   name                     String
   slug                     String                    @unique
+  orgCode                  String                    @unique
   legalName                String?
   timezone                 String                    @default("America/Chicago")
   defaultCurrency          String                    @default("USD")
@@ -126,6 +141,11 @@ model Organization {
   stripeSubscriptionId     String?                   @unique
   stripeSubscriptionStatus String?
   stripeConnectedAccountId String?                   @unique
+  billingTier              BillingTier               @default(STARTER)
+  billingStatus            BillingStatus             @default(TRIALING)
+  pricingVersion           String                    @default("2026-v1")
+  pricingOverrideEnabled   Boolean                   @default(false)
+  pricingOverrideAmountCents Int?
   createdAt                DateTime                  @default(now())
   updatedAt                DateTime                  @updatedAt
   deletedAt                DateTime?
@@ -168,6 +188,20 @@ model Organization {
   timeEntries              TimeEntry[]
   timeOffRequests          TimeOffRequest[]
   benefits                 Benefit[]
+  campaigns                Campaign[]
+  calendarEvents           CalendarEvent[]
+  bankAccounts             BankAccount[]
+  bankTransactions         BankTransaction[]
+  savedViews               SavedView[]
+  emailTemplates           EmailTemplate[]
+  emailMessages            EmailMessage[]
+  endpointPages            EndpointPage[]
+  endpointSubmissions      EndpointSubmission[]
+  moduleConfiguration      OrganizationModule?
+  usage                    OrganizationUsage?
+  websites                 Website[]
+  managedMailboxes         ManagedMailbox[]
+  billingAuditLogs         BillingAuditLog[]
 
   @@index([status])
 }
@@ -235,13 +269,154 @@ model OrganizationDomain {
   kind              String       @default("CUSTOM")
   status            String       @default("PENDING")
   isPrimary         Boolean      @default(false)
+  sslEnabled        Boolean      @default(false)
+  cloudflareZoneId  String?
+  cloudflareRecordId String?
   verificationToken String       @unique @default(uuid())
   verifiedAt        DateTime?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  dnsRecords        DnsRecord[]
 
   @@index([organizationId, status])
+}
+
+model OrganizationModule {
+  organizationId    String       @id @db.Uuid
+  accounting        Boolean      @default(false)
+  workforce         Boolean      @default(false)
+  scheduling        Boolean      @default(false)
+  timeClock         Boolean      @default(false)
+  marketing         Boolean      @default(false)
+  payroll           Boolean      @default(false)
+  advancedAi        Boolean      @default(false)
+  advancedAnalytics Boolean      @default(false)
+  managedEmail      Boolean      @default(false)
+  premiumTemplates  Boolean      @default(false)
+  managedDomain     Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model OrganizationUsage {
+  organizationId String       @id @db.Uuid
+  licensedUsers  Int          @default(1)
+  accountingUsers Int         @default(0)
+  workforceUsers Int          @default(0)
+  schedulingUsers Int         @default(0)
+  marketingUsers Int          @default(0)
+  mailboxCount   Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model PricingConfig {
+  id             String   @id @default(uuid()) @db.Uuid
+  pricingVersion String   @unique
+  active         Boolean  @default(false)
+  config         Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([active])
+}
+
+model Website {
+  id              String        @id @default(uuid()) @db.Uuid
+  organizationId  String        @db.Uuid
+  slug            String
+  defaultHostname String        @unique
+  status          String        @default("DRAFT")
+  themeJson       Json          @default("{}")
+  configJson      Json          @default("{}")
+  publishedAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  pages           WebsitePage[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, status])
+}
+
+model WebsitePage {
+  id          String   @id @default(uuid()) @db.Uuid
+  websiteId   String   @db.Uuid
+  path        String
+  title       String
+  seoJson     Json     @default("{}")
+  contentJson Json     @default("{}")
+  status      String   @default("DRAFT")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  website     Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, path])
+  @@index([websiteId, status, sortOrder])
+}
+
+model DnsRecord {
+  id                 String             @id @default(uuid()) @db.Uuid
+  organizationDomainId String           @db.Uuid
+  recordType         String
+  name               String
+  value              String
+  ttl                Int                @default(1)
+  proxied            Boolean            @default(false)
+  cloudflareRecordId String?
+  status             String             @default("PENDING")
+  lastCheckedAt      DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  domain             OrganizationDomain @relation(fields: [organizationDomainId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationDomainId, recordType, name, value])
+  @@index([organizationDomainId, status])
+}
+
+model ManagedMailbox {
+  id              String         @id @default(uuid()) @db.Uuid
+  organizationId  String         @db.Uuid
+  email           String         @unique
+  displayName     String
+  provider        String         @default("ZOHO")
+  providerMailboxId String?
+  active          Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  aliases         MailboxAlias[]
+
+  @@index([organizationId, active])
+}
+
+model MailboxAlias {
+  id        String         @id @default(uuid()) @db.Uuid
+  mailboxId String         @db.Uuid
+  email     String         @unique
+  createdAt DateTime       @default(now())
+  mailbox   ManagedMailbox @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+}
+
+model BillingAuditLog {
+  id                       String       @id @default(uuid()) @db.Uuid
+  organizationId           String?      @db.Uuid
+  actorUserId              String?
+  action                   String
+  beforeJson               Json?
+  afterJson                Json?
+  calculatedTotalCents     Int?
+  stripeCustomerId         String?
+  stripeSubscriptionId     String?
+  stripeConnectedAccountId String?
+  createdAt                DateTime     @default(now())
+  organization             Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
 }
 
 model CrmAccount {
@@ -415,6 +590,48 @@ model SupportCase {
 
   @@unique([organizationId, caseNumber])
   @@index([organizationId, status])
+}
+
+model Campaign {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String
+  type           String       @default("EMAIL")
+  status         String       @default("DRAFT")
+  audienceJson   Json         @default("{}")
+  budget         Decimal?     @db.Decimal(19, 4)
+  memberCount    Int          @default(0)
+  responseCount  Int          @default(0)
+  conversionCount Int         @default(0)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@index([organizationId, status])
+}
+
+model CalendarEvent {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  title          String
+  description    String?
+  eventType      String       @default("MEETING")
+  startsAt       DateTime
+  endsAt         DateTime
+  location       String?
+  ownerUserId    String?      @db.Uuid
+  relatedType    String?
+  relatedId      String?      @db.Uuid
+  attendeeJson   Json         @default("[]")
+  status         String       @default("CONFIRMED")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, startsAt])
 }
 
 model Product {
@@ -879,6 +1096,144 @@ model ReconciliationSession {
   organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, status, statementDate])
+}
+
+model BankAccount {
+  id                 String       @id @default(uuid()) @db.Uuid
+  organizationId     String       @db.Uuid
+  ledgerAccountId    String?      @db.Uuid
+  institutionName    String
+  accountName        String
+  accountType        String
+  mask               String?
+  currency           String       @default("USD")
+  bookBalance        Decimal      @default(0) @db.Decimal(19, 4)
+  availableBalance   Decimal?     @db.Decimal(19, 4)
+  connectionStatus   String       @default("MANUAL")
+  lastSyncedAt       DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transactions       BankTransaction[]
+
+  @@unique([organizationId, accountName])
+  @@index([organizationId, connectionStatus])
+}
+
+model BankTransaction {
+  id                 String       @id @default(uuid()) @db.Uuid
+  organizationId     String       @db.Uuid
+  bankAccountId      String       @db.Uuid
+  postedAt           DateTime
+  description        String
+  amount             Decimal      @db.Decimal(19, 4)
+  direction          String
+  category           String?
+  status             String       @default("UNMATCHED")
+  matchedEntityType  String?
+  matchedEntityId    String?      @db.Uuid
+  externalId         String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankAccount        BankAccount  @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([bankAccountId, externalId])
+  @@index([organizationId, status, postedAt])
+}
+
+model SavedView {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  userId         String?      @db.Uuid
+  module         String
+  name           String
+  filtersJson    Json         @default("{}")
+  columnsJson    Json         @default("[]")
+  sortJson       Json         @default("{}")
+  isDefault      Boolean      @default(false)
+  shared         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId, module, name])
+  @@index([organizationId, module])
+}
+
+model EmailTemplate {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String
+  subject        String
+  bodyHtml       String
+  bodyText       String?
+  category       String       @default("GENERAL")
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+}
+
+model EmailMessage {
+  id                String       @id @default(uuid()) @db.Uuid
+  organizationId    String       @db.Uuid
+  templateId        String?      @db.Uuid
+  recipientEmail    String
+  recipientName     String?
+  subject           String
+  bodyHtml          String
+  status            String       @default("QUEUED")
+  providerMessageId String?
+  relatedType       String?
+  relatedId         String?      @db.Uuid
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  failedAt          DateTime?
+  lastError         String?
+  createdAt         DateTime     @default(now())
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, createdAt])
+}
+
+model EndpointPage {
+  id               String       @id @default(uuid()) @db.Uuid
+  organizationId   String       @db.Uuid
+  slug             String
+  title            String
+  pageType         String       @default("LANDING")
+  status           String       @default("DRAFT")
+  version          Int          @default(1)
+  navigationJson   Json         @default("[]")
+  blocksJson       Json         @default("[]")
+  seoJson          Json         @default("{}")
+  settingsJson     Json         @default("{}")
+  publishedAt      DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, slug, version])
+  @@index([organizationId, status, slug])
+}
+
+model EndpointSubmission {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  endpointPageId String?      @db.Uuid
+  submissionType String
+  payloadJson    Json
+  status         String       @default("NEW")
+  contactId      String?      @db.Uuid
+  sourceIpHash   String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, submissionType, status])
 }
 
 model Department {
