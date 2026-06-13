@@ -382,8 +382,14 @@ async function main() {
     where: { slug: { in: organizations.map((organization) => organization.slug) } },
     select: { id: true },
   });
+  await db.webhookEvent.deleteMany({
+    where: { provider: "STRIPE", externalEventId: { startsWith: "evt_seed_failed_" } },
+  });
   const existingOrganizationIds = existingOrganizations.map((organization) => organization.id);
   if (existingOrganizationIds.length) {
+    await db.webhookEvent.deleteMany({
+      where: { organizationId: { in: existingOrganizationIds } },
+    });
     await db.paymentAllocation.deleteMany({
       where: { invoice: { organizationId: { in: existingOrganizationIds } } },
     });
@@ -395,10 +401,12 @@ async function main() {
     });
     await db.organization.deleteMany({ where: { id: { in: existingOrganizationIds } } });
   }
+  const ownerEmail = process.env.SEED_OWNER_EMAIL?.trim().toLowerCase() || "compliance@clearkey.solutions";
+  const ownerClerkUserId = process.env.SEED_OWNER_CLERK_USER_ID?.trim() || "user_3F3nLcS0XTYZREbe86XuDmNFgdO";
   const owner = await db.user.upsert({
-    where: { email: "1morecruise@gmail.com" },
-    update: { firstName: "Caleb", lastName: "Owen", platformAdmin: true, adminRole: "super_admin" },
-    create: { clerkUserId: "seed_caleb_owner", email: "1morecruise@gmail.com", firstName: "Caleb", lastName: "Owen", platformAdmin: true, adminRole: "super_admin" },
+    where: { email: ownerEmail },
+    update: { clerkUserId: ownerClerkUserId, firstName: "Caleb", lastName: "Owen", platformAdmin: true, adminRole: "super_admin" },
+    create: { clerkUserId: ownerClerkUserId, email: ownerEmail, firstName: "Caleb", lastName: "Owen", platformAdmin: true, adminRole: "super_admin" },
   });
   for (const [index, organization] of organizations.entries()) await seedOrganization(organization, owner.id, index);
   console.log(`Seeded ${organizations.length} organizations`);

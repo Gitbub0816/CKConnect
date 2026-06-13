@@ -6,9 +6,9 @@ This guide describes the deterministic demo data created by `npm run db:seed`. D
 
 ## Test Owner
 
-- Email: `1morecruise@gmail.com`
+- Email: `compliance@clearkey.solutions`
 - Role: platform administrator and owner of all three demo organizations
-- Clerk linkage: the seed uses `seed_caleb_owner`; a real Clerk user or organization must be linked before testing authenticated production access
+- Clerk linkage: defaults to the production ClearKey administrator. Override with `SEED_OWNER_EMAIL` and `SEED_OWNER_CLERK_USER_ID` when seeding another environment.
 
 ## Organizations
 
