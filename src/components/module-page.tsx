@@ -13,6 +13,7 @@ import { OperationalWorkbench } from "@/components/operational-workbench";
 import { PlatformWorkbench } from "@/components/platform-workbenches";
 import { ServiceWorkbench } from "@/components/service-workbenches";
 import { FinanceWorkbench } from "@/components/finance-workbenches";
+import { PlatformOperationsWorkbench } from "@/components/platform-operations-workbench";
 
 type Metric = { label: string; value: number; format?: string; suffix?: string };
 type ModuleData = { kind: string; metrics?: Metric[]; records?: Record<string, unknown>[]; [key: string]: unknown };
@@ -45,6 +46,8 @@ const copy: Record<string, { title: string; description: string; action: string 
   team: { title: "Team & permissions", description: "Membership, roles, granular permissions, and administrative access.", action: "Invite member" },
   "tax-documents": { title: "Tax documents", description: "Draft, review, provider generation, submission, and archive.", action: "Generate draft" },
   documents: { title: "Documents", description: "Private files, generated documents, signatures, and client delivery.", action: "Upload" },
+  bookings: { title: "Booking operations", description: "Confirm, complete, and manage customer appointments created from public endpoints.", action: "New booking" },
+  submissions: { title: "Form inbox", description: "Triage public inquiries, route work, and retain the original structured submission.", action: "New form" },
 };
 
 const labels: Record<string, string> = {
@@ -146,7 +149,8 @@ export function ModulePage({ module, data, organizationSlug }: { module: string;
   const operationalModules = new Set(["leads", "accounts", "deals", "tasks", "invoices", "banking", "automations"]);
   const platformModules = new Set(["reports", "team", "settings", "websites", "domains"]);
   const serviceModules = new Set(["cases", "campaigns", "calendar", "email", "payroll"]);
-  const financeModules = new Set(["payments", "expenses", "accounting"]);
+  const financeModules = new Set(["payments", "expenses", "vendors", "accounting"]);
+  const platformOperations = new Set(["documents", "integrations", "bookings", "submissions"]);
   return (
     <div className="p-5 lg:p-7">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -159,6 +163,7 @@ export function ModulePage({ module, data, organizationSlug }: { module: string;
           : platformModules.has(module) ? <PlatformWorkbench data={data} module={module} organizationSlug={organizationSlug}/>
           : serviceModules.has(module) ? <ServiceWorkbench data={data} module={module} organizationSlug={organizationSlug}/>
           : financeModules.has(module) ? <FinanceWorkbench data={data} module={module} organizationSlug={organizationSlug}/>
+          : platformOperations.has(module) ? <PlatformOperationsWorkbench data={data} module={module} organizationSlug={organizationSlug}/>
           : module === "billing" ? <BillingView data={data} organizationSlug={organizationSlug} />
           : <section className="ck-card overflow-hidden">
             <div className="flex flex-wrap items-center gap-3 border-b p-4">

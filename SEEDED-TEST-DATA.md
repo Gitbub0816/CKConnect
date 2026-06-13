@@ -32,17 +32,21 @@ Each tenant starts with:
 - 1 in-progress support case linked to the customer and contact
 - 1 active email campaign with response and conversion history
 - 2 calendar events
+- 1 confirmed customer booking created from a public endpoint
+- 1 new public form submission awaiting triage
 - 2 products or services
 - 1 partially paid invoice with 2 line items
 - 1 successful payment allocated to that invoice
 - 1 vendor, 1 open bill, and 2 expenses
 - 4 ledger accounts and 1 posted invoice journal
+- 1 open accounting period and 1 balanced reconciliation session
 - 1 connected bank account with 1 matched deposit and 1 debit awaiting review
 - 1 department and 1 active employee with compensation
 - 1 submitted time entry
 - 1 pending PTO request for 16 hours
 - 1 payroll run awaiting approval
 - Stripe, QuickBooks, and PostHog integration records
+- 1 failed Stripe webhook event for replay testing
 - 1 overdue-invoice automation
 - 1 billing email template and 1 delivered invoice email
 - 1 action-required payroll notification
@@ -125,6 +129,14 @@ The invoices are partially paid and retain an outstanding balance, which makes c
 2. Open the seeded `cksites.dev` hostname and confirm the published content.
 3. Open **Domains** and run live DNS validation.
 4. Open **Reports**, build a grouped invoice or deal report, save it, and confirm the rendered result.
+
+### Public Intake and Operations
+
+1. Open **Bookings**, update the seeded appointment through confirmed, completed, or canceled states.
+2. Submit a booking from a public endpoint and confirm it appears in both **Bookings** and **Calendar**.
+3. Submit the public contact form, then triage it in **Form inbox** and confirm the linked support case.
+4. Open **Integrations** and queue the seeded failed Stripe webhook for replay.
+5. Open **Documents** and upload a PDF or image to verify signed private R2 upload and download.
 
 ## Environment-Dependent Results
 

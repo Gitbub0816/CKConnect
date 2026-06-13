@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, CalendarDays, FileText, ShieldCheck } from "lucide-react";
+import { PublicBookingForm, PublicContactForm } from "@/components/public-endpoint-actions";
 
 type PortalBlock = {
   type: string;
@@ -19,7 +20,7 @@ type PortalBlock = {
 
 type NavigationItem = { label: string; href: string };
 
-function Block({ block }: { block: PortalBlock }) {
+function Block({ block, organizationSlug }: { block: PortalBlock; organizationSlug: string }) {
   if (block.type === "hero") return (
     <section className={`portal-hero portal-hero-${block.layout ?? "split"}`}>
       <div className="portal-hero-copy">
@@ -33,7 +34,8 @@ function Block({ block }: { block: PortalBlock }) {
   if (block.type === "serviceGrid" || block.type === "services") return <section className="portal-section" id={block.id}><div className="portal-section-heading"><span>Services</span><h2>{block.title}</h2></div>{block.items?.length ? <div className="portal-grid">{block.items.map((item, index) => <article className="portal-service" key={item.title}><div>0{index + 1}</div><h3>{item.title}</h3><p>{item.body}</p><ArrowRight size={16}/></article>)}</div> : <p>{block.body}</p>}</section>;
   if (block.type === "content") return <section className="portal-section" id={block.id}><div className="portal-section-heading"><span>Overview</span><h2>{block.title}</h2></div><p className="max-w-3xl text-lg leading-8 opacity-70">{block.body}</p>{block.action && <a className="portal-button mt-8" href="#contact">{block.action}<ArrowRight size={16}/></a>}</section>;
   if (block.type === "payment") return <section className="portal-cta" id={block.id}><div><span>Secure payments</span><h2>{block.title}</h2><p>{block.body}</p></div><a className="portal-button portal-button-light" href="#portal">{block.action ?? "Pay an invoice"}<ArrowRight size={16}/></a></section>;
-  if (block.type === "booking") return <section className="portal-section portal-process" id={block.id}><div className="portal-section-heading"><span>Scheduling</span><h2>{block.title}</h2></div><p>{block.body}</p><a className="portal-button mt-8" href="#booking">{block.action ?? "Book now"}<CalendarDays size={16}/></a></section>;
+  if (block.type === "booking") return <section className="portal-section portal-process" id={block.id ?? "booking"}><div className="portal-section-heading"><span>Scheduling</span><h2>{block.title}</h2></div><p>{block.body}</p><PublicBookingForm organizationSlug={organizationSlug} service={block.title}/></section>;
+  if (block.type === "form") return <section className="portal-section" id={block.id ?? "contact"}><div className="portal-section-heading"><span>Contact</span><h2>{block.title}</h2></div><p>{block.body}</p><PublicContactForm organizationSlug={organizationSlug}/></section>;
   if (block.type === "portal") return <section className="portal-section" id={block.id}><div className="portal-section-heading"><span>Customer portal</span><h2>{block.title}</h2></div><p>{block.body}</p><a className="portal-button mt-8" href="#portal">{block.action ?? "Open portal"}<ShieldCheck size={16}/></a></section>;
   if (block.type === "stats") return <section className="portal-stats">{block.items?.map((item) => <div key={item.label}><strong>{item.value}</strong><span>{item.label}</span></div>)}</section>;
   if (block.type === "testimonial") return <section className="portal-quote" id={block.id}><div>“</div><blockquote>{block.quote}</blockquote><cite>{block.attribution}</cite></section>;
@@ -41,7 +43,7 @@ function Block({ block }: { block: PortalBlock }) {
   if (block.type === "process") return <section className="portal-section portal-process" id={block.id}><div className="portal-section-heading"><span>Process</span><h2>{block.title}</h2></div><div className="portal-process-grid">{block.steps?.map((step, index) => <article key={step.title}><span>0{index + 1}</span><h3>{step.title}</h3><p>{step.body}</p></article>)}</div></section>;
   if (block.type === "team") return <section className="portal-section" id={block.id}><div className="portal-section-heading"><span>People</span><h2>{block.title}</h2></div><div className="portal-grid">{block.items?.map((item) => <article className="portal-person" key={item.name}><div>{item.name?.split(" ").map((word) => word[0]).join("").slice(0,2)}</div><h3>{item.name}</h3><p>{item.role}</p></article>)}</div></section>;
   if (block.type === "resourceLinks") return <section className="portal-section" id={block.id}><div className="portal-section-heading"><span>Resources</span><h2>{block.title}</h2></div><div className="portal-resources">{block.items?.map((item) => <a href="#portal" key={item.label}>{item.action === "payment" ? <FileText size={20}/> : <CalendarDays size={20}/>}<span>{item.label}</span><ArrowRight size={17}/></a>)}</div></section>;
-  if (block.type === "cta") return <section className="portal-cta" id={block.id}><div><span>Let’s begin</span><h2>{block.title}</h2><p>{block.body}</p></div><a className="portal-button portal-button-light" href="mailto:hello@example.com">{block.action}<ArrowRight size={16}/></a></section>;
+  if (block.type === "cta") return <section className="portal-cta" id={block.id}><div><span>Let&apos;s begin</span><h2>{block.title}</h2><p>{block.body}</p></div><a className="portal-button portal-button-light" href="#contact">{block.action}<ArrowRight size={16}/></a></section>;
   return null;
 }
 
@@ -97,7 +99,7 @@ export function PortalRenderer({
           <div className="portal-links">{navigation.map((item) => <a href={item.href} key={item.label}>{item.label}</a>)}</div>
           <a className="portal-button portal-button-small" href="#portal">Client portal</a>
         </nav>
-        {blocks.map((block, index) => <Block block={block} key={`${block.type}-${index}`}/>)}
+        {blocks.map((block, index) => <Block block={block} key={`${block.type}-${index}`} organizationSlug={organization.slug}/>)}
         <footer className="portal-footer"><span>© 2026 {organization.name}</span><div><Link href="/legal">Legal</Link><span><ShieldCheck size={14}/>Securely hosted by <Link href="/">ClearKey Connect</Link></span></div></footer>
       </div>
     </main>

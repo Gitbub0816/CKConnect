@@ -239,6 +239,28 @@ async function seedOrganization(spec: (typeof organizations)[number], ownerId: s
     { organizationId: organization.id, title: `Meeting with ${accounts[0].name}`, eventType: "MEETING", startsAt: date(1), endsAt: new Date(date(1).getTime() + 3_600_000), location: "Video", ownerUserId: ownerId, attendeeJson: [contacts[0].email] },
     { organizationId: organization.id, title: index === 0 ? "Crew capacity review" : index === 1 ? "Creative review" : "Clinical team huddle", eventType: "INTERNAL", startsAt: date(3), endsAt: new Date(date(3).getTime() + 2_700_000), ownerUserId: ownerId },
   ] });
+  await db.booking.create({
+    data: {
+      organizationId: organization.id,
+      contactId: contacts[0].id,
+      serviceName: index === 0 ? "Seasonal system inspection" : index === 1 ? "Project discovery session" : "New patient consultation",
+      startsAt: date(5),
+      endsAt: new Date(date(5).getTime() + 3_600_000),
+      status: "CONFIRMED",
+      customerName: `${contacts[0].firstName} ${contacts[0].lastName}`,
+      customerEmail: contacts[0].email!,
+      notes: "Seeded public endpoint booking for operations testing.",
+    },
+  });
+  await db.endpointSubmission.create({
+    data: {
+      organizationId: organization.id,
+      submissionType: "CONTACT_FORM",
+      payloadJson: { name: "Taylor Morgan", email: `taylor+${index}@example.com`, subject: "Website inquiry", message: "Please send details about services and availability." },
+      status: "NEW",
+      sourceIpHash: `seed-source-${index}`,
+    },
+  });
 
   const products = await Promise.all([
     db.product.create({ data: { organizationId: organization.id, sku: `SVC-${index}01`, name: index === 0 ? "Annual service plan" : index === 1 ? "Strategy sprint" : "Comprehensive exam", type: "SERVICE", price: 1200 + index * 800, cost: 280 + index * 120 } }),
@@ -274,6 +296,8 @@ async function seedOrganization(spec: (typeof organizations)[number], ownerId: s
     },
   });
   const bank = await db.bankAccount.create({ data: { organizationId: organization.id, ledgerAccountId: ledger[0].id, institutionName: "ClearKey Demo Bank", accountName: "Operating checking", accountType: "CHECKING", mask: `${4200 + index}`, bookBalance: 38640 + index * 9200, availableBalance: 40120 + index * 8700, connectionStatus: "CONNECTED", lastSyncedAt: now } });
+  await db.accountingPeriod.create({ data: { organizationId: organization.id, name: "Current operating period", startsOn: date(-30), endsOn: date(30), status: "OPEN" } });
+  await db.reconciliationSession.create({ data: { organizationId: organization.id, ledgerAccountId: ledger[0].id, statementDate: date(-1), statementBalance: bank.bookBalance, clearedBalance: bank.bookBalance, difference: 0, status: "OPEN" } });
   await db.bankTransaction.createMany({ data: [
     { organizationId: organization.id, bankAccountId: bank.id, postedAt: date(-1), description: `Payment ${invoice.invoiceNumber}`, amount: 1800, direction: "CREDIT", category: "Customer payment", status: "MATCHED", matchedEntityType: "PAYMENT", matchedEntityId: payment.id, externalId: `${spec.slug}-bank-1` },
     { organizationId: organization.id, bankAccountId: bank.id, postedAt: date(-2), description: vendor.name, amount: -684 - index * 110, direction: "DEBIT", category: "Supplies", status: "REVIEW", externalId: `${spec.slug}-bank-2` },
@@ -291,6 +315,7 @@ async function seedOrganization(spec: (typeof organizations)[number], ownerId: s
     { organizationId: organization.id, provider: "QUICKBOOKS", status: index === 1 ? IntegrationStatus.ACTIVE : IntegrationStatus.DISCONNECTED, settings: { environment: "sandbox" }, lastSyncAt: index === 1 ? now : null },
     { organizationId: organization.id, provider: "POSTHOG", status: IntegrationStatus.ACTIVE, settings: { purpose: "product_analytics" }, lastSyncAt: now },
   ] });
+  await db.webhookEvent.create({ data: { organizationId: organization.id, provider: "STRIPE", externalEventId: `evt_seed_failed_${index}`, eventType: "payment_intent.payment_failed", payload: { seeded: true, invoiceId: invoice.id }, status: "FAILED", attempts: 2, lastError: "Seeded provider timeout for replay testing." } });
   await db.automationRule.create({ data: { organizationId: organization.id, name: "Overdue invoice reminder", triggerType: "INVOICE_OVERDUE", conditions: [{ field: "balanceDue", operator: "gt", value: 0 }], actions: [{ type: "SEND_EMAIL", template: "Payment reminder" }], active: true, lastRunAt: date(-1) } });
   await db.emailTemplate.create({ data: { organizationId: organization.id, name: "Payment reminder", subject: `A friendly reminder from ${spec.name}`, bodyHtml: "<p>Your invoice is ready for review. Please contact us with any questions.</p>", category: "BILLING" } });
   await db.emailMessage.create({ data: { organizationId: organization.id, recipientEmail: contacts[0].email!, recipientName: `${contacts[0].firstName} ${contacts[0].lastName}`, subject: `Invoice ${invoice.invoiceNumber}`, bodyHtml: "<p>Your invoice is available in your secure portal.</p>", status: "DELIVERED", sentAt: date(-3), deliveredAt: date(-3), relatedType: "INVOICE", relatedId: invoice.id } });
@@ -343,6 +368,12 @@ async function main() {
   if (existingOrganizationIds.length) {
     await db.paymentAllocation.deleteMany({
       where: { invoice: { organizationId: { in: existingOrganizationIds } } },
+    });
+    await db.journalLine.deleteMany({
+      where: { journalEntry: { organizationId: { in: existingOrganizationIds } } },
+    });
+    await db.payrollRunEmployee.deleteMany({
+      where: { payrollRun: { organizationId: { in: existingOrganizationIds } } },
     });
     await db.organization.deleteMany({ where: { id: { in: existingOrganizationIds } } });
   }

@@ -1,5 +1,5 @@
 import { BadgeCheck, BookOpenCheck, CircleDollarSign, ReceiptText } from "lucide-react";
-import { postExpense, recordManualPayment } from "@/app/app/[organizationSlug]/actions";
+import { manageBill, postExpense, recordManualPayment } from "@/app/app/[organizationSlug]/actions";
 import { formatCurrency } from "@/lib/utils";
 
 type Value = Record<string, unknown>;
@@ -27,6 +27,13 @@ function ExpensesWorkbench({ data, organizationSlug }: { data: Data; organizatio
   return <div className="space-y-3">{(data.records ?? []).map((expense) => <article className="ck-card flex flex-wrap items-center justify-between gap-5 p-5" key={String(expense.id)}><div className="flex gap-4"><div className="grid size-11 place-items-center rounded-lg bg-amber-50 text-amber-800"><ReceiptText size={18}/></div><div><div className="flex items-center gap-2"><strong>{String(expense.description)}</strong><span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${expense.posted ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{expense.posted ? "Posted" : "Needs posting"}</span></div><p className="mt-1 text-xs text-slate-500">{String(expense.vendor ?? "No vendor")} · {String(expense.category ?? "Uncategorized")} · {new Date(String(expense.incurredAt)).toLocaleDateString()}</p></div></div><div className="flex items-center gap-4"><strong className="text-xl">{formatCurrency(Number(expense.amount))}</strong>{!expense.posted && <form action={postExpense}><input name="organizationSlug" type="hidden" value={organizationSlug}/><input name="entityId" type="hidden" value={String(expense.id)}/><button className="ck-button" type="submit"><BookOpenCheck size={14}/>Post expense</button></form>}</div></article>)}</div>;
 }
 
+function VendorsWorkbench({ data, organizationSlug }: { data: Data; organizationSlug: string }) {
+  return <div className="space-y-4">{(data.records ?? []).map((vendor) => <article className="ck-card overflow-hidden" key={String(vendor.id)}>
+    <div className="flex flex-wrap items-center justify-between gap-4 border-b p-5"><div><strong>{String(vendor.name)}</strong><p className="mt-1 text-xs text-slate-500">{String(vendor.email ?? "No email")} · {vendor.eligible1099 ? "1099 eligible" : "Standard vendor"}</p></div><div className="text-right"><div className="text-xs text-slate-500">Open balance</div><div className="text-xl font-semibold">{formatCurrency(Number(vendor.balance))}</div></div></div>
+    <div className="divide-y">{(vendor.bills as Value[]).map((bill) => <div className="grid gap-4 p-5 lg:grid-cols-[1fr_auto] lg:items-center" key={String(bill.id)}><div><div className="flex items-center gap-2"><strong>{String(bill.number ?? "Unnumbered bill")}</strong><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold">{String(bill.status)}</span>{Boolean(bill.posted) && <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">Posted</span>}</div><p className="mt-2 text-xs text-slate-500">Due {new Date(String(bill.dueDate)).toLocaleDateString()} · {formatCurrency(Number(bill.balance))} remaining</p></div><form action={manageBill}><input name="organizationSlug" type="hidden" value={organizationSlug}/><input name="entityId" type="hidden" value={String(bill.id)}/>{!bill.posted ? <button className="ck-button" name="command" type="submit" value="POST">Post to A/P</button> : bill.status !== "PAID" ? <button className="ck-button" name="command" type="submit" value="PAY">Record payment</button> : <span className="text-sm font-semibold text-emerald-700">Paid</span>}</form></div>)}</div>
+  </article>)}</div>;
+}
+
 function AccountingWorkbench({ data }: { data: Data }) {
   const accounts = data.accounts ?? [];
   const totalDebits = (data.records ?? []).reduce((sum, entry) => sum + Number(entry.debit ?? 0), 0);
@@ -40,6 +47,7 @@ function AccountingWorkbench({ data }: { data: Data }) {
 export function FinanceWorkbench({ module, data, organizationSlug }: { module: string; data: Data; organizationSlug: string }) {
   if (module === "payments") return <PaymentsWorkbench data={data} organizationSlug={organizationSlug}/>;
   if (module === "expenses") return <ExpensesWorkbench data={data} organizationSlug={organizationSlug}/>;
+  if (module === "vendors") return <VendorsWorkbench data={data} organizationSlug={organizationSlug}/>;
   if (module === "accounting") return <AccountingWorkbench data={data}/>;
   return null;
 }

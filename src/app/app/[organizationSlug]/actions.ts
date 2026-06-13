@@ -17,6 +17,13 @@ const escapeHtml = (value: string) => value
   .replaceAll('"', "&quot;")
   .replaceAll("'", "&#039;");
 
+async function assertAccountingDateOpen(organizationId: string, date: Date) {
+  const locked = await getDb().accountingPeriod.findFirst({
+    where: { organizationId, status: "LOCKED", startsOn: { lte: date }, endsOn: { gte: date } },
+  });
+  if (locked) throw new Error(`Accounting period ${locked.name} is locked`);
+}
+
 const themeSchema = z.object({
   organizationSlug: z.string().min(1),
   primaryColor: z.string().regex(/^#[0-9a-f]{6}$/i),
@@ -341,6 +348,7 @@ export async function sendInvoice(formData: FormData) {
     where: { id: input.entityId, organizationId: organization.id },
     include: { contact: true, account: true },
   });
+  await assertAccountingDateOpen(organization.id, before.issueDate);
   if (["PAID", "VOID"].includes(before.status)) throw new Error(`A ${before.status.toLowerCase()} invoice cannot be sent`);
   const result = await db.$transaction(async (tx) => {
     const receivable = await tx.ledgerAccount.upsert({
@@ -427,6 +435,7 @@ export async function resolveBankTransaction(formData: FormData) {
     where: { id: input.entityId, organizationId: organization.id },
     include: { bankAccount: true },
   });
+  await assertAccountingDateOpen(organization.id, transaction.postedAt);
   if (transaction.status === "MATCHED") throw new Error("Bank transaction is already matched");
   const amount = Math.abs(Number(transaction.amount));
 
@@ -818,6 +827,7 @@ export async function recordManualPayment(formData: FormData) {
   if (!user) throw new Error("A signed-in user is required");
   const db = getDb();
   const invoice = await db.invoice.findFirstOrThrow({ where: { id: input.invoiceId, organizationId: organization.id } });
+  await assertAccountingDateOpen(organization.id, new Date(input.receivedAt));
   const balance = Number(invoice.balanceDue);
   if (input.amount > balance) throw new Error("Payment cannot exceed the invoice balance");
   const result = await db.$transaction(async (tx) => {
@@ -883,6 +893,7 @@ export async function postExpense(formData: FormData) {
   if (!user) throw new Error("A signed-in user is required");
   const db = getDb();
   const before = await db.expense.findFirstOrThrow({ where: { id: input.entityId, organizationId: organization.id } });
+  await assertAccountingDateOpen(organization.id, before.incurredAt);
   if (before.postedJournalId) throw new Error("Expense is already posted");
   const journal = await db.$transaction(async (tx) => {
     const cash = await tx.ledgerAccount.upsert({
@@ -918,6 +929,139 @@ export async function postExpense(formData: FormData) {
   revalidatePath(`/app/${input.organizationSlug}/accounting`);
 }
 
+export async function manageBill(formData: FormData) {
+  const input = entityActionSchema.extend({ command: z.enum(["POST", "PAY"]) }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "accounting.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  const before = await db.bill.findFirstOrThrow({ where: { id: input.entityId, organizationId: organization.id }, include: { vendor: true } });
+  await assertAccountingDateOpen(organization.id, input.command === "POST" ? before.issueDate : new Date());
+  if (input.command === "POST" && before.postedJournalId) throw new Error("Bill is already posted");
+  if (input.command === "PAY" && before.status === "PAID") throw new Error("Bill is already paid");
+  if (input.command === "PAY" && !before.postedJournalId) throw new Error("Post the bill before recording payment");
+  const result = await db.$transaction(async (tx) => {
+    const payable = await tx.ledgerAccount.upsert({ where: { organizationId_code: { organizationId: organization.id, code: "2000" } }, update: {}, create: { organizationId: organization.id, code: "2000", name: "Accounts Payable", type: "LIABILITY", systemAccount: true } });
+    const expense = await tx.ledgerAccount.upsert({ where: { organizationId_code: { organizationId: organization.id, code: "6100" } }, update: {}, create: { organizationId: organization.id, code: "6100", name: "Operating Expenses", type: "EXPENSE", systemAccount: true } });
+    const cash = await tx.ledgerAccount.upsert({ where: { organizationId_code: { organizationId: organization.id, code: "1000" } }, update: {}, create: { organizationId: organization.id, code: "1000", name: "Operating Cash", type: "ASSET", systemAccount: true } });
+    const count = await tx.journalEntry.count({ where: { organizationId: organization.id } });
+    if (input.command === "POST") {
+      const journal = await tx.journalEntry.create({ data: { organizationId: organization.id, entryNumber: `JE-${String(count + 1).padStart(6, "0")}`, entryDate: before.issueDate, description: `Bill ${before.billNumber ?? before.id} - ${before.vendor.name}`, status: "POSTED", sourceModule: "BILL", sourceId: before.id, createdById: user.id, postedAt: new Date(), lines: { create: [{ ledgerAccountId: expense.id, debit: before.total, credit: 0 }, { ledgerAccountId: payable.id, debit: 0, credit: before.total, sortOrder: 1 }] } } });
+      return tx.bill.update({ where: { id: before.id }, data: { status: "OPEN", postedJournalId: journal.id } });
+    }
+    const balance = Number(before.total) - Number(before.amountPaid);
+    if (balance <= 0) throw new Error("Bill has no remaining balance");
+    await tx.journalEntry.create({ data: { organizationId: organization.id, entryNumber: `JE-${String(count + 1).padStart(6, "0")}`, entryDate: new Date(), description: `Payment for bill ${before.billNumber ?? before.id}`, status: "POSTED", sourceModule: "BILL_PAYMENT", sourceId: before.id, createdById: user.id, postedAt: new Date(), lines: { create: [{ ledgerAccountId: payable.id, debit: balance, credit: 0 }, { ledgerAccountId: cash.id, debit: 0, credit: balance, sortOrder: 1 }] } } });
+    return tx.bill.update({ where: { id: before.id }, data: { status: "PAID", amountPaid: before.total } });
+  });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: `bill.${input.command.toLowerCase()}`, entityType: "Bill", entityId: before.id, before, after: result, category: "FINANCIAL", retentionClass: "FINANCIAL_7Y" });
+  revalidatePath(`/app/${input.organizationSlug}/vendors`);
+  revalidatePath(`/app/${input.organizationSlug}/accounting`);
+}
+
+export async function createReconciliation(formData: FormData) {
+  const input = z.object({ organizationSlug: z.string(), ledgerAccountId: z.string().uuid(), statementDate: z.string(), statementBalance: z.coerce.number() }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "banking.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const clearedBalance = Number((await getDb().bankAccount.findFirst({ where: { organizationId: organization.id, ledgerAccountId: input.ledgerAccountId } }))?.bookBalance ?? 0);
+  const session = await getDb().reconciliationSession.create({ data: { organizationId: organization.id, ledgerAccountId: input.ledgerAccountId, statementDate: new Date(input.statementDate), statementBalance: input.statementBalance, clearedBalance, difference: input.statementBalance - clearedBalance } });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "reconciliation.started", entityType: "ReconciliationSession", entityId: session.id, after: session, category: "FINANCIAL", retentionClass: "FINANCIAL_7Y" });
+  revalidatePath(`/app/${input.organizationSlug}/banking`);
+}
+
+export async function completeReconciliation(formData: FormData) {
+  const input = entityActionSchema.parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "banking.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const before = await getDb().reconciliationSession.findFirstOrThrow({ where: { id: input.entityId, organizationId: organization.id } });
+  if (Math.abs(Number(before.difference)) > 0.005) throw new Error("Reconciliation difference must be zero before completion");
+  const session = await getDb().reconciliationSession.update({ where: { id: before.id }, data: { status: "COMPLETED", completedById: user.id, completedAt: new Date() } });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "reconciliation.completed", entityType: "ReconciliationSession", entityId: session.id, before, after: session, category: "FINANCIAL", retentionClass: "FINANCIAL_7Y" });
+  revalidatePath(`/app/${input.organizationSlug}/banking`);
+}
+
+export async function manageAccountingPeriod(formData: FormData) {
+  const input = z.object({
+    organizationSlug: z.string(),
+    name: z.string().trim().max(80).optional(),
+    startsOn: z.string().optional(),
+    endsOn: z.string().optional(),
+    command: z.enum(["CREATE", "LOCK", "UNLOCK"]),
+    entityId: z.string().uuid().optional(),
+  }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "accounting.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  let period;
+  if (input.command === "CREATE") {
+    if (!input.name || input.name.length < 2 || !input.startsOn || !input.endsOn) throw new Error("Name, start date, and end date are required");
+    const startsOn = new Date(input.startsOn);
+    const endsOn = new Date(input.endsOn);
+    if (startsOn > endsOn) throw new Error("The period start must be on or before its end");
+    period = await db.accountingPeriod.create({ data: { organizationId: organization.id, name: input.name, startsOn, endsOn } });
+  } else {
+    if (!input.entityId) throw new Error("Accounting period is required");
+    const existing = await db.accountingPeriod.findFirstOrThrow({ where: { id: input.entityId, organizationId: organization.id } });
+    period = await db.accountingPeriod.update({ where: { id: existing.id }, data: input.command === "LOCK" ? { status: "LOCKED", lockedById: user.id, lockedAt: new Date() } : { status: "OPEN", lockedById: null, lockedAt: null } });
+  }
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: `accounting_period.${input.command.toLowerCase()}`, entityType: "AccountingPeriod", entityId: period.id, after: period, category: "FINANCIAL", retentionClass: "FINANCIAL_7Y" });
+  revalidatePath(`/app/${input.organizationSlug}/accounting`);
+}
+
+export async function reverseJournalEntry(formData: FormData) {
+  const input = entityActionSchema.extend({ reason: z.string().trim().min(3).max(300) }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "accounting.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  const before = await db.journalEntry.findFirstOrThrow({ where: { id: input.entityId, organizationId: organization.id }, include: { lines: true } });
+  if (before.status !== "POSTED") throw new Error("Only posted entries can be reversed");
+  if (before.reversalOfId) throw new Error("A reversal entry cannot be reversed from this workflow");
+  await assertAccountingDateOpen(organization.id, new Date());
+  const reversal = await db.$transaction(async (tx) => {
+    const count = await tx.journalEntry.count({ where: { organizationId: organization.id } });
+    const created = await tx.journalEntry.create({ data: { organizationId: organization.id, entryNumber: `JE-${String(count + 1).padStart(6, "0")}`, entryDate: new Date(), description: `Reversal: ${before.description} - ${input.reason}`, status: "POSTED", sourceModule: "REVERSAL", sourceId: before.id, reversalOfId: before.id, createdById: user.id, postedAt: new Date(), lines: { create: before.lines.map((line) => ({ ledgerAccountId: line.ledgerAccountId, debit: line.credit, credit: line.debit, description: line.description, sortOrder: line.sortOrder })) } } });
+    await tx.journalEntry.update({ where: { id: before.id }, data: { status: "REVERSED" } });
+    return created;
+  });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "journal.reversed", entityType: "JournalEntry", entityId: before.id, before, after: reversal, category: "FINANCIAL", retentionClass: "FINANCIAL_7Y" });
+  revalidatePath(`/app/${input.organizationSlug}/accounting`);
+}
+
+export async function addEntityNote(formData: FormData) {
+  const input = z.object({ organizationSlug: z.string(), relatedType: z.enum(["ACCOUNT", "CONTACT", "DEAL", "CASE"]), relatedId: z.string().uuid(), body: z.string().trim().min(2).max(3000) }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "accounts.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const note = await getDb().note.create({ data: { organizationId: organization.id, relatedType: input.relatedType, relatedId: input.relatedId, body: input.body, createdById: user.id } });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "note.created", entityType: "Note", entityId: note.id, after: { relatedType: input.relatedType, relatedId: input.relatedId }, category: "BUSINESS" });
+  revalidatePath(`/app/${input.organizationSlug}/accounts`);
+}
+
+export async function updateEndpointSubmission(formData: FormData) {
+  const input = entityActionSchema.extend({ status: z.enum(["NEW", "IN_REVIEW", "RESOLVED", "SPAM"]) }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "cases.write");
+  const before = await getDb().endpointSubmission.findFirstOrThrow({ where: { id: input.entityId, organizationId: organization.id } });
+  const result = await getDb().endpointSubmission.update({ where: { id: before.id }, data: { status: input.status } });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user?.id, action: "endpoint_submission.updated", entityType: "EndpointSubmission", entityId: result.id, before, after: result, category: "BUSINESS" });
+  revalidatePath(`/app/${input.organizationSlug}/submissions`);
+}
+
+export async function updateBooking(formData: FormData) {
+  const input = entityActionSchema.extend({ status: z.enum(["SCHEDULED", "CONFIRMED", "COMPLETED", "CANCELED"]) }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "calendar.write");
+  const before = await getDb().booking.findFirstOrThrow({ where: { id: input.entityId, organizationId: organization.id } });
+  const result = await getDb().booking.update({ where: { id: before.id }, data: { status: input.status } });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user?.id, action: "booking.status.updated", entityType: "Booking", entityId: result.id, before, after: result, category: "BUSINESS" });
+  revalidatePath(`/app/${input.organizationSlug}/bookings`);
+}
+
+export async function replayWebhook(formData: FormData) {
+  const input = entityActionSchema.parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "integrations.manage");
+  const before = await getDb().webhookEvent.findFirstOrThrow({ where: { id: input.entityId, organizationId: organization.id } });
+  const event = await getDb().webhookEvent.update({ where: { id: before.id }, data: { status: "PENDING", attempts: { increment: 1 }, lastError: null } });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user?.id, action: "webhook.replay.requested", entityType: "WebhookEvent", entityId: event.id, before, after: event, category: "INTEGRATION" });
+  revalidatePath(`/app/${input.organizationSlug}/integrations`);
+}
+
 const permissionCatalog = [
   "leads.read", "leads.write", "accounts.read", "accounts.write", "contacts.read", "contacts.write",
   "deals.read", "deals.write", "cases.read", "cases.write", "invoices.read", "invoices.write",
@@ -925,7 +1069,7 @@ const permissionCatalog = [
   "tasks.read", "tasks.write", "calendar.read", "calendar.write", "campaigns.read", "campaigns.write",
   "payroll.read", "payroll.write", "banking.read", "banking.write", "email.read", "email.write",
   "automations.read", "automations.write", "websites.read", "websites.write", "websites.publish",
-  "domains.read", "domains.manage", "team.read", "team.manage", "settings.manage", "integrations.manage",
+  "domains.read", "domains.manage", "documents.read", "documents.write", "team.read", "team.manage", "settings.manage", "integrations.manage",
 ] as const;
 
 export async function updateMembershipAccess(formData: FormData) {

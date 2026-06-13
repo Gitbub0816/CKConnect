@@ -5,7 +5,7 @@ import { requireOrganizationAccess } from "@/lib/authorization";
 
 export async function GET(request: Request) {
   const organizationSlug = z.string().min(1).parse(new URL(request.url).searchParams.get("organizationSlug"));
-  await requireOrganizationAccess(organizationSlug, "email.manage");
+  await requireOrganizationAccess(organizationSlug, "email.write");
   const clientId = process.env.ZOHO_CLIENT_ID;
   const redirectUri = process.env.ZOHO_REDIRECT_URI;
   if (!clientId || !redirectUri) return Response.json({ error: "Zoho OAuth is not configured" }, { status: 503 });

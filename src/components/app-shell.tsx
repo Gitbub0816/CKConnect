@@ -40,6 +40,7 @@ const sections = [
       ["reports", "Reports", BarChart3],
       ["tasks", "Tasks", ListTodo],
       ["calendar", "Calendar", CalendarDays],
+      ["bookings", "Bookings", CalendarDays],
     ],
   },
   {
@@ -73,6 +74,7 @@ const sections = [
       ["automations", "Automations", Workflow],
       ["email", "Email", Mail],
       ["documents", "Documents", Files],
+      ["submissions", "Form inbox", Headphones],
       ["notifications", "Notifications", Bell],
       ["integrations", "Integrations", Plug],
       ["team", "Team & roles", Users],

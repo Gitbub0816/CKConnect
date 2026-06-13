@@ -10,7 +10,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   const mailbox = await mailboxForAccess(id);
   if (!mailbox) return Response.json({ error: "Mailbox not found" }, { status: 404 });
-  await requireOrganizationAccess(mailbox.organization.slug, "email.manage");
+  await requireOrganizationAccess(mailbox.organization.slug, "email.write");
   const input = z.object({ displayName: z.string().min(1).optional(), active: z.boolean().optional() }).parse(await request.json());
   return Response.json({ mailbox: await getDb().managedMailbox.update({ where: { id }, data: input }) });
 }
@@ -19,7 +19,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const mailbox = await mailboxForAccess(id);
   if (!mailbox) return Response.json({ error: "Mailbox not found" }, { status: 404 });
-  await requireOrganizationAccess(mailbox.organization.slug, "email.manage");
+  await requireOrganizationAccess(mailbox.organization.slug, "email.write");
   await getDb().$transaction([
     getDb().managedMailbox.delete({ where: { id } }),
     getDb().organizationUsage.update({ where: { organizationId: mailbox.organizationId }, data: { mailboxCount: { decrement: 1 } } }),
