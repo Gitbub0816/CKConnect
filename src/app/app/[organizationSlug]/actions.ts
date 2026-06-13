@@ -7,6 +7,8 @@ import type { Prisma } from "@/generated/prisma/client";
 import { requireOrganizationAccess } from "@/lib/authorization";
 import { getDb } from "@/lib/db";
 import { appendAuditEvent } from "@/lib/logging/audit";
+import { CloudflareDnsProvider } from "@/lib/integrations/dns-provider";
+import { publishSiteManifest } from "@/lib/integrations/cloudflare-edge";
 
 const themeSchema = z.object({
   organizationSlug: z.string().min(1),
@@ -592,4 +594,197 @@ export async function completeTask(formData: FormData) {
   await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "task.completed", entityType: "Task", entityId: task.id, before, after: task, category: "BUSINESS" });
   revalidatePath(`/app/${input.organizationSlug}`);
   revalidatePath(`/app/${input.organizationSlug}/tasks`);
+}
+
+const permissionCatalog = [
+  "leads.read", "leads.write", "accounts.read", "accounts.write", "contacts.read", "contacts.write",
+  "deals.read", "deals.write", "cases.read", "cases.write", "invoices.read", "invoices.write",
+  "payments.read", "payments.write", "accounting.read", "accounting.write", "reports.read",
+  "tasks.read", "tasks.write", "calendar.read", "calendar.write", "campaigns.read", "campaigns.write",
+  "payroll.read", "payroll.write", "banking.read", "banking.write", "email.read", "email.write",
+  "automations.read", "automations.write", "websites.read", "websites.write", "websites.publish",
+  "domains.read", "domains.manage", "team.read", "team.manage", "settings.manage", "integrations.manage",
+] as const;
+
+export async function updateMembershipAccess(formData: FormData) {
+  const input = z.object({
+    organizationSlug: z.string().min(1),
+    membershipId: z.string().uuid(),
+    role: z.enum(["OWNER", "ADMIN", "MANAGER", "SALES", "ACCOUNTING", "SUPPORT", "READ_ONLY", "PORTAL_USER"]),
+    permissions: z.array(z.enum(permissionCatalog)).default([]),
+  }).parse({
+    ...Object.fromEntries(formData),
+    permissions: formData.getAll("permissions"),
+  });
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "team.manage");
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  const before = await db.organizationMembership.findFirstOrThrow({ where: { id: input.membershipId, organizationId: organization.id } });
+  if (before.role === "OWNER" && input.role !== "OWNER") {
+    const owners = await db.organizationMembership.count({ where: { organizationId: organization.id, role: "OWNER" } });
+    if (owners <= 1) throw new Error("The organization must retain at least one owner");
+  }
+  const membership = await db.organizationMembership.update({ where: { id: before.id }, data: { role: input.role, permissions: input.permissions } });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "membership.access.updated", entityType: "OrganizationMembership", entityId: membership.id, before, after: membership, category: "SECURITY", retentionClass: "SECURITY_7Y" });
+  revalidatePath(`/app/${input.organizationSlug}/team`);
+}
+
+export async function updateTenantControls(formData: FormData) {
+  const input = z.object({
+    organizationSlug: z.string().min(1),
+    consoleTitle: z.string().trim().max(80),
+    consoleLogoUrl: z.string().url().or(z.literal("")),
+    consoleBackgroundImageUrl: z.string().url().or(z.literal("")),
+    consolePrimaryColor: z.string().regex(/^#[0-9a-f]{6}$/i),
+    consoleSidebarColor: z.string().regex(/^#[0-9a-f]{6}$/i),
+    paymentTitle: z.string().trim().max(80),
+    paymentLogoUrl: z.string().url().or(z.literal("")),
+    paymentBackgroundImageUrl: z.string().url().or(z.literal("")),
+    paymentPrimaryColor: z.string().regex(/^#[0-9a-f]{6}$/i),
+    paymentHeaderColor: z.string().regex(/^#[0-9a-f]{6}$/i),
+  }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "settings.manage");
+  if (!user) throw new Error("A signed-in user is required");
+  const enabled = new Set(formData.getAll("enabledModules").map(String));
+  const db = getDb();
+  const before = await db.organizationTheme.findUnique({ where: { organizationId: organization.id } });
+  await db.$transaction([
+    db.organizationTheme.upsert({
+      where: { organizationId: organization.id },
+      update: {
+        consoleTitle: input.consoleTitle || null, consoleLogoUrl: input.consoleLogoUrl || null,
+        consoleBackgroundImageUrl: input.consoleBackgroundImageUrl || null, consolePrimaryColor: input.consolePrimaryColor,
+        consoleSidebarColor: input.consoleSidebarColor, paymentTitle: input.paymentTitle || null,
+        paymentLogoUrl: input.paymentLogoUrl || null, paymentBackgroundImageUrl: input.paymentBackgroundImageUrl || null,
+        paymentPrimaryColor: input.paymentPrimaryColor, paymentHeaderColor: input.paymentHeaderColor,
+      },
+      create: {
+        organizationId: organization.id,
+        consoleTitle: input.consoleTitle || null, consoleLogoUrl: input.consoleLogoUrl || null,
+        consoleBackgroundImageUrl: input.consoleBackgroundImageUrl || null, consolePrimaryColor: input.consolePrimaryColor,
+        consoleSidebarColor: input.consoleSidebarColor, paymentTitle: input.paymentTitle || null,
+        paymentLogoUrl: input.paymentLogoUrl || null, paymentBackgroundImageUrl: input.paymentBackgroundImageUrl || null,
+        paymentPrimaryColor: input.paymentPrimaryColor, paymentHeaderColor: input.paymentHeaderColor,
+      },
+    }),
+    db.organizationModule.upsert({
+      where: { organizationId: organization.id },
+      update: {
+        crm: enabled.has("crm"), cases: enabled.has("cases"), campaigns: enabled.has("campaigns"),
+        accounting: enabled.has("accounting"), banking: enabled.has("banking"), payroll: enabled.has("payroll"),
+        websites: enabled.has("websites"), domains: enabled.has("domains"), automations: enabled.has("automations"),
+        reports: enabled.has("reports"), marketing: enabled.has("marketing"), managedEmail: enabled.has("managedEmail"),
+      },
+      create: {
+        organizationId: organization.id, crm: enabled.has("crm"), cases: enabled.has("cases"),
+        campaigns: enabled.has("campaigns"), accounting: enabled.has("accounting"), banking: enabled.has("banking"),
+        payroll: enabled.has("payroll"), websites: enabled.has("websites"), domains: enabled.has("domains"),
+        automations: enabled.has("automations"), reports: enabled.has("reports"), marketing: enabled.has("marketing"),
+        managedEmail: enabled.has("managedEmail"),
+      },
+    }),
+  ]);
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "tenant.console_controls.updated", entityType: "OrganizationTheme", entityId: before?.id, before, after: { ...input, enabledModules: [...enabled] }, category: "ADMIN", retentionClass: "SECURITY_7Y" });
+  revalidatePath(`/app/${input.organizationSlug}`, "layout");
+}
+
+export async function saveReportQuery(formData: FormData) {
+  const input = z.object({
+    organizationSlug: z.string().min(1),
+    name: z.string().trim().min(2).max(80),
+    dataset: z.enum(["invoices", "deals", "expenses", "customers"]),
+    metric: z.enum(["count", "sum", "average"]),
+    valueField: z.enum(["total", "balanceDue", "amount", "estimatedValue", "annualRevenue"]).optional(),
+    groupBy: z.enum(["status", "stage", "source", "industry", "month", "none"]),
+    filterField: z.enum(["status", "stage", "source", "industry", "none"]),
+    filterValue: z.string().trim().max(100).optional().default(""),
+    shared: z.string().optional().transform((value) => value === "on"),
+  }).parse(Object.fromEntries(formData));
+  const validValues: Record<string, string[]> = {
+    invoices: ["total", "balanceDue"],
+    deals: ["amount"],
+    expenses: ["amount"],
+    customers: ["annualRevenue"],
+  };
+  const validGroups: Record<string, string[]> = {
+    invoices: ["status", "month", "none"],
+    deals: ["stage", "month", "none"],
+    expenses: ["month", "none"],
+    customers: ["industry", "month", "none"],
+  };
+  if (input.metric !== "count" && (!input.valueField || !validValues[input.dataset].includes(input.valueField))) throw new Error("The selected value field is not available for this dataset");
+  if (!validGroups[input.dataset].includes(input.groupBy)) throw new Error("The selected grouping is not available for this dataset");
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "reports.read");
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  const columns = [input.metric, ...(input.valueField ? [input.valueField] : [])] as Prisma.InputJsonValue;
+  const view = await db.savedView.upsert({
+    where: { organizationId_userId_module_name: { organizationId: organization.id, userId: user.id, module: "reports", name: input.name } },
+    update: { filtersJson: input, columnsJson: columns, sortJson: { direction: "desc" }, shared: input.shared },
+    create: { organizationId: organization.id, userId: user.id, module: "reports", name: input.name, filtersJson: input, columnsJson: columns, sortJson: { direction: "desc" }, shared: input.shared },
+  });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "report.query.saved", entityType: "SavedView", entityId: view.id, after: input, category: "BUSINESS" });
+  revalidatePath(`/app/${input.organizationSlug}/reports`);
+}
+
+export async function saveWebsitePage(formData: FormData) {
+  const input = z.object({
+    organizationSlug: z.string().min(1),
+    websiteId: z.string().uuid(),
+    pageId: z.string().uuid(),
+    title: z.string().trim().min(1).max(120),
+    path: z.string().regex(/^\/[a-z0-9\/-]*$/),
+    seoTitle: z.string().trim().max(120),
+    seoDescription: z.string().trim().max(240),
+    blocksJson: z.string(),
+    publish: z.string().optional().transform((value) => value === "on"),
+  }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, input.publish ? "websites.publish" : "websites.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const blocks = z.array(z.record(z.string(), z.unknown())).min(1).max(50).parse(JSON.parse(input.blocksJson));
+  const db = getDb();
+  const website = await db.website.findFirstOrThrow({ where: { id: input.websiteId, organizationId: organization.id } });
+  const before = await db.websitePage.findFirstOrThrow({ where: { id: input.pageId, websiteId: website.id } });
+  const page = await db.$transaction(async (tx) => {
+    const result = await tx.websitePage.update({
+      where: { id: before.id },
+      data: {
+        title: input.title,
+        path: input.path,
+        seoJson: { title: input.seoTitle, description: input.seoDescription },
+        contentJson: { blocks } as Prisma.InputJsonValue,
+        status: input.publish ? "PUBLISHED" : "DRAFT",
+      },
+    });
+    if (input.publish) await tx.website.update({ where: { id: website.id }, data: { status: "PUBLISHED", publishedAt: new Date() } });
+    return result;
+  });
+  if (input.publish) await publishSiteManifest({ organizationId: organization.id, websiteId: website.id, hostname: website.defaultHostname, publishedAt: new Date().toISOString() });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: input.publish ? "website.page.published" : "website.page.saved", entityType: "WebsitePage", entityId: page.id, before, after: page, category: "BUSINESS" });
+  revalidatePath(`/app/${input.organizationSlug}/websites`);
+  revalidatePath(`/site/${website.defaultHostname}`);
+}
+
+export async function verifyDomainNow(formData: FormData) {
+  const input = entityActionSchema.parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "domains.manage");
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  const domain = await db.organizationDomain.findFirstOrThrow({ where: { id: input.entityId, organizationId: organization.id } });
+  const checks = await new CloudflareDnsProvider().inspectDomain(domain.hostname, domain.verificationToken);
+  const ownership = checks.find((check) => check.key === "ownership")?.status === "HEALTHY";
+  let sslEnabled = false;
+  try {
+    const response = await fetch(`https://${domain.hostname}`, { method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(5000) });
+    sslEnabled = response.status > 0;
+  } catch {
+    sslEnabled = false;
+  }
+  await db.$transaction(async (tx) => {
+    await tx.dnsRecord.deleteMany({ where: { organizationDomainId: domain.id, recordType: "HEALTH" } });
+    await tx.dnsRecord.createMany({ data: checks.map((check) => ({ organizationDomainId: domain.id, recordType: "HEALTH", name: check.key, value: check.answers.join(" | ") || "MISSING", status: check.status, lastCheckedAt: new Date() })) });
+    await tx.organizationDomain.update({ where: { id: domain.id }, data: { status: ownership ? "VERIFIED" : "PENDING", verifiedAt: ownership ? new Date() : null, sslEnabled } });
+  });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "domain.health.checked", entityType: "OrganizationDomain", entityId: domain.id, after: { checks, sslEnabled }, category: "INTEGRATION" });
+  revalidatePath(`/app/${input.organizationSlug}/domains`);
 }

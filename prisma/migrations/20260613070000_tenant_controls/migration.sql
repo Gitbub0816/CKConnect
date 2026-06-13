@@ -1,0 +1,21 @@
+ALTER TABLE "OrganizationTheme"
+ADD COLUMN "consoleTitle" TEXT,
+ADD COLUMN "consoleLogoUrl" TEXT,
+ADD COLUMN "consoleBackgroundImageUrl" TEXT,
+ADD COLUMN "consolePrimaryColor" TEXT NOT NULL DEFAULT '#c9a033',
+ADD COLUMN "consoleSidebarColor" TEXT NOT NULL DEFAULT '#1c1917',
+ADD COLUMN "paymentTitle" TEXT,
+ADD COLUMN "paymentLogoUrl" TEXT,
+ADD COLUMN "paymentBackgroundImageUrl" TEXT,
+ADD COLUMN "paymentPrimaryColor" TEXT NOT NULL DEFAULT '#c9a033',
+ADD COLUMN "paymentHeaderColor" TEXT NOT NULL DEFAULT '#1c1917';
+
+ALTER TABLE "OrganizationModule"
+ADD COLUMN "crm" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN "cases" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN "campaigns" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN "banking" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN "websites" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN "domains" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN "automations" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN "reports" BOOLEAN NOT NULL DEFAULT true;

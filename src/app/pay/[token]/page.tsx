@@ -19,12 +19,23 @@ export default async function InvoicePaymentPage({
   });
   if (!invoice) notFound();
   const paid = invoice.status === "PAID" || invoice.balanceDue.lte(0) || status === "success";
+  const theme = invoice.organization.theme;
+  const pageStyle = {
+    "--payment-primary": theme?.paymentPrimaryColor ?? "#c9a033",
+    "--payment-header": theme?.paymentHeaderColor ?? "#1c1917",
+    backgroundImage: theme?.paymentBackgroundImageUrl ? `linear-gradient(rgb(243 238 229 / 88%), rgb(243 238 229 / 88%)), url("${theme.paymentBackgroundImageUrl}")` : undefined,
+    backgroundSize: "cover",
+  } as React.CSSProperties;
 
   return (
-    <main className="min-h-screen bg-[#f3eee5] p-5 sm:p-10">
+    <main className="min-h-screen bg-[#f3eee5] p-5 sm:p-10" style={pageStyle}>
       <div className="mx-auto max-w-3xl overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_28px_90px_rgba(54,40,20,.15)]">
-        <header className="flex flex-wrap items-center justify-between gap-4 border-b bg-[#1c1917] px-7 py-6 text-white">
-          <div><div className="text-xs uppercase tracking-[.18em] text-amber-300">Secure invoice</div><h1 className="mt-1 text-2xl font-semibold">{invoice.organization.name}</h1></div>
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b bg-[var(--payment-header)] px-7 py-6 text-white">
+          <div className="flex items-center gap-4">{theme?.paymentLogoUrl && (
+            // Tenant logos can be hosted on arbitrary verified domains.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img alt="" className="size-12 rounded-lg bg-white/10 object-contain p-1" src={theme.paymentLogoUrl}/>
+          )}<div><div className="text-xs uppercase tracking-[.18em] text-[var(--payment-primary)]">{theme?.paymentTitle ?? "Secure invoice"}</div><h1 className="mt-1 text-2xl font-semibold">{invoice.organization.name}</h1></div></div>
           <div className="flex items-center gap-2 text-xs text-slate-300"><LockKeyhole size={15}/>Stripe-hosted payment</div>
         </header>
         <div className="grid gap-8 p-7 md:grid-cols-[1fr_270px]">
@@ -41,7 +52,7 @@ export default async function InvoicePaymentPage({
             <div className="mt-3 font-semibold">{invoice.account?.name ?? ([invoice.contact?.firstName, invoice.contact?.lastName].filter(Boolean).join(" ") || "Client")}</div>
             {invoice.contact?.email && <div className="mt-1 text-xs text-slate-500">{invoice.contact.email}</div>}
             <div className="my-5 border-t"/>
-            {paid ? <div className="rounded-lg bg-emerald-50 p-4 text-sm font-semibold text-emerald-800"><CheckCircle2 className="mb-2" size={22}/>This invoice is paid.</div> : <InvoicePaymentButton token={token}/>}
+            {paid ? <div className="rounded-lg bg-emerald-50 p-4 text-sm font-semibold text-emerald-800"><CheckCircle2 className="mb-2" size={22}/>This invoice is paid.</div> : <div style={{ "--primary": theme?.paymentPrimaryColor ?? "#c9a033" } as React.CSSProperties}><InvoicePaymentButton token={token}/></div>}
             <p className="mt-4 text-xs leading-5 text-slate-500">Payment details are collected by Stripe and are never stored by ClearKey Connect.</p>
           </aside>
         </div>

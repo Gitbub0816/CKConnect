@@ -334,7 +334,17 @@ async function main() {
       },
     },
   });
-  await db.organization.deleteMany({ where: { slug: { in: organizations.map((organization) => organization.slug) } } });
+  const existingOrganizations = await db.organization.findMany({
+    where: { slug: { in: organizations.map((organization) => organization.slug) } },
+    select: { id: true },
+  });
+  const existingOrganizationIds = existingOrganizations.map((organization) => organization.id);
+  if (existingOrganizationIds.length) {
+    await db.paymentAllocation.deleteMany({
+      where: { invoice: { organizationId: { in: existingOrganizationIds } } },
+    });
+    await db.organization.deleteMany({ where: { id: { in: existingOrganizationIds } } });
+  }
   const owner = await db.user.upsert({
     where: { email: "1morecruise@gmail.com" },
     update: { firstName: "Caleb", lastName: "Owen", platformAdmin: true },

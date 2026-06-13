@@ -255,6 +255,16 @@ model OrganizationTheme {
   portalHeadline String?
   portalSubhead  String?
   coverImageUrl  String?
+  consoleTitle   String?
+  consoleLogoUrl String?
+  consoleBackgroundImageUrl String?
+  consolePrimaryColor String @default("#c9a033")
+  consoleSidebarColor String @default("#1c1917")
+  paymentTitle   String?
+  paymentLogoUrl String?
+  paymentBackgroundImageUrl String?
+  paymentPrimaryColor String @default("#c9a033")
+  paymentHeaderColor String @default("#1c1917")
   navigationJson Json         @default("{}")
   pageBlocksJson Json         @default("[]")
   createdAt      DateTime     @default(now())
@@ -295,6 +305,14 @@ model OrganizationModule {
   managedEmail      Boolean      @default(false)
   premiumTemplates  Boolean      @default(false)
   managedDomain     Boolean      @default(false)
+  crm               Boolean      @default(true)
+  cases             Boolean      @default(true)
+  campaigns         Boolean      @default(true)
+  banking           Boolean      @default(true)
+  websites          Boolean      @default(true)
+  domains           Boolean      @default(true)
+  automations       Boolean      @default(true)
+  reports           Boolean      @default(true)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

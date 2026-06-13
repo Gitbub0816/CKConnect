@@ -30,6 +30,7 @@ import {
   Users,
   Workflow,
 } from "lucide-react";
+import { getDb } from "@/lib/db";
 
 const sections = [
   {
@@ -86,7 +87,14 @@ const sections = [
   },
 ] as const;
 
-export function AppShell({
+const featureForModule: Record<string, string> = {
+  leads: "crm", accounts: "crm", contacts: "crm", deals: "crm", cases: "cases", campaigns: "campaigns",
+  reports: "reports", accounting: "accounting", expenses: "accounting", vendors: "accounting", invoices: "accounting",
+  payments: "accounting", banking: "banking", payroll: "payroll", automations: "automations", websites: "websites",
+  appearance: "websites", domains: "domains", email: "managedEmail",
+};
+
+export async function AppShell({
   organizationSlug,
   active,
   children,
@@ -96,16 +104,37 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const base = `/app/${organizationSlug}`;
+  const organization = await getDb().organization.findUnique({ where: { slug: organizationSlug }, include: { theme: true, moduleConfiguration: true } });
+  const theme = organization?.theme;
+  const enabled = organization?.moduleConfiguration as Record<string, unknown> | null;
+  const visibleSections = sections.map((section) => ({
+    ...section,
+    items: section.items.filter(([slug]) => {
+      const feature = featureForModule[slug];
+      return !feature || enabled?.[feature] !== false;
+    }),
+  })).filter((section) => section.items.length);
+  const shellStyle = {
+    "--console-primary": theme?.consolePrimaryColor ?? "#c9a033",
+    "--console-sidebar": theme?.consoleSidebarColor ?? "#1c1917",
+    backgroundImage: theme?.consoleBackgroundImageUrl ? `linear-gradient(rgb(245 240 232 / 92%), rgb(245 240 232 / 92%)), url("${theme.consoleBackgroundImageUrl}")` : undefined,
+    backgroundSize: "cover",
+    backgroundAttachment: "fixed",
+  } as React.CSSProperties;
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[238px_1fr]">
-      <aside className="hidden bg-[var(--sidebar)] text-slate-300 lg:flex lg:flex-col">
+    <div className="grid min-h-screen lg:grid-cols-[238px_1fr]" style={shellStyle}>
+      <aside className="hidden bg-[var(--console-sidebar)] text-slate-300 lg:flex lg:flex-col">
         <Link className="flex h-16 items-center gap-3 border-b border-white/8 px-5 font-semibold text-white" href={base}>
-          <span className="grid size-9 place-items-center rounded-lg bg-[#c9a033] text-xs font-bold text-[#211b0d]">CK</span>
-          <span>ClearKey Connect</span>
+          {theme?.consoleLogoUrl ? (
+            // Tenant logos can be hosted on arbitrary verified domains.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img alt="" className="size-9 rounded-lg object-contain" src={theme.consoleLogoUrl}/>
+          ) : <span className="grid size-9 place-items-center rounded-lg bg-[var(--console-primary)] text-xs font-bold text-[#211b0d]">CK</span>}
+          <span>{theme?.consoleTitle ?? organization?.name ?? "ClearKey Connect"}</span>
         </Link>
         <nav className="flex-1 overflow-y-auto px-3 py-4">
-          {sections.map((section) => (
+          {visibleSections.map((section) => (
             <div className="mb-4" key={section.label}>
               <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-slate-500">{section.label}</div>
               {section.items.map(([slug, label, Icon]) => {
@@ -113,7 +142,7 @@ export function AppShell({
                 return (
                   <Link
                     className={`mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition ${
-                      selected ? "bg-[#c9a033] text-[#211b0d] shadow-sm" : "hover:bg-white/7 hover:text-white"
+                      selected ? "bg-[var(--console-primary)] text-[#211b0d] shadow-sm" : "hover:bg-white/7 hover:text-white"
                     }`}
                     href={slug === "dashboard" ? base : `${base}/${slug}`}
                     key={slug}

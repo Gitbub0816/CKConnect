@@ -12,6 +12,7 @@ import { formatCurrency } from "@/lib/utils";
 import { QuickCreate } from "@/components/quick-create";
 import { BillingActions } from "@/components/billing-actions";
 import { OperationalWorkbench } from "@/components/operational-workbench";
+import { PlatformWorkbench } from "@/components/platform-workbenches";
 
 type Metric = { label: string; value: number; format?: string; suffix?: string };
 type ModuleData = { kind: string; metrics?: Metric[]; records?: Record<string, unknown>[]; [key: string]: unknown };
@@ -157,6 +158,7 @@ function BillingView({ data, organizationSlug }: { data: ModuleData; organizatio
 export function ModulePage({ module, data, organizationSlug }: { module: string; data: ModuleData; organizationSlug: string }) {
   const config = copy[module] ?? { title: module.replaceAll("-", " "), description: "Organization operations and records.", action: "Create record" };
   const operationalModules = new Set(["leads", "accounts", "deals", "tasks", "invoices", "banking", "automations"]);
+  const platformModules = new Set(["reports", "team", "settings", "websites", "domains"]);
   return (
     <div className="p-5 lg:p-7">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -166,6 +168,7 @@ export function ModulePage({ module, data, organizationSlug }: { module: string;
       <div className="mt-6"><MetricGrid metrics={data.metrics} /></div>
       <div className="mt-4">
         {operationalModules.has(module) ? <OperationalWorkbench data={data} module={module} organizationSlug={organizationSlug}/>
+          : platformModules.has(module) ? <PlatformWorkbench data={data} module={module} organizationSlug={organizationSlug}/>
           : module === "payroll" ? <PayrollView data={data} />
           : module === "billing" ? <BillingView data={data} organizationSlug={organizationSlug} />
           : <section className="ck-card overflow-hidden">

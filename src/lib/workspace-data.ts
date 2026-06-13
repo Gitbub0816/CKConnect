@@ -6,6 +6,36 @@ import { getDb } from "@/lib/db";
 const money = (value: unknown) => Number(value ?? 0);
 const iso = (value: Date | null | undefined) => value?.toISOString() ?? null;
 
+type ReportDefinition = {
+  dataset: "invoices" | "deals" | "expenses" | "customers";
+  metric: "count" | "sum" | "average";
+  valueField?: "total" | "balanceDue" | "amount" | "estimatedValue" | "annualRevenue";
+  groupBy: "status" | "stage" | "source" | "industry" | "month" | "none";
+  filterField: "status" | "stage" | "source" | "industry" | "none";
+  filterValue?: string;
+};
+
+async function executeReportDefinition(organizationId: string, definition: ReportDefinition) {
+  const db = getDb();
+  let rows: Array<Record<string, unknown>>;
+  if (definition.dataset === "invoices") rows = (await db.invoice.findMany({ where: { organizationId } })).map((row) => ({ status: row.status, total: money(row.total), balanceDue: money(row.balanceDue), month: row.issueDate.toISOString().slice(0, 7) }));
+  else if (definition.dataset === "deals") rows = (await db.deal.findMany({ where: { organizationId } })).map((row) => ({ stage: row.stage, amount: money(row.amount), month: row.createdAt.toISOString().slice(0, 7) }));
+  else if (definition.dataset === "expenses") rows = (await db.expense.findMany({ where: { organizationId } })).map((row) => ({ amount: money(row.amount), month: row.incurredAt.toISOString().slice(0, 7) }));
+  else rows = (await db.crmAccount.findMany({ where: { organizationId } })).map((row) => ({ industry: row.industry ?? "Uncategorized", annualRevenue: money(row.annualRevenue), month: row.createdAt.toISOString().slice(0, 7) }));
+  if (definition.filterField !== "none" && definition.filterValue) rows = rows.filter((row) => String(row[definition.filterField] ?? "").toLowerCase() === definition.filterValue!.toLowerCase());
+  const groupKey = definition.groupBy;
+  const groups = new Map<string, Array<Record<string, unknown>>>();
+  for (const row of rows) {
+    const key = groupKey === "none" ? "All records" : String(row[groupKey] ?? "Uncategorized");
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+  return [...groups].map(([group, items]) => {
+    const values = definition.valueField ? items.map((item) => Number(item[definition.valueField!] ?? 0)) : [];
+    const value = definition.metric === "count" ? items.length : definition.metric === "average" ? values.reduce((sum, item) => sum + item, 0) / Math.max(1, values.length) : values.reduce((sum, item) => sum + item, 0);
+    return { group, value, records: items.length };
+  }).sort((a, b) => b.value - a.value);
+}
+
 export async function getOrganization(slug: string) {
   return getDb().organization.findUnique({
     where: { slug },
@@ -109,7 +139,7 @@ export async function getModuleData(slug: string, module: string) {
       const records = await db.website.findMany({ where: { organizationId }, include: { pages: true }, orderBy: { updatedAt: "desc" } });
       return {
         kind: "websites",
-        records: records.map((website) => ({ id: website.id, name: website.slug, hostname: website.defaultHostname, status: website.status, pages: website.pages.length, publishedAt: iso(website.publishedAt), updatedAt: iso(website.updatedAt) })),
+        websites: records.map((website) => ({ id: website.id, name: website.slug, hostname: website.defaultHostname, status: website.status, theme: website.themeJson, config: website.configJson, publishedAt: iso(website.publishedAt), updatedAt: iso(website.updatedAt), pages: website.pages.map((page) => ({ id: page.id, path: page.path, title: page.title, status: page.status, seo: page.seoJson, content: page.contentJson })) })),
         metrics: [{ label: "Websites", value: records.length }, { label: "Published", value: records.filter((website) => website.status === "PUBLISHED").length }, { label: "Pages", value: records.reduce((sum, website) => sum + website.pages.length, 0) }],
       };
     }
@@ -117,7 +147,7 @@ export async function getModuleData(slug: string, module: string) {
       const records = await db.organizationDomain.findMany({ where: { organizationId }, include: { dnsRecords: true }, orderBy: { isPrimary: "desc" } });
       return {
         kind: "domains",
-        records: records.map((domain) => ({ id: domain.id, hostname: domain.hostname, type: domain.kind, status: domain.status, ssl: domain.sslEnabled, dnsRecords: domain.dnsRecords.length, healthyRecords: domain.dnsRecords.filter((record) => record.status === "HEALTHY").length, updatedAt: iso(domain.updatedAt) })),
+        records: records.map((domain) => ({ id: domain.id, hostname: domain.hostname, type: domain.kind, status: domain.status, ssl: domain.sslEnabled, verificationName: `_clearkey.${domain.hostname}`, verificationToken: domain.verificationToken, checks: domain.dnsRecords.filter((record) => record.recordType === "HEALTH").map((record) => ({ key: record.name, value: record.value, status: record.status, checkedAt: iso(record.lastCheckedAt) })), dnsRecords: domain.dnsRecords.length, healthyRecords: domain.dnsRecords.filter((record) => record.status === "HEALTHY").length, updatedAt: iso(domain.updatedAt) })),
         metrics: [{ label: "Domains", value: records.length }, { label: "Verified", value: records.filter((domain) => domain.status === "VERIFIED").length }, { label: "SSL enabled", value: records.filter((domain) => domain.sslEnabled).length }, { label: "DNS needs attention", value: records.flatMap((domain) => domain.dnsRecords).filter((record) => record.status !== "HEALTHY").length }],
       };
     }
@@ -221,16 +251,21 @@ export async function getModuleData(slug: string, module: string) {
       return { kind: "calendar", records: records.map((r) => ({ id: r.id, title: r.title, type: r.eventType, startsAt: iso(r.startsAt), endsAt: iso(r.endsAt), location: r.location, status: r.status })), metrics: [{ label: "Upcoming", value: records.filter((r) => r.startsAt >= new Date()).length }, { label: "Meetings", value: records.filter((r) => r.eventType === "MEETING").length }] };
     }
     case "reports": {
-      const [deals, invoices, expenses, payroll, accounts] = await Promise.all([
+      const [deals, invoices, expenses, payroll, accounts, savedViews] = await Promise.all([
         db.deal.findMany({ where: { organizationId } }),
         db.invoice.findMany({ where: { organizationId } }),
         db.expense.findMany({ where: { organizationId } }),
         db.payrollRun.findMany({ where: { organizationId, status: "COMPLETED" } }),
         db.crmAccount.findMany({ where: { organizationId }, include: { invoices: true } }),
+        db.savedView.findMany({ where: { organizationId, module: "reports" }, orderBy: { updatedAt: "desc" } }),
       ]);
       const revenue = invoices.reduce((sum, item) => sum + money(item.amountPaid), 0);
       const operatingExpense = expenses.reduce((sum, item) => sum + money(item.amount), 0);
       const payrollExpense = payroll.reduce((sum, item) => sum + money(item.totalEmployerCost), 0);
+      const queryReports = await Promise.all(savedViews.map(async (view) => {
+        const definition = view.filtersJson as unknown as ReportDefinition;
+        return { id: view.id, name: view.name, shared: view.shared, definition, rows: await executeReportDefinition(organizationId, definition) };
+      }));
       return {
         kind: "reports",
         records: [
@@ -239,6 +274,7 @@ export async function getModuleData(slug: string, module: string) {
           { name: "Sales pipeline forecast", category: "Sales", value: deals.reduce((sum, item) => sum + money(item.amount) * item.probability / 100, 0), period: "Open pipeline", status: "Ready" },
           { name: "Customer revenue", category: "CRM", value: accounts.reduce((sum, account) => sum + account.invoices.reduce((inner, invoice) => inner + money(invoice.amountPaid), 0), 0), period: "Lifetime", status: "Ready" },
         ],
+        queryReports,
         metrics: [{ label: "Revenue", value: revenue, format: "currency" }, { label: "Operating expense", value: operatingExpense, format: "currency" }, { label: "Payroll expense", value: payrollExpense, format: "currency" }, { label: "Net operating result", value: revenue - operatingExpense - payrollExpense, format: "currency" }],
       };
     }
@@ -335,15 +371,16 @@ export async function getModuleData(slug: string, module: string) {
     }
     case "team": {
       const records = await db.organizationMembership.findMany({ where: { organizationId }, include: { user: true }, orderBy: { role: "asc" } });
-      return { kind: "team", records: records.map((r) => ({ id: r.id, name: `${r.user.firstName ?? ""} ${r.user.lastName ?? ""}`.trim() || r.user.email, email: r.user.email, role: r.role, permissions: r.permissions, platformAdmin: r.user.platformAdmin, joinedAt: iso(r.createdAt) })), metrics: [{ label: "Members", value: records.length }, { label: "Admins", value: records.filter((r) => ["OWNER", "ADMIN"].includes(r.role)).length }] };
+      return { kind: "team", records: records.map((r) => ({ id: r.id, name: `${r.user.firstName ?? ""} ${r.user.lastName ?? ""}`.trim() || r.user.email, email: r.user.email, role: r.role, permissions: r.permissions, platformAdmin: r.user.platformAdmin, joinedAt: iso(r.createdAt) })), permissionCatalog: ["leads.read","leads.write","accounts.read","accounts.write","contacts.read","contacts.write","deals.read","deals.write","cases.read","cases.write","invoices.read","invoices.write","payments.read","payments.write","accounting.read","accounting.write","reports.read","tasks.read","tasks.write","calendar.read","calendar.write","campaigns.read","campaigns.write","payroll.read","payroll.write","banking.read","banking.write","email.read","email.write","automations.read","automations.write","websites.read","websites.write","websites.publish","domains.read","domains.manage","team.read","team.manage","settings.manage","integrations.manage"], metrics: [{ label: "Members", value: records.length }, { label: "Admins", value: records.filter((r) => ["OWNER", "ADMIN"].includes(r.role)).length }, { label: "Licensed users", value: records.filter((r) => r.role !== "PORTAL_USER").length }] };
     }
     case "settings": {
-      const [theme, domains, customFields] = await Promise.all([
+      const [theme, domains, customFields, modules] = await Promise.all([
         db.organizationTheme.findUnique({ where: { organizationId } }),
         db.organizationDomain.findMany({ where: { organizationId }, orderBy: { isPrimary: "desc" } }),
         db.customFieldDefinition.findMany({ where: { organizationId }, orderBy: [{ objectType: "asc" }, { sortOrder: "asc" }] }),
+        db.organizationModule.findUnique({ where: { organizationId } }),
       ]);
-      return { kind: "settings", records: [
+      return { kind: "settings", theme, modules, records: [
         { name: "Legal name", value: organization.legalName, scope: "Organization", status: "Configured" },
         { name: "Timezone", value: organization.timezone, scope: "Organization", status: "Configured" },
         { name: "Currency", value: organization.defaultCurrency, scope: "Accounting", status: "Configured" },

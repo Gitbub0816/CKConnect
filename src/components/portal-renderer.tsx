@@ -30,7 +30,11 @@ function Block({ block }: { block: PortalBlock }) {
       <div className="portal-hero-art"><span/><span/><span/></div>
     </section>
   );
-  if (block.type === "serviceGrid") return <section className="portal-section" id={block.id}><div className="portal-section-heading"><span>Services</span><h2>{block.title}</h2></div><div className="portal-grid">{block.items?.map((item, index) => <article className="portal-service" key={item.title}><div>0{index + 1}</div><h3>{item.title}</h3><p>{item.body}</p><ArrowRight size={16}/></article>)}</div></section>;
+  if (block.type === "serviceGrid" || block.type === "services") return <section className="portal-section" id={block.id}><div className="portal-section-heading"><span>Services</span><h2>{block.title}</h2></div>{block.items?.length ? <div className="portal-grid">{block.items.map((item, index) => <article className="portal-service" key={item.title}><div>0{index + 1}</div><h3>{item.title}</h3><p>{item.body}</p><ArrowRight size={16}/></article>)}</div> : <p>{block.body}</p>}</section>;
+  if (block.type === "content") return <section className="portal-section" id={block.id}><div className="portal-section-heading"><span>Overview</span><h2>{block.title}</h2></div><p className="max-w-3xl text-lg leading-8 opacity-70">{block.body}</p>{block.action && <a className="portal-button mt-8" href="#contact">{block.action}<ArrowRight size={16}/></a>}</section>;
+  if (block.type === "payment") return <section className="portal-cta" id={block.id}><div><span>Secure payments</span><h2>{block.title}</h2><p>{block.body}</p></div><a className="portal-button portal-button-light" href="#portal">{block.action ?? "Pay an invoice"}<ArrowRight size={16}/></a></section>;
+  if (block.type === "booking") return <section className="portal-section portal-process" id={block.id}><div className="portal-section-heading"><span>Scheduling</span><h2>{block.title}</h2></div><p>{block.body}</p><a className="portal-button mt-8" href="#booking">{block.action ?? "Book now"}<CalendarDays size={16}/></a></section>;
+  if (block.type === "portal") return <section className="portal-section" id={block.id}><div className="portal-section-heading"><span>Customer portal</span><h2>{block.title}</h2></div><p>{block.body}</p><a className="portal-button mt-8" href="#portal">{block.action ?? "Open portal"}<ShieldCheck size={16}/></a></section>;
   if (block.type === "stats") return <section className="portal-stats">{block.items?.map((item) => <div key={item.label}><strong>{item.value}</strong><span>{item.label}</span></div>)}</section>;
   if (block.type === "testimonial") return <section className="portal-quote" id={block.id}><div>“</div><blockquote>{block.quote}</blockquote><cite>{block.attribution}</cite></section>;
   if (block.type === "portfolio") return <section className="portal-section" id={block.id}><div className="portal-section-heading"><span>Selected work</span><h2>{block.title}</h2></div><div className="portal-portfolio">{block.items?.map((item, index) => <article key={item.title} style={{ background: item.color }}><span>0{index + 1}</span><div><h3>{item.title}</h3><p>{item.tag}</p></div></article>)}</div></section>;
@@ -60,6 +64,7 @@ export function PortalRenderer({
       bodyFont: string;
       borderRadius: number;
       customCss: string | null;
+      coverImageUrl?: string | null;
     } | null;
   };
   navigation: NavigationItem[];
@@ -75,6 +80,9 @@ export function PortalRenderer({
     "--portal-radius": `${theme?.borderRadius ?? 12}px`,
     "--portal-heading": theme?.headingFont ?? "Cormorant Garamond",
     "--portal-body": theme?.bodyFont ?? "Geist",
+    backgroundImage: theme?.coverImageUrl ? `linear-gradient(rgb(245 240 232 / 88%), rgb(245 240 232 / 88%)), url("${theme.coverImageUrl}")` : undefined,
+    backgroundSize: "cover",
+    backgroundAttachment: "fixed",
   } as React.CSSProperties;
   const initials = organization.name.split(" ").map((word) => word[0]).join("").slice(0, 2);
   return (
