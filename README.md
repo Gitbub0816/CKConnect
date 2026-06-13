@@ -125,5 +125,7 @@ The production build is designed to succeed before external services are configu
 ## Documentation
 
 - [System architecture](docs/architecture/system.md)
+- [Architecture compliance audit](docs/architecture/compliance-audit.md)
+- [Payroll architecture](docs/architecture/payroll.md)
 - [Delivery roadmap](docs/architecture/roadmap.md)
 - [Security model](docs/security/model.md)

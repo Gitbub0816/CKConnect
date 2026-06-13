@@ -17,10 +17,15 @@ const moduleCopy: Record<string, { title: string; description: string; action: s
   accounting: { title: "Accounting", description: "Posted journal entries and financial statements.", action: "Journal entry", columns: ["Entry", "Source", "Date", "Status", "Debits / credits"] },
   banking: { title: "Banking", description: "Imports, rules, matching, and reconciliation.", action: "Connect account", columns: ["Account", "Institution", "Book balance", "Bank balance", "Status"] },
   products: { title: "Products & inventory", description: "Services, stock, pricing, and cost.", action: "Add product", columns: ["Product", "SKU", "Type", "On hand", "Price"] },
+  "tax-documents": { title: "Tax documents", description: "Draft, review, provider generation, filing status, and immutable archives.", action: "Generate draft", columns: ["Document", "Tax year", "Provider", "Status", "Generated"] },
   automations: { title: "Automations", description: "Event-driven workflows with visible run history.", action: "New automation", columns: ["Automation", "Trigger", "Status", "Last run", "Success rate"] },
+  email: { title: "Email", description: "Transactional communication, templates, consent, and delivery history.", action: "Compose email", columns: ["Message", "Recipient", "Type", "Status", "Sent"] },
+  documents: { title: "Documents", description: "Private files, generated PDFs, signatures, and customer delivery.", action: "Upload document", columns: ["Document", "Related to", "Type", "Owner", "Updated"] },
+  notifications: { title: "Notifications", description: "Personal alerts, reminders, integration failures, and security notices.", action: "Notification settings", columns: ["Notification", "Category", "Recipient", "Status", "Created"] },
   integrations: { title: "Integrations", description: "Stripe, QuickBooks, email, storage, and webhooks.", action: "Add integration", columns: ["Provider", "Purpose", "Status", "Last sync", "Action"] },
   team: { title: "Team & roles", description: "Membership, roles, permissions, and invitations.", action: "Invite member", columns: ["Member", "Role", "Status", "Last active", "MFA"] },
   audit: { title: "Audit log", description: "Immutable history for sensitive and financial activity.", action: "Export log", columns: ["Action", "Actor", "Entity", "IP address", "Time"] },
+  admin: { title: "Platform administration", description: "Organizations, plans, support access, provider health, and admin overrides.", action: "Admin action", columns: ["Organization", "Plan", "Status", "Provider health", "Updated"] },
   settings: { title: "Settings", description: "Organization, billing, accounting, security, and data.", action: "Save changes", columns: ["Setting", "Value", "Scope", "Updated by", "Updated"] },
 };
 

@@ -2,11 +2,14 @@ import { notFound } from "next/navigation";
 import { AppearanceStudio } from "@/components/appearance-studio";
 import { AppShell } from "@/components/app-shell";
 import { ModulePage } from "@/components/module-page";
+import { PayrollPage } from "@/components/payroll-page";
 
 const modules = new Set([
   "leads", "accounts", "contacts", "deals", "cases", "campaigns", "tasks", "calendar",
   "reports", "invoices", "payments", "expenses", "vendors", "accounting", "banking",
-  "products", "automations", "integrations", "team", "appearance", "audit", "settings",
+  "products", "tax-documents", "automations", "email", "documents", "notifications",
+  "integrations", "team", "appearance", "audit", "admin", "settings",
+  "payroll",
 ]);
 
 export default async function WorkspaceModulePage({
@@ -19,7 +22,13 @@ export default async function WorkspaceModulePage({
 
   return (
     <AppShell active={module} organizationSlug={organizationSlug}>
-      {module === "appearance" ? <AppearanceStudio organizationSlug={organizationSlug} /> : <ModulePage module={module} />}
+      {module === "appearance" ? (
+        <AppearanceStudio organizationSlug={organizationSlug} />
+      ) : module === "payroll" ? (
+        <PayrollPage />
+      ) : (
+        <ModulePage module={module} />
+      )}
     </AppShell>
   );
 }

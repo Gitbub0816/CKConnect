@@ -88,6 +88,30 @@ enum SyncDirection {
   BIDIRECTIONAL
 }
 
+enum PayrollMode {
+  EMBEDDED
+  CONNECTED_PROVIDER
+}
+
+enum EmploymentStatus {
+  DRAFT
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+}
+
+enum PayrollRunStatus {
+  DRAFT
+  CALCULATING
+  NEEDS_APPROVAL
+  APPROVED
+  SUBMITTED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELED
+}
+
 model Organization {
   id                       String                    @id @default(uuid()) @db.Uuid
   name                     String
@@ -129,6 +153,19 @@ model Organization {
   automationRules          AutomationRule[]
   files                    StoredFile[]
   bookings                 Booking[]
+  notes                    Note[]
+  notifications            Notification[]
+  taxRates                 TaxRate[]
+  taxDocuments             TaxDocument[]
+  automationRuns           AutomationRun[]
+  reconciliationSessions   ReconciliationSession[]
+  departments              Department[]
+  employees                Employee[]
+  payrollConnection        PayrollConnection?
+  payrollRuns              PayrollRun[]
+  timeEntries              TimeEntry[]
+  timeOffRequests          TimeOffRequest[]
+  benefits                 Benefit[]
 
   @@index([status])
 }
@@ -242,6 +279,7 @@ model Contact {
   activities             Activity[]
   cases                  SupportCase[]
   bookings               Booking[]
+  notes                  Note[]
 
   @@index([organizationId, email])
   @@index([organizationId, accountId])
@@ -694,8 +732,354 @@ model AutomationRule {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  runs           AutomationRun[]
 
   @@index([organizationId, active])
+}
+
+model AutomationRun {
+  id               String         @id @default(uuid()) @db.Uuid
+  organizationId   String         @db.Uuid
+  automationRuleId String         @db.Uuid
+  status           String
+  triggerPayload   Json           @default("{}")
+  actionResults    Json           @default("[]")
+  errorMessage     String?
+  startedAt        DateTime       @default(now())
+  completedAt      DateTime?
+  organization     Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  automationRule   AutomationRule @relation(fields: [automationRuleId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, startedAt])
+  @@index([automationRuleId, status])
+}
+
+model Note {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  contactId      String?      @db.Uuid
+  relatedType    String?
+  relatedId      String?      @db.Uuid
+  body           String
+  createdById    String       @db.Uuid
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact        Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, relatedType, relatedId])
+}
+
+model Notification {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  userId         String       @db.Uuid
+  type           String
+  title          String
+  body           String?
+  actionUrl      String?
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId, readAt])
+}
+
+model TaxRate {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String
+  jurisdiction   String?
+  rate           Decimal      @db.Decimal(9, 6)
+  compound       Boolean      @default(false)
+  active         Boolean      @default(true)
+  externalId     String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+}
+
+model TaxDocument {
+  id                 String       @id @default(uuid()) @db.Uuid
+  organizationId     String       @db.Uuid
+  documentType       String
+  taxYear            Int
+  status             String       @default("DRAFT")
+  provider            String?
+  providerDocumentId  String?
+  filingConfirmation  String?
+  version             Int          @default(1)
+  snapshotJson        Json
+  storedFileId        String?      @db.Uuid
+  generatedById       String?      @db.Uuid
+  generatedAt         DateTime     @default(now())
+  submittedAt         DateTime?
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, documentType, taxYear, version])
+  @@index([organizationId, status])
+}
+
+model ReconciliationSession {
+  id               String       @id @default(uuid()) @db.Uuid
+  organizationId   String       @db.Uuid
+  ledgerAccountId  String       @db.Uuid
+  statementDate    DateTime
+  statementBalance Decimal      @db.Decimal(19, 4)
+  clearedBalance   Decimal      @default(0) @db.Decimal(19, 4)
+  difference       Decimal      @default(0) @db.Decimal(19, 4)
+  status           String       @default("OPEN")
+  completedById    String?      @db.Uuid
+  completedAt      DateTime?
+  createdAt        DateTime     @default(now())
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, statementDate])
+}
+
+model Department {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String
+  code           String?
+  managerUserId  String?      @db.Uuid
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employees      Employee[]
+
+  @@unique([organizationId, name])
+}
+
+model Employee {
+  id                  String           @id @default(uuid()) @db.Uuid
+  organizationId      String           @db.Uuid
+  departmentId        String?          @db.Uuid
+  providerEmployeeId  String?
+  employeeNumber      String?
+  firstName           String
+  lastName            String
+  workEmail           String?
+  personalEmail       String?
+  phone               String?
+  jobTitle            String?
+  employmentType      String           @default("EMPLOYEE")
+  status              EmploymentStatus @default(DRAFT)
+  hireDate            DateTime?
+  terminationDate     DateTime?
+  homeAddress         Json?
+  emergencyContact    Json?
+  providerMetadata    Json             @default("{}")
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  deletedAt           DateTime?
+  organization        Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  department          Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  compensations       Compensation[]
+  timeEntries         TimeEntry[]
+  timeOffRequests     TimeOffRequest[]
+  payrollItems        PayrollRunEmployee[]
+  payStatements       PayStatement[]
+  taxDocuments        PayrollTaxDocument[]
+  benefitEnrollments  BenefitEnrollment[]
+
+  @@unique([organizationId, employeeNumber])
+  @@index([organizationId, status])
+  @@index([organizationId, providerEmployeeId])
+}
+
+model Compensation {
+  id             String   @id @default(uuid()) @db.Uuid
+  employeeId     String   @db.Uuid
+  type           String
+  rate           Decimal  @db.Decimal(19, 4)
+  currency       String   @default("USD")
+  paySchedule    String
+  effectiveFrom  DateTime
+  effectiveTo    DateTime?
+  providerSource Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  employee       Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, effectiveFrom])
+}
+
+model TimeEntry {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  employeeId     String       @db.Uuid
+  workDate       DateTime
+  regularHours   Decimal      @default(0) @db.Decimal(9, 2)
+  overtimeHours  Decimal      @default(0) @db.Decimal(9, 2)
+  doubleTimeHours Decimal     @default(0) @db.Decimal(9, 2)
+  projectId      String?      @db.Uuid
+  status         String       @default("DRAFT")
+  approvedById   String?      @db.Uuid
+  approvedAt     DateTime?
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, workDate, projectId])
+  @@index([organizationId, status, workDate])
+}
+
+model TimeOffRequest {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  employeeId     String       @db.Uuid
+  policyType     String
+  startsOn       DateTime
+  endsOn         DateTime
+  hours          Decimal      @db.Decimal(9, 2)
+  status         String       @default("PENDING")
+  requestedAt    DateTime     @default(now())
+  reviewedById   String?      @db.Uuid
+  reviewedAt     DateTime?
+  note           String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, startsOn])
+}
+
+model PayrollConnection {
+  id                    String            @id @default(uuid()) @db.Uuid
+  organizationId        String            @unique @db.Uuid
+  mode                  PayrollMode
+  provider              String
+  providerCompanyId     String?
+  encryptedAccessToken  String?
+  encryptedRefreshToken String?
+  tokenExpiresAt        DateTime?
+  grantedScopes         String[]          @default([])
+  status                IntegrationStatus @default(CONNECTING)
+  lastSyncAt            DateTime?
+  lastError             String?
+  settings              Json              @default("{}")
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  organization          Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([provider, status])
+}
+
+model PayrollRun {
+  id                 String           @id @default(uuid()) @db.Uuid
+  organizationId     String           @db.Uuid
+  providerPayrollId  String?
+  payPeriodStart     DateTime
+  payPeriodEnd       DateTime
+  checkDate          DateTime
+  status             PayrollRunStatus @default(DRAFT)
+  currency           String           @default("USD")
+  grossPay           Decimal          @default(0) @db.Decimal(19, 4)
+  employeeTaxes      Decimal          @default(0) @db.Decimal(19, 4)
+  employerTaxes      Decimal          @default(0) @db.Decimal(19, 4)
+  deductions         Decimal          @default(0) @db.Decimal(19, 4)
+  netPay             Decimal          @default(0) @db.Decimal(19, 4)
+  totalEmployerCost  Decimal          @default(0) @db.Decimal(19, 4)
+  postedJournalId    String?          @unique @db.Uuid
+  approvedById       String?          @db.Uuid
+  approvedAt         DateTime?
+  submittedById      String?          @db.Uuid
+  submittedAt        DateTime?
+  completedAt        DateTime?
+  providerSnapshot   Json             @default("{}")
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  organization       Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employees          PayrollRunEmployee[]
+  payStatements      PayStatement[]
+
+  @@index([organizationId, status, checkDate])
+  @@unique([organizationId, providerPayrollId])
+}
+
+model PayrollRunEmployee {
+  id             String     @id @default(uuid()) @db.Uuid
+  payrollRunId   String     @db.Uuid
+  employeeId     String     @db.Uuid
+  regularPay     Decimal    @default(0) @db.Decimal(19, 4)
+  overtimePay    Decimal    @default(0) @db.Decimal(19, 4)
+  otherEarnings  Decimal    @default(0) @db.Decimal(19, 4)
+  employeeTaxes  Decimal    @default(0) @db.Decimal(19, 4)
+  employerTaxes  Decimal    @default(0) @db.Decimal(19, 4)
+  deductions     Decimal    @default(0) @db.Decimal(19, 4)
+  netPay         Decimal    @default(0) @db.Decimal(19, 4)
+  detailJson     Json       @default("{}")
+  payrollRun     PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee       Employee   @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([payrollRunId, employeeId])
+}
+
+model PayStatement {
+  id                  String     @id @default(uuid()) @db.Uuid
+  payrollRunId        String     @db.Uuid
+  employeeId          String     @db.Uuid
+  providerStatementId String?
+  grossPay            Decimal    @db.Decimal(19, 4)
+  netPay              Decimal    @db.Decimal(19, 4)
+  detailJson          Json
+  storedFileId        String?    @db.Uuid
+  createdAt           DateTime   @default(now())
+  payrollRun          PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee            Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([payrollRunId, employeeId])
+}
+
+model PayrollTaxDocument {
+  id                 String   @id @default(uuid()) @db.Uuid
+  employeeId         String   @db.Uuid
+  providerDocumentId String?
+  documentType       String
+  taxYear            Int
+  status             String
+  storedFileId       String?  @db.Uuid
+  availableAt        DateTime?
+  createdAt          DateTime @default(now())
+  employee           Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, documentType, taxYear])
+}
+
+model Benefit {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String
+  type           String
+  provider       String?
+  employerAmount Decimal?     @db.Decimal(19, 4)
+  employeeAmount Decimal?     @db.Decimal(19, 4)
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  enrollments    BenefitEnrollment[]
+
+  @@unique([organizationId, name])
+}
+
+model BenefitEnrollment {
+  id         String   @id @default(uuid()) @db.Uuid
+  benefitId  String   @db.Uuid
+  employeeId String   @db.Uuid
+  status     String   @default("ACTIVE")
+  startsOn   DateTime
+  endsOn     DateTime?
+  metadata   Json     @default("{}")
+  benefit    Benefit  @relation(fields: [benefitId], references: [id], onDelete: Cascade)
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([benefitId, employeeId, startsOn])
 }
 
 model StoredFile {

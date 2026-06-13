@@ -95,6 +95,9 @@ export default function Home() {
           ))}
         </div>
       </section>
+      <footer className="border-t border-white/10 px-6 py-7 text-center text-xs text-slate-500">
+        <Link className="hover:text-white" href="/legal">Legal and policy center</Link>
+      </footer>
     </main>
   );
 }

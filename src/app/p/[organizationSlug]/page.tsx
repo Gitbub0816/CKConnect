@@ -63,7 +63,10 @@ export default async function PublicClientEndpoint({
 
         <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-emerald-900/10 bg-[#f8fbfa] px-6 py-5 text-xs text-emerald-950/50 md:px-10">
           <span>© 2026 {isDemo ? "Harbor Services" : organizationSlug}</span>
-          <span className="flex items-center gap-1.5"><ShieldCheck size={14} /> Securely hosted by <Link className="font-semibold text-emerald-900" href="/">ClearKey Connect</Link></span>
+          <span className="flex items-center gap-3">
+            <Link href="/legal">Legal</Link>
+            <span className="flex items-center gap-1.5"><ShieldCheck size={14} /> Securely hosted by <Link className="font-semibold text-emerald-900" href="/">ClearKey Connect</Link></span>
+          </span>
         </footer>
       </div>
     </main>
