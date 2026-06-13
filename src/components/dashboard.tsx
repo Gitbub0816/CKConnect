@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CalendarClock, CircleDollarSign, FileWarning, Landmark, Sparkles } from "lucide-react";
+import { ArrowRight, CalendarClock, CircleAlert, CircleDollarSign, FileWarning, Landmark, Sparkles } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
 type DashboardData = NonNullable<Awaited<ReturnType<typeof import("@/lib/workspace-data").getWorkspaceDashboard>>>;
@@ -31,6 +31,20 @@ export function Dashboard({ data }: { data: DashboardData }) {
           <div className="divide-y">{data.tasks.map((task) => <div className="flex gap-3 p-4" key={task.id}><div className="grid size-9 shrink-0 place-items-center rounded-lg bg-amber-50 text-amber-700"><CalendarClock size={16}/></div><div><div className="text-sm font-medium">{task.title}</div><div className="mt-1 text-xs text-slate-500">{task.priority} · {task.dueAt ? new Date(task.dueAt).toLocaleDateString() : "No due date"}</div></div></div>)}</div>
         </section>
       </div>
+      <section className="ck-card mt-4 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
+          <div><div className="ck-eyebrow">Operating queue</div><h2 className="mt-2 font-semibold">Exceptions requiring a decision</h2><p className="mt-1 text-xs text-slate-500">Cross-module work is prioritized here so revenue and accounting do not stall between departments.</p></div>
+          <div className="rounded-full bg-[#f8f5ef] px-3 py-1.5 text-xs font-semibold">{data.attention.reduce((sum, item) => sum + item.count, 0)} open exceptions</div>
+        </div>
+        <div className="grid gap-px bg-slate-200 md:grid-cols-2 xl:grid-cols-5">
+          {data.attention.map((item) => <Link className="group bg-white p-5 transition hover:bg-amber-50" href={`${base}/${item.module}`} key={item.key}>
+            <div className="flex items-start justify-between"><CircleAlert className={item.count ? "text-amber-700" : "text-emerald-700"} size={18}/><span className="text-2xl font-semibold">{item.count}</span></div>
+            <h3 className="mt-5 text-sm font-semibold">{item.label}</h3>
+            <p className="mt-2 min-h-12 text-xs leading-5 text-slate-500">{item.description}</p>
+            <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-[#8b6914]">Open workbench <ArrowRight className="transition group-hover:translate-x-1" size={13}/></span>
+          </Link>)}
+        </div>
+      </section>
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr]">
         <section className="ck-card overflow-hidden"><div className="border-b p-5"><h2 className="font-semibold">Receivables</h2></div><div className="divide-y">{data.invoices.slice(0,5).map((invoice) => <div className="flex items-center justify-between p-4" key={invoice.id}><div><div className="text-sm font-medium">{invoice.number} · {invoice.customer}</div><div className="mt-1 text-xs text-slate-500">{invoice.status.replaceAll("_"," ")} · due {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : "—"}</div></div><div className="font-semibold">{formatCurrency(invoice.balance)}</div></div>)}</div></section>
         <section className="ck-card p-5"><h2 className="font-semibold">Payroll readiness</h2>{data.payroll ? <><div className="mt-5 grid grid-cols-2 gap-3"><div className="rounded-lg bg-[#f8f5ef] p-4"><div className="text-xs text-slate-500">Gross payroll</div><div className="mt-2 text-xl font-semibold">{formatCurrency(data.payroll.grossPay)}</div></div><div className="rounded-lg bg-[#f8f5ef] p-4"><div className="text-xs text-slate-500">Employer cost</div><div className="mt-2 text-xl font-semibold">{formatCurrency(data.payroll.employerCost)}</div></div></div><div className="mt-4 flex items-center justify-between text-sm"><span>Status: <strong>{data.payroll.status.replaceAll("_"," ")}</strong></span><Link className="font-semibold text-[#8b6914]" href={`${base}/payroll`}>Review payroll</Link></div></> : <p className="mt-4 text-sm text-slate-500">Connect Check or Finch to initialize payroll.</p>}</section>

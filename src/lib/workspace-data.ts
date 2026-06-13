@@ -18,7 +18,7 @@ export async function getWorkspaceDashboard(slug: string) {
   const organization = await db.organization.findUnique({ where: { slug } });
   if (!organization) return null;
   const organizationId = organization.id;
-  const [openDeals, invoices, tasks, leads, activity, bankAccounts, payroll] = await Promise.all([
+  const [openDeals, invoices, tasks, leads, activity, bankAccounts, payroll, unmatchedBanking, automationFailures] = await Promise.all([
     db.deal.findMany({ where: { organizationId, stage: { notIn: ["CLOSED_WON", "CLOSED_LOST"] } }, orderBy: { amount: "desc" }, take: 5, include: { account: true } }),
     db.invoice.findMany({ where: { organizationId }, orderBy: { dueDate: "asc" }, take: 8, include: { account: true } }),
     db.task.findMany({ where: { organizationId, status: { not: "COMPLETED" } }, orderBy: { dueAt: "asc" }, take: 6 }),
@@ -26,6 +26,8 @@ export async function getWorkspaceDashboard(slug: string) {
     db.activity.findMany({ where: { organizationId }, orderBy: { occurredAt: "desc" }, take: 6 }),
     db.bankAccount.findMany({ where: { organizationId } }),
     db.payrollRun.findFirst({ where: { organizationId }, orderBy: { checkDate: "desc" } }),
+    db.bankTransaction.count({ where: { organizationId, status: { not: "MATCHED" } } }),
+    db.automationRun.count({ where: { organizationId, status: "FAILED", startedAt: { gte: new Date(Date.now() - 7 * 86_400_000) } } }),
   ]);
   const pipeline = openDeals.reduce((sum, deal) => sum + money(deal.amount), 0);
   const outstanding = invoices.reduce((sum, invoice) => sum + money(invoice.balanceDue), 0);
@@ -38,6 +40,48 @@ export async function getWorkspaceDashboard(slug: string) {
     tasks: tasks.map((task) => ({ id: task.id, title: task.title, priority: task.priority, dueAt: iso(task.dueAt), relatedType: task.relatedType })),
     activity: activity.map((item) => ({ id: item.id, type: item.type, subject: item.subject, occurredAt: iso(item.occurredAt) })),
     payroll: payroll ? { status: payroll.status, checkDate: iso(payroll.checkDate), grossPay: money(payroll.grossPay), employerCost: money(payroll.totalEmployerCost) } : null,
+    attention: [
+      {
+        key: "overdue-tasks",
+        label: "Overdue tasks",
+        count: tasks.filter((task) => task.dueAt && task.dueAt < new Date() && task.status !== "COMPLETED").length,
+        severity: "high",
+        module: "tasks",
+        description: "Commitments that have passed their due date.",
+      },
+      {
+        key: "at-risk-deals",
+        label: "At-risk opportunities",
+        count: openDeals.filter((deal) => (deal.expectedCloseDate && deal.expectedCloseDate < new Date()) || !deal.nextStep).length,
+        severity: "high",
+        module: "deals",
+        description: "Open revenue without a current next step or valid close date.",
+      },
+      {
+        key: "draft-invoices",
+        label: "Draft invoices",
+        count: invoices.filter((invoice) => invoice.status === "DRAFT").length,
+        severity: "medium",
+        module: "invoices",
+        description: "Won or completed work that has not entered collections.",
+      },
+      {
+        key: "unmatched-banking",
+        label: "Bank feed review",
+        count: unmatchedBanking,
+        severity: "medium",
+        module: "banking",
+        description: "Imported transactions waiting for payment matching or ledger posting.",
+      },
+      {
+        key: "automation-failures",
+        label: "Automation failures",
+        count: automationFailures,
+        severity: "high",
+        module: "automations",
+        description: "Workflow executions that failed during the last seven days.",
+      },
+    ],
   };
 }
 
@@ -79,11 +123,63 @@ export async function getModuleData(slug: string, module: string) {
     }
     case "leads": {
       const records = await db.lead.findMany({ where: { organizationId }, orderBy: [{ score: "desc" }, { createdAt: "desc" }] });
-      return { kind: "leads", records: records.map((r) => ({ id: r.id, name: `${r.firstName} ${r.lastName ?? ""}`.trim(), company: r.company, status: r.status, source: r.source, score: r.score, value: money(r.estimatedValue), email: r.email })), metrics: [{ label: "New", value: records.filter((r) => r.status === "NEW").length }, { label: "Qualified", value: records.filter((r) => r.status === "QUALIFIED").length }, { label: "Pipeline value", value: records.reduce((s, r) => s + money(r.estimatedValue), 0), format: "currency" }, { label: "Average score", value: Math.round(records.reduce((s, r) => s + r.score, 0) / Math.max(1, records.length)) }] };
+      return {
+        kind: "leads",
+        records: records.map((r) => ({
+          id: r.id,
+          name: `${r.firstName} ${r.lastName ?? ""}`.trim(),
+          company: r.company,
+          status: r.status,
+          source: r.source,
+          score: r.score,
+          value: money(r.estimatedValue),
+          email: r.email,
+          phone: r.phone,
+          priority: r.score >= 80 ? "HOT" : r.score >= 60 ? "WARM" : "NURTURE",
+          recommendation: r.status === "CONVERTED" ? "Converted" : r.score >= 70 ? "Convert to opportunity" : "Complete qualification",
+          createdAt: iso(r.createdAt),
+        })),
+        metrics: [{ label: "New", value: records.filter((r) => r.status === "NEW").length }, { label: "Qualified", value: records.filter((r) => r.status === "QUALIFIED").length }, { label: "Pipeline value", value: records.reduce((s, r) => s + money(r.estimatedValue), 0), format: "currency" }, { label: "Average score", value: Math.round(records.reduce((s, r) => s + r.score, 0) / Math.max(1, records.length)) }],
+      };
     }
     case "accounts": {
-      const records = await db.crmAccount.findMany({ where: { organizationId }, include: { contacts: true, deals: true, invoices: true }, orderBy: { name: "asc" } });
-      return { kind: "accounts", records: records.map((r) => ({ id: r.id, name: r.name, type: r.accountType, industry: r.industry, contacts: r.contacts.length, pipeline: r.deals.reduce((s, d) => s + money(d.amount), 0), receivable: r.invoices.reduce((s, i) => s + money(i.balanceDue), 0) })), metrics: [{ label: "Customers", value: records.filter((r) => r.accountType === "CUSTOMER").length }, { label: "Prospects", value: records.filter((r) => r.accountType === "PROSPECT").length }, { label: "Total pipeline", value: records.flatMap((r) => r.deals).reduce((s, d) => s + money(d.amount), 0), format: "currency" }] };
+      const records = await db.crmAccount.findMany({
+        where: { organizationId },
+        include: {
+          contacts: true,
+          deals: { orderBy: { updatedAt: "desc" } },
+          invoices: { orderBy: { dueDate: "desc" } },
+          cases: { orderBy: { updatedAt: "desc" } },
+        },
+        orderBy: { name: "asc" },
+      });
+      return {
+        kind: "accounts",
+        accounts: records.map((r) => {
+          const receivable = r.invoices.reduce((s, i) => s + money(i.balanceDue), 0);
+          const revenue = r.invoices.reduce((s, i) => s + money(i.amountPaid), 0);
+          const openCases = r.cases.filter((item) => item.status !== "CLOSED").length;
+          const openPipeline = r.deals.filter((deal) => !deal.stage.startsWith("CLOSED")).reduce((s, d) => s + money(d.amount), 0);
+          const health = Math.max(0, 100 - openCases * 15 - (receivable > 0 ? 10 : 0) + (revenue > 0 ? 10 : 0));
+          return {
+            id: r.id,
+            name: r.name,
+            type: r.accountType,
+            industry: r.industry,
+            phone: r.phone,
+            website: r.website,
+            health,
+            lifetimeValue: revenue,
+            openPipeline,
+            receivable,
+            contacts: r.contacts.map((contact) => ({ id: contact.id, name: `${contact.firstName} ${contact.lastName ?? ""}`.trim(), title: contact.jobTitle, email: contact.email, phone: contact.phone })),
+            deals: r.deals.map((deal) => ({ id: deal.id, name: deal.name, stage: deal.stage, amount: money(deal.amount), probability: deal.probability, nextStep: deal.nextStep })),
+            invoices: r.invoices.map((invoice) => ({ id: invoice.id, number: invoice.invoiceNumber, status: invoice.status, total: money(invoice.total), balance: money(invoice.balanceDue), dueDate: iso(invoice.dueDate) })),
+            cases: r.cases.map((item) => ({ id: item.id, number: item.caseNumber, subject: item.subject, status: item.status, priority: item.priority })),
+          };
+        }),
+        metrics: [{ label: "Customers", value: records.filter((r) => r.accountType === "CUSTOMER").length }, { label: "Prospects", value: records.filter((r) => r.accountType === "PROSPECT").length }, { label: "Total pipeline", value: records.flatMap((r) => r.deals).reduce((s, d) => s + money(d.amount), 0), format: "currency" }, { label: "Customer receivables", value: records.flatMap((r) => r.invoices).reduce((s, i) => s + money(i.balanceDue), 0), format: "currency" }],
+      };
     }
     case "contacts": {
       const records = await db.contact.findMany({ where: { organizationId }, include: { account: true }, orderBy: { firstName: "asc" } });
@@ -91,7 +187,22 @@ export async function getModuleData(slug: string, module: string) {
     }
     case "deals": {
       const records = await db.deal.findMany({ where: { organizationId }, include: { account: true, primaryContact: true }, orderBy: { expectedCloseDate: "asc" } });
-      return { kind: "deals", records: records.map((r) => ({ id: r.id, name: r.name, account: r.account?.name, contact: r.primaryContact ? `${r.primaryContact.firstName} ${r.primaryContact.lastName ?? ""}` : null, stage: r.stage, amount: money(r.amount), probability: r.probability, closeDate: iso(r.expectedCloseDate), nextStep: r.nextStep })), metrics: [{ label: "Open pipeline", value: records.filter((r) => !r.stage.startsWith("CLOSED")).reduce((s, r) => s + money(r.amount), 0), format: "currency" }, { label: "Weighted forecast", value: records.reduce((s, r) => s + money(r.amount) * r.probability / 100, 0), format: "currency" }, { label: "Open deals", value: records.filter((r) => !r.stage.startsWith("CLOSED")).length }] };
+      return { kind: "deals", records: records.map((r) => {
+        const daysToClose = r.expectedCloseDate ? Math.ceil((r.expectedCloseDate.getTime() - Date.now()) / 86_400_000) : null;
+        return {
+          id: r.id,
+          name: r.name,
+          account: r.account?.name,
+          contact: r.primaryContact ? `${r.primaryContact.firstName} ${r.primaryContact.lastName ?? ""}` : null,
+          stage: r.stage,
+          amount: money(r.amount),
+          probability: r.probability,
+          closeDate: iso(r.expectedCloseDate),
+          nextStep: r.nextStep,
+          daysToClose,
+          risk: !r.stage.startsWith("CLOSED") && (daysToClose !== null && daysToClose < 0) ? "PAST_DUE" : !r.nextStep ? "NO_NEXT_STEP" : "ON_TRACK",
+        };
+      }), metrics: [{ label: "Open pipeline", value: records.filter((r) => !r.stage.startsWith("CLOSED")).reduce((s, r) => s + money(r.amount), 0), format: "currency" }, { label: "Weighted forecast", value: records.reduce((s, r) => s + money(r.amount) * r.probability / 100, 0), format: "currency" }, { label: "Open deals", value: records.filter((r) => !r.stage.startsWith("CLOSED")).length }, { label: "Won revenue", value: records.filter((r) => r.stage === "CLOSED_WON").reduce((s, r) => s + money(r.amount), 0), format: "currency" }] };
     }
     case "cases": {
       const records = await db.supportCase.findMany({ where: { organizationId }, include: { account: true, contact: true }, orderBy: { updatedAt: "desc" } });
@@ -132,8 +243,25 @@ export async function getModuleData(slug: string, module: string) {
       };
     }
     case "invoices": {
-      const records = await db.invoice.findMany({ where: { organizationId }, include: { account: true, items: true }, orderBy: { issueDate: "desc" } });
-      return { kind: "invoices", records: records.map((r) => ({ id: r.id, number: r.invoiceNumber, customer: r.account?.name, status: r.status, issueDate: iso(r.issueDate), dueDate: iso(r.dueDate), total: money(r.total), paid: money(r.amountPaid), balance: money(r.balanceDue), items: r.items.length })), metrics: [{ label: "Receivables", value: records.reduce((s, r) => s + money(r.balanceDue), 0), format: "currency" }, { label: "Collected", value: records.reduce((s, r) => s + money(r.amountPaid), 0), format: "currency" }, { label: "Overdue", value: records.filter((r) => r.status === "OVERDUE" || (r.balanceDue.greaterThan(0) && r.dueDate < new Date())).length }] };
+      const records = await db.invoice.findMany({ where: { organizationId }, include: { account: true, contact: true, items: true }, orderBy: { issueDate: "desc" } });
+      return { kind: "invoices", records: records.map((r) => ({
+        id: r.id,
+        number: r.invoiceNumber,
+        customer: r.account?.name,
+        contact: r.contact ? `${r.contact.firstName} ${r.contact.lastName ?? ""}`.trim() : null,
+        email: r.contact?.email,
+        status: r.status,
+        issueDate: iso(r.issueDate),
+        dueDate: iso(r.dueDate),
+        total: money(r.total),
+        paid: money(r.amountPaid),
+        balance: money(r.balanceDue),
+        items: r.items.map((item) => ({ description: item.description, quantity: money(item.quantity), unitPrice: money(item.unitPrice), total: money(item.lineTotal) })),
+        posted: Boolean(r.postedJournalId),
+        sentAt: iso(r.sentAt),
+        publicTokenId: r.publicTokenId,
+        collectionState: r.balanceDue.equals(0) ? "SETTLED" : r.dueDate < new Date() ? "OVERDUE" : r.status === "DRAFT" ? "READY_TO_SEND" : "AWAITING_PAYMENT",
+      })), metrics: [{ label: "Receivables", value: records.reduce((s, r) => s + money(r.balanceDue), 0), format: "currency" }, { label: "Collected", value: records.reduce((s, r) => s + money(r.amountPaid), 0), format: "currency" }, { label: "Overdue", value: records.filter((r) => r.status === "OVERDUE" || (r.balanceDue.greaterThan(0) && r.dueDate < new Date())).length }, { label: "Drafts to send", value: records.filter((r) => r.status === "DRAFT").length }] };
     }
     case "payments": {
       const records = await db.payment.findMany({ where: { organizationId }, include: { allocations: { include: { invoice: true } } }, orderBy: { receivedAt: "desc" } });
@@ -152,8 +280,16 @@ export async function getModuleData(slug: string, module: string) {
       return { kind: "accounting", records: entries.map((r) => ({ id: r.id, number: r.entryNumber, date: iso(r.entryDate), description: r.description, source: r.sourceModule, status: r.status, debit: r.lines.reduce((s, l) => s + money(l.debit), 0), credit: r.lines.reduce((s, l) => s + money(l.credit), 0) })), accounts: accounts.map((r) => ({ code: r.code, name: r.name, type: r.type, balance: r.lines.reduce((s, l) => s + money(l.debit) - money(l.credit), 0) })), metrics: [{ label: "Posted entries", value: entries.filter((r) => r.status === "POSTED").length }, { label: "Draft entries", value: entries.filter((r) => r.status === "DRAFT").length }, { label: "Chart accounts", value: accounts.length }] };
     }
     case "banking": {
-      const records = await db.bankAccount.findMany({ where: { organizationId }, include: { transactions: { orderBy: { postedAt: "desc" } } } });
-      return { kind: "banking", records: records.map((r) => ({ id: r.id, institution: r.institutionName, name: r.accountName, type: r.accountType, mask: r.mask, bookBalance: money(r.bookBalance), availableBalance: money(r.availableBalance), status: r.connectionStatus, lastSyncAt: iso(r.lastSyncedAt), transactions: r.transactions.map((t) => ({ id: t.id, date: iso(t.postedAt), description: t.description, amount: money(t.amount), status: t.status, category: t.category })) })), metrics: [{ label: "Book balance", value: records.reduce((s, r) => s + money(r.bookBalance), 0), format: "currency" }, { label: "Available", value: records.reduce((s, r) => s + money(r.availableBalance), 0), format: "currency" }, { label: "Needs review", value: records.flatMap((r) => r.transactions).filter((t) => t.status !== "MATCHED").length }] };
+      const [records, openInvoices] = await Promise.all([
+        db.bankAccount.findMany({ where: { organizationId }, include: { transactions: { orderBy: { postedAt: "desc" } } } }),
+        db.invoice.findMany({ where: { organizationId, balanceDue: { gt: 0 }, status: { notIn: ["VOID", "PAID"] } }, include: { account: true }, orderBy: { dueDate: "asc" } }),
+      ]);
+      return {
+        kind: "banking",
+        records: records.map((r) => ({ id: r.id, institution: r.institutionName, name: r.accountName, type: r.accountType, mask: r.mask, bookBalance: money(r.bookBalance), availableBalance: money(r.availableBalance), status: r.connectionStatus, lastSyncAt: iso(r.lastSyncedAt), transactions: r.transactions.map((t) => ({ id: t.id, date: iso(t.postedAt), description: t.description, amount: money(t.amount), direction: t.direction, status: t.status, category: t.category, suggestedResolution: t.direction === "CREDIT" ? "PAYMENT" : "EXPENSE" })) })),
+        openInvoices: openInvoices.map((invoice) => ({ id: invoice.id, label: `${invoice.invoiceNumber} - ${invoice.account?.name ?? "Customer"} - ${money(invoice.balanceDue).toFixed(2)}`, balance: money(invoice.balanceDue) })),
+        metrics: [{ label: "Book balance", value: records.reduce((s, r) => s + money(r.bookBalance), 0), format: "currency" }, { label: "Available", value: records.reduce((s, r) => s + money(r.availableBalance), 0), format: "currency" }, { label: "Needs review", value: records.flatMap((r) => r.transactions).filter((t) => t.status !== "MATCHED").length }, { label: "Matched", value: records.flatMap((r) => r.transactions).filter((t) => t.status === "MATCHED").length }],
+      };
     }
     case "products": {
       const records = await db.product.findMany({ where: { organizationId }, orderBy: { name: "asc" } });
@@ -169,7 +305,21 @@ export async function getModuleData(slug: string, module: string) {
     }
     case "automations": {
       const records = await db.automationRule.findMany({ where: { organizationId }, include: { runs: { orderBy: { startedAt: "desc" }, take: 5 } }, orderBy: { name: "asc" } });
-      return { kind: "automations", records: records.map((r) => ({ id: r.id, name: r.name, trigger: r.triggerType, active: r.active, lastRunAt: iso(r.lastRunAt), runs: r.runs.length, failures: r.runs.filter((run) => run.status === "FAILED").length })), metrics: [{ label: "Active rules", value: records.filter((r) => r.active).length }, { label: "Recent runs", value: records.reduce((s, r) => s + r.runs.length, 0) }, { label: "Failures", value: records.flatMap((r) => r.runs).filter((r) => r.status === "FAILED").length }] };
+      return {
+        kind: "automations",
+        records: records.map((r) => ({
+          id: r.id,
+          name: r.name,
+          trigger: r.triggerType,
+          active: r.active,
+          conditions: r.conditions,
+          actions: r.actions,
+          lastRunAt: iso(r.lastRunAt),
+          runs: r.runs.map((run) => ({ id: run.id, status: run.status, startedAt: iso(run.startedAt), completedAt: iso(run.completedAt), results: run.actionResults, error: run.errorMessage })),
+          failures: r.runs.filter((run) => run.status === "FAILED").length,
+        })),
+        metrics: [{ label: "Active rules", value: records.filter((r) => r.active).length }, { label: "Recent runs", value: records.reduce((s, r) => s + r.runs.length, 0) }, { label: "Failures", value: records.flatMap((r) => r.runs).filter((r) => r.status === "FAILED").length }, { label: "Successful", value: records.flatMap((r) => r.runs).filter((r) => r.status === "COMPLETED").length }],
+      };
     }
     case "email": {
       const [templates, messages] = await Promise.all([db.emailTemplate.findMany({ where: { organizationId } }), db.emailMessage.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" } })]);

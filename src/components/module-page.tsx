@@ -5,13 +5,13 @@ import {
   CalendarDays,
   CircleDollarSign,
   Filter,
-  Landmark,
   Search,
   Sparkles,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { QuickCreate } from "@/components/quick-create";
 import { BillingActions } from "@/components/billing-actions";
+import { OperationalWorkbench } from "@/components/operational-workbench";
 
 type Metric = { label: string; value: number; format?: string; suffix?: string };
 type ModuleData = { kind: string; metrics?: Metric[]; records?: Record<string, unknown>[]; [key: string]: unknown };
@@ -122,29 +122,6 @@ function DataTable({ records = [] }: { records?: Record<string, unknown>[] }) {
   );
 }
 
-function DealBoard({ records = [] }: { records?: Record<string, unknown>[] }) {
-  const stages = ["PROSPECTING", "QUALIFICATION", "NEEDS_ANALYSIS", "PROPOSAL", "NEGOTIATION", "CLOSED_WON"];
-  return (
-    <div className="grid min-w-[1100px] grid-cols-6 gap-3 overflow-x-auto p-4">
-      {stages.map((stage) => {
-        const deals = records.filter((record) => record.stage === stage);
-        return <section className="rounded-lg bg-[#f6f2ea] p-3" key={stage}>
-          <div className="flex justify-between text-[10px] font-bold uppercase tracking-[.12em] text-slate-500"><span>{stage.replaceAll("_", " ")}</span><span>{deals.length}</span></div>
-          <div className="mt-3 space-y-2">{deals.map((deal) => <article className="rounded-lg border bg-white p-3 shadow-sm" key={String(deal.id)}><div className="text-sm font-semibold">{String(deal.name)}</div><div className="mt-1 text-xs text-slate-500">{String(deal.account ?? "")}</div><div className="mt-4 flex items-end justify-between"><span className="font-semibold text-[#8b6914]">{formatCurrency(Number(deal.amount))}</span><span className="text-[10px] text-slate-400">{String(deal.probability)}%</span></div></article>)}</div>
-        </section>;
-      })}
-    </div>
-  );
-}
-
-function BankingView({ data }: { data: ModuleData }) {
-  const accounts = (data.records ?? []) as Record<string, unknown>[];
-  return <div className="grid gap-4 xl:grid-cols-[340px_1fr]">
-    <div className="space-y-3">{accounts.map((account) => <article className="ck-card p-5" key={String(account.id)}><Landmark className="text-[#9b7420]" size={20} /><div className="mt-5 text-sm font-semibold">{String(account.name)}</div><div className="text-xs text-slate-500">{String(account.institution)} ···· {String(account.mask)}</div><div className="mt-5 text-2xl font-semibold">{formatCurrency(Number(account.bookBalance))}</div><div className="mt-1 text-xs text-slate-500">Book balance · {String(account.status).toLowerCase()}</div></article>)}</div>
-    <section className="ck-card overflow-hidden"><div className="border-b p-5"><h2 className="font-semibold">Imported bank activity</h2><p className="text-xs text-slate-500">Match, categorize, or create a ledger transaction.</p></div><DataTable records={accounts.flatMap((account) => account.transactions as Record<string, unknown>[] ?? [])} /></section>
-  </div>;
-}
-
 function PayrollView({ data }: { data: ModuleData }) {
   const connection = data.connection as Record<string, unknown> | null;
   return <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
@@ -179,6 +156,7 @@ function BillingView({ data, organizationSlug }: { data: ModuleData; organizatio
 
 export function ModulePage({ module, data, organizationSlug }: { module: string; data: ModuleData; organizationSlug: string }) {
   const config = copy[module] ?? { title: module.replaceAll("-", " "), description: "Organization operations and records.", action: "Create record" };
+  const operationalModules = new Set(["leads", "accounts", "deals", "tasks", "invoices", "banking", "automations"]);
   return (
     <div className="p-5 lg:p-7">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -187,8 +165,7 @@ export function ModulePage({ module, data, organizationSlug }: { module: string;
       </div>
       <div className="mt-6"><MetricGrid metrics={data.metrics} /></div>
       <div className="mt-4">
-        {module === "deals" ? <section className="ck-card overflow-hidden"><DealBoard records={data.records} /></section>
-          : module === "banking" ? <BankingView data={data} />
+        {operationalModules.has(module) ? <OperationalWorkbench data={data} module={module} organizationSlug={organizationSlug}/>
           : module === "payroll" ? <PayrollView data={data} />
           : module === "billing" ? <BillingView data={data} organizationSlug={organizationSlug} />
           : <section className="ck-card overflow-hidden">
