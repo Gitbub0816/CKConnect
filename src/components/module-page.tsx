@@ -1,8 +1,6 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  BadgeCheck,
-  CalendarDays,
   CircleDollarSign,
   Filter,
   Search,
@@ -13,6 +11,8 @@ import { QuickCreate } from "@/components/quick-create";
 import { BillingActions } from "@/components/billing-actions";
 import { OperationalWorkbench } from "@/components/operational-workbench";
 import { PlatformWorkbench } from "@/components/platform-workbenches";
+import { ServiceWorkbench } from "@/components/service-workbenches";
+import { FinanceWorkbench } from "@/components/finance-workbenches";
 
 type Metric = { label: string; value: number; format?: string; suffix?: string };
 type ModuleData = { kind: string; metrics?: Metric[]; records?: Record<string, unknown>[]; [key: string]: unknown };
@@ -123,20 +123,6 @@ function DataTable({ records = [] }: { records?: Record<string, unknown>[] }) {
   );
 }
 
-function PayrollView({ data }: { data: ModuleData }) {
-  const connection = data.connection as Record<string, unknown> | null;
-  return <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
-    <div className="space-y-4">
-      <section className="ck-card overflow-hidden"><div className="border-b p-5"><h2 className="font-semibold">Employees</h2><p className="text-xs text-slate-500">Compensation and department records remain in ClearKey regardless of provider.</p></div><DataTable records={data.employees as Record<string, unknown>[]} /></section>
-      <section className="ck-card overflow-hidden"><div className="border-b p-5"><h2 className="font-semibold">Payroll runs</h2></div><DataTable records={data.runs as Record<string, unknown>[]} /></section>
-    </div>
-    <aside className="space-y-4">
-      <article className="ck-card p-5"><div className="flex items-center gap-2 font-semibold"><BadgeCheck className="text-[#9b7420]" size={18} />Provider connection</div>{connection ? <><div className="mt-5 text-xl font-semibold">{String(connection.provider)}</div><div className="mt-1 text-xs text-slate-500">{String(connection.mode).replaceAll("_", " ")} · {String(connection.status)}</div><button className="ck-button ck-button-secondary mt-5 w-full">Sync now</button></> : <><p className="mt-4 text-sm leading-6 text-slate-500">Connect embedded payroll through Check or an existing provider through Finch.</p><button className="ck-button mt-5 w-full">Connect payroll</button></>}</article>
-      <article className="ck-card p-5"><h3 className="font-semibold">Time awaiting approval</h3><div className="mt-4 space-y-3">{(data.time as Record<string, unknown>[] ?? []).map((entry, index) => <div className="rounded-lg border bg-slate-50 p-3 text-sm" key={index}><div className="font-medium">{String(entry.employee)}</div><div className="mt-1 text-xs text-slate-500">{String(entry.regular)} regular · {String(entry.overtime)} overtime</div></div>)}</div></article>
-    </aside>
-  </div>;
-}
-
 function BillingView({ data, organizationSlug }: { data: ModuleData; organizationSlug: string }) {
   const pricing = data.pricing as { pricingVersion: string; tier: string; licensedUsers: number; manualQuoteRequired: boolean; override: boolean };
   return <div className="grid gap-4 xl:grid-cols-[1fr_330px]">
@@ -159,6 +145,8 @@ export function ModulePage({ module, data, organizationSlug }: { module: string;
   const config = copy[module] ?? { title: module.replaceAll("-", " "), description: "Organization operations and records.", action: "Create record" };
   const operationalModules = new Set(["leads", "accounts", "deals", "tasks", "invoices", "banking", "automations"]);
   const platformModules = new Set(["reports", "team", "settings", "websites", "domains"]);
+  const serviceModules = new Set(["cases", "campaigns", "calendar", "email", "payroll"]);
+  const financeModules = new Set(["payments", "expenses", "accounting"]);
   return (
     <div className="p-5 lg:p-7">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -169,7 +157,8 @@ export function ModulePage({ module, data, organizationSlug }: { module: string;
       <div className="mt-4">
         {operationalModules.has(module) ? <OperationalWorkbench data={data} module={module} organizationSlug={organizationSlug}/>
           : platformModules.has(module) ? <PlatformWorkbench data={data} module={module} organizationSlug={organizationSlug}/>
-          : module === "payroll" ? <PayrollView data={data} />
+          : serviceModules.has(module) ? <ServiceWorkbench data={data} module={module} organizationSlug={organizationSlug}/>
+          : financeModules.has(module) ? <FinanceWorkbench data={data} module={module} organizationSlug={organizationSlug}/>
           : module === "billing" ? <BillingView data={data} organizationSlug={organizationSlug} />
           : <section className="ck-card overflow-hidden">
             <div className="flex flex-wrap items-center gap-3 border-b p-4">
@@ -182,7 +171,6 @@ export function ModulePage({ module, data, organizationSlug }: { module: string;
       </div>
       {["invoices", "payments"].includes(module) && <div className="mt-4 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 text-sm"><span className="flex items-center gap-2"><CircleDollarSign className="text-amber-700" size={18} />Public collection pages use signed tokens and Stripe-hosted payment fields.</span><Link className="font-semibold text-amber-800" href={`/p/${organizationSlug}`}>Open endpoint <ArrowRight className="inline" size={14} /></Link></div>}
       {module === "automations" && <div className="mt-4 rounded-lg border bg-[#1c1917] p-6 text-white"><div className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="text-[#e8c96a]" size={18} />Automation canvas</div><p className="mt-2 max-w-xl text-sm leading-6 text-slate-400">Triggers, conditions, delays, branches, and actions are stored as structured JSON so workflows remain inspectable and portable.</p></div>}
-      {module === "calendar" && <div className="mt-4 grid grid-cols-7 gap-px overflow-hidden rounded-lg border bg-slate-200">{["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((day) => <div className="bg-white p-4 text-center text-xs font-semibold" key={day}><CalendarDays className="mx-auto mb-2 text-[#9b7420]" size={16}/>{day}</div>)}</div>}
     </div>
   );
 }

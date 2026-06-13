@@ -124,6 +124,8 @@ npm run build
 
 The production build is designed to succeed before external services are configured. Routes that require a provider report a clear pending state until its environment keys exist.
 
+For the demo tenants and end-to-end test scenarios, see [SEEDED-TEST-DATA.md](SEEDED-TEST-DATA.md). Use `npm run db:fixtures` to add any missing non-destructive test fixtures without replacing tenant data.
+
 ## Documentation
 
 - [System architecture](docs/architecture/system.md)

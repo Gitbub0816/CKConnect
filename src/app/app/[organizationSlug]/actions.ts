@@ -10,6 +10,13 @@ import { appendAuditEvent } from "@/lib/logging/audit";
 import { CloudflareDnsProvider } from "@/lib/integrations/dns-provider";
 import { publishSiteManifest } from "@/lib/integrations/cloudflare-edge";
 
+const escapeHtml = (value: string) => value
+  .replaceAll("&", "&amp;")
+  .replaceAll("<", "&lt;")
+  .replaceAll(">", "&gt;")
+  .replaceAll('"', "&quot;")
+  .replaceAll("'", "&#039;");
+
 const themeSchema = z.object({
   organizationSlug: z.string().min(1),
   primaryColor: z.string().regex(/^#[0-9a-f]{6}$/i),
@@ -594,6 +601,321 @@ export async function completeTask(formData: FormData) {
   await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "task.completed", entityType: "Task", entityId: task.id, before, after: task, category: "BUSINESS" });
   revalidatePath(`/app/${input.organizationSlug}`);
   revalidatePath(`/app/${input.organizationSlug}/tasks`);
+}
+
+export async function updateCaseWorkflow(formData: FormData) {
+  const input = entityActionSchema.extend({
+    status: z.enum(["NEW", "IN_PROGRESS", "WAITING_CUSTOMER", "RESOLVED", "CLOSED"]),
+    resolution: z.string().trim().max(1000).optional().default(""),
+  }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "cases.write");
+  if (!user) throw new Error("A signed-in user is required");
+  if (["RESOLVED", "CLOSED"].includes(input.status) && !input.resolution) {
+    throw new Error("A resolution is required before resolving or closing a case");
+  }
+  const db = getDb();
+  const before = await db.supportCase.findFirstOrThrow({ where: { id: input.entityId, organizationId: organization.id } });
+  const supportCase = await db.$transaction(async (tx) => {
+    const updated = await tx.supportCase.update({
+      where: { id: before.id },
+      data: {
+        status: input.status,
+        resolution: input.resolution || before.resolution,
+        ownerUserId: before.ownerUserId ?? user.id,
+        closedAt: input.status === "CLOSED" ? new Date() : null,
+      },
+    });
+    if (before.contactId) {
+      await tx.activity.create({
+        data: {
+          organizationId: organization.id,
+          contactId: before.contactId,
+          type: "CASE_STATUS_CHANGED",
+          subject: `${before.caseNumber}: ${before.status} to ${input.status}`,
+          body: input.resolution || null,
+          actorUserId: user.id,
+          metadata: { caseId: before.id, from: before.status, to: input.status },
+        },
+      });
+    }
+    return updated;
+  });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "case.workflow.updated", entityType: "SupportCase", entityId: before.id, before, after: supportCase, category: "BUSINESS" });
+  revalidatePath(`/app/${input.organizationSlug}`);
+  revalidatePath(`/app/${input.organizationSlug}/cases`);
+  revalidatePath(`/app/${input.organizationSlug}/accounts`);
+}
+
+export async function executeCampaign(formData: FormData) {
+  const input = entityActionSchema.extend({
+    command: z.enum(["LAUNCH", "PAUSE", "COMPLETE"]),
+    audience: z.enum(["ALL_CONTACTS", "CUSTOMERS", "PROSPECTS"]).default("ALL_CONTACTS"),
+    subject: z.string().trim().max(180).optional().default(""),
+    body: z.string().trim().max(5000).optional().default(""),
+  }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "campaigns.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  const before = await db.campaign.findFirstOrThrow({ where: { id: input.entityId, organizationId: organization.id } });
+  if (input.command === "LAUNCH" && (!input.subject || !input.body)) throw new Error("A subject and message are required to launch a campaign");
+  if (input.command === "LAUNCH" && before.status === "ACTIVE") throw new Error("Pause the active campaign before launching a new delivery");
+  let recipients = 0;
+  const campaign = await db.$transaction(async (tx) => {
+    if (input.command === "LAUNCH") {
+      const contacts = await tx.contact.findMany({
+        where: {
+          organizationId: organization.id,
+          email: { not: null },
+          emailOptOut: false,
+          ...(input.audience === "ALL_CONTACTS" ? {} : { lifecycleStatus: input.audience === "CUSTOMERS" ? "CUSTOMER" : "PROSPECT" }),
+        },
+      });
+      recipients = contacts.length;
+      if (contacts.length) {
+        await tx.emailMessage.createMany({
+          data: contacts.map((contact) => ({
+            organizationId: organization.id,
+            recipientEmail: contact.email!,
+            recipientName: `${contact.firstName} ${contact.lastName ?? ""}`.trim(),
+            subject: input.subject,
+            bodyHtml: `<p>${escapeHtml(input.body).replaceAll("\n", "</p><p>")}</p>`,
+            status: process.env.MAILERSEND_API_KEY ? "QUEUED" : "PENDING_CONFIGURATION",
+            relatedType: "CAMPAIGN",
+            relatedId: before.id,
+          })),
+        });
+      }
+    }
+    return tx.campaign.update({
+      where: { id: before.id },
+      data: {
+        status: input.command === "LAUNCH" ? "ACTIVE" : input.command === "PAUSE" ? "PAUSED" : "COMPLETED",
+        audienceJson: input.command === "LAUNCH" ? { segment: input.audience } : before.audienceJson as Prisma.InputJsonValue,
+        memberCount: input.command === "LAUNCH" ? recipients : before.memberCount,
+        startsAt: input.command === "LAUNCH" ? before.startsAt ?? new Date() : before.startsAt,
+        endsAt: input.command === "COMPLETE" ? new Date() : before.endsAt,
+      },
+    });
+  });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: `campaign.${input.command.toLowerCase()}`, entityType: "Campaign", entityId: before.id, before, after: { campaign, recipients, audience: input.audience }, category: "BUSINESS" });
+  revalidatePath(`/app/${input.organizationSlug}/campaigns`);
+  revalidatePath(`/app/${input.organizationSlug}/email`);
+}
+
+export async function updateCalendarCommitment(formData: FormData) {
+  const input = entityActionSchema.extend({
+    command: z.enum(["COMPLETE", "CANCEL", "CREATE_FOLLOW_UP"]),
+    followUp: z.string().trim().max(240).optional().default(""),
+    dueAt: z.string().optional().default(""),
+  }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "calendar.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  const before = await db.calendarEvent.findFirstOrThrow({ where: { id: input.entityId, organizationId: organization.id } });
+  const result = await db.$transaction(async (tx) => {
+    if (input.command === "CREATE_FOLLOW_UP") {
+      if (!input.followUp) throw new Error("A follow-up title is required");
+      const task = await tx.task.create({
+        data: {
+          organizationId: organization.id,
+          title: input.followUp,
+          dueAt: input.dueAt ? new Date(input.dueAt) : new Date(Date.now() + 86_400_000),
+          relatedType: "CALENDAR_EVENT",
+          relatedId: before.id,
+          createdById: user.id,
+          assignedToId: user.id,
+        },
+      });
+      return { event: before, taskId: task.id };
+    }
+    const event = await tx.calendarEvent.update({ where: { id: before.id }, data: { status: input.command === "COMPLETE" ? "COMPLETED" : "CANCELED" } });
+    return { event, taskId: null };
+  });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: `calendar.${input.command.toLowerCase()}`, entityType: "CalendarEvent", entityId: before.id, before, after: result, category: "BUSINESS" });
+  revalidatePath(`/app/${input.organizationSlug}/calendar`);
+  revalidatePath(`/app/${input.organizationSlug}/tasks`);
+}
+
+export async function composeEmail(formData: FormData) {
+  const input = z.object({
+    organizationSlug: z.string().min(1),
+    recipientEmail: z.string().email(),
+    recipientName: z.string().trim().max(120).optional().default(""),
+    subject: z.string().trim().min(1).max(180),
+    body: z.string().trim().min(1).max(10000),
+  }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "email.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const message = await getDb().emailMessage.create({
+    data: {
+      organizationId: organization.id,
+      recipientEmail: input.recipientEmail,
+      recipientName: input.recipientName || null,
+      subject: input.subject,
+      bodyHtml: `<p>${escapeHtml(input.body).replaceAll("\n", "</p><p>")}</p>`,
+      status: process.env.MAILERSEND_API_KEY ? "QUEUED" : "PENDING_CONFIGURATION",
+    },
+  });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "email.composed", entityType: "EmailMessage", entityId: message.id, after: { recipientEmail: input.recipientEmail, subject: input.subject, status: message.status }, category: "BUSINESS" });
+  revalidatePath(`/app/${input.organizationSlug}/email`);
+}
+
+export async function approveTimeEntry(formData: FormData) {
+  const input = entityActionSchema.parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "payroll.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  const before = await db.timeEntry.findFirstOrThrow({ where: { id: input.entityId, organizationId: organization.id } });
+  if (before.status !== "SUBMITTED") throw new Error("Only submitted time can be approved");
+  const entry = await db.timeEntry.update({ where: { id: before.id }, data: { status: "APPROVED", approvedById: user.id, approvedAt: new Date() } });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "payroll.time.approved", entityType: "TimeEntry", entityId: entry.id, before, after: entry, category: "FINANCIAL", retentionClass: "FINANCIAL_7Y" });
+  revalidatePath(`/app/${input.organizationSlug}/payroll`);
+}
+
+export async function reviewTimeOff(formData: FormData) {
+  const input = entityActionSchema.extend({ decision: z.enum(["APPROVED", "DENIED"]) }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "payroll.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  const before = await db.timeOffRequest.findFirstOrThrow({ where: { id: input.entityId, organizationId: organization.id } });
+  if (before.status !== "PENDING") throw new Error("This request has already been reviewed");
+  const request = await db.timeOffRequest.update({ where: { id: before.id }, data: { status: input.decision, reviewedById: user.id, reviewedAt: new Date() } });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: `payroll.time_off.${input.decision.toLowerCase()}`, entityType: "TimeOffRequest", entityId: request.id, before, after: request, category: "BUSINESS" });
+  revalidatePath(`/app/${input.organizationSlug}/payroll`);
+}
+
+export async function advancePayrollRun(formData: FormData) {
+  const input = entityActionSchema.extend({ command: z.enum(["APPROVE", "SUBMIT"]) }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "payroll.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  const before = await db.payrollRun.findFirstOrThrow({ where: { id: input.entityId, organizationId: organization.id } });
+  const connection = await db.payrollConnection.findUnique({ where: { organizationId: organization.id } });
+  if (input.command === "APPROVE" && before.status !== "NEEDS_APPROVAL") throw new Error("Only payroll runs awaiting approval can be approved");
+  if (input.command === "SUBMIT" && before.status !== "APPROVED") throw new Error("Payroll must be approved before submission");
+  if (input.command === "SUBMIT" && connection?.status !== "ACTIVE") throw new Error("An active payroll provider connection is required before submission");
+  const run = await db.payrollRun.update({
+    where: { id: before.id },
+    data: input.command === "APPROVE"
+      ? { status: "APPROVED", approvedById: user.id, approvedAt: new Date() }
+      : { status: "SUBMITTED", submittedById: user.id, submittedAt: new Date(), providerSnapshot: { provider: connection?.provider, mode: connection?.mode, submittedAt: new Date().toISOString() } },
+  });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: `payroll.run.${input.command.toLowerCase()}`, entityType: "PayrollRun", entityId: run.id, before, after: run, category: "FINANCIAL", retentionClass: "FINANCIAL_7Y" });
+  revalidatePath(`/app/${input.organizationSlug}`);
+  revalidatePath(`/app/${input.organizationSlug}/payroll`);
+}
+
+export async function recordManualPayment(formData: FormData) {
+  const input = z.object({
+    organizationSlug: z.string().min(1),
+    invoiceId: z.string().uuid(),
+    amount: z.coerce.number().positive(),
+    method: z.enum(["ACH", "CARD", "CHECK", "CASH", "WIRE", "OTHER"]),
+    reference: z.string().trim().max(100).optional().default(""),
+    receivedAt: z.string().min(1),
+  }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "payments.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  const invoice = await db.invoice.findFirstOrThrow({ where: { id: input.invoiceId, organizationId: organization.id } });
+  const balance = Number(invoice.balanceDue);
+  if (input.amount > balance) throw new Error("Payment cannot exceed the invoice balance");
+  const result = await db.$transaction(async (tx) => {
+    const cash = await tx.ledgerAccount.upsert({
+      where: { organizationId_code: { organizationId: organization.id, code: "1000" } },
+      update: {},
+      create: { organizationId: organization.id, code: "1000", name: "Operating Cash", type: "ASSET", systemAccount: true },
+    });
+    const receivable = await tx.ledgerAccount.upsert({
+      where: { organizationId_code: { organizationId: organization.id, code: "1100" } },
+      update: {},
+      create: { organizationId: organization.id, code: "1100", name: "Accounts Receivable", type: "ASSET", systemAccount: true },
+    });
+    const payment = await tx.payment.create({
+      data: {
+        organizationId: organization.id,
+        amount: input.amount,
+        status: "SUCCEEDED",
+        method: input.method,
+        referenceNumber: input.reference || `MANUAL-${nanoid(8).toUpperCase()}`,
+        receivedAt: new Date(input.receivedAt),
+      },
+    });
+    await tx.paymentAllocation.create({ data: { paymentId: payment.id, invoiceId: invoice.id, amount: input.amount } });
+    const remaining = balance - input.amount;
+    await tx.invoice.update({
+      where: { id: invoice.id },
+      data: {
+        amountPaid: { increment: input.amount },
+        balanceDue: remaining,
+        status: remaining === 0 ? "PAID" : "PARTIALLY_PAID",
+        paidAt: remaining === 0 ? new Date(input.receivedAt) : null,
+      },
+    });
+    const count = await tx.journalEntry.count({ where: { organizationId: organization.id } });
+    const journal = await tx.journalEntry.create({
+      data: {
+        organizationId: organization.id,
+        entryNumber: `JE-${String(count + 1).padStart(6, "0")}`,
+        entryDate: new Date(input.receivedAt),
+        description: `Payment applied to ${invoice.invoiceNumber}`,
+        status: "POSTED",
+        sourceModule: "PAYMENT",
+        sourceId: payment.id,
+        createdById: user.id,
+        postedAt: new Date(),
+        lines: { create: [{ ledgerAccountId: cash.id, debit: input.amount, credit: 0 }, { ledgerAccountId: receivable.id, debit: 0, credit: input.amount, sortOrder: 1 }] },
+      },
+    });
+    await tx.payment.update({ where: { id: payment.id }, data: { postedJournalId: journal.id } });
+    return { paymentId: payment.id, journalId: journal.id, remaining };
+  });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "payment.recorded", entityType: "Payment", entityId: result.paymentId, after: { ...input, ...result }, category: "FINANCIAL", retentionClass: "FINANCIAL_7Y" });
+  revalidatePath(`/app/${input.organizationSlug}`);
+  revalidatePath(`/app/${input.organizationSlug}/payments`);
+  revalidatePath(`/app/${input.organizationSlug}/invoices`);
+  revalidatePath(`/app/${input.organizationSlug}/accounting`);
+}
+
+export async function postExpense(formData: FormData) {
+  const input = entityActionSchema.parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(input.organizationSlug, "accounting.write");
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  const before = await db.expense.findFirstOrThrow({ where: { id: input.entityId, organizationId: organization.id } });
+  if (before.postedJournalId) throw new Error("Expense is already posted");
+  const journal = await db.$transaction(async (tx) => {
+    const cash = await tx.ledgerAccount.upsert({
+      where: { organizationId_code: { organizationId: organization.id, code: "1000" } },
+      update: {},
+      create: { organizationId: organization.id, code: "1000", name: "Operating Cash", type: "ASSET", systemAccount: true },
+    });
+    const expenseAccount = await tx.ledgerAccount.upsert({
+      where: { organizationId_code: { organizationId: organization.id, code: "6100" } },
+      update: {},
+      create: { organizationId: organization.id, code: "6100", name: "Operating Expenses", type: "EXPENSE", systemAccount: true },
+    });
+    const count = await tx.journalEntry.count({ where: { organizationId: organization.id } });
+    const created = await tx.journalEntry.create({
+      data: {
+        organizationId: organization.id,
+        entryNumber: `JE-${String(count + 1).padStart(6, "0")}`,
+        entryDate: before.incurredAt,
+        description: before.description,
+        status: "POSTED",
+        sourceModule: "EXPENSE",
+        sourceId: before.id,
+        createdById: user.id,
+        postedAt: new Date(),
+        lines: { create: [{ ledgerAccountId: expenseAccount.id, debit: before.amount, credit: 0 }, { ledgerAccountId: cash.id, debit: 0, credit: before.amount, sortOrder: 1 }] },
+      },
+    });
+    await tx.expense.update({ where: { id: before.id }, data: { postedJournalId: created.id } });
+    return created;
+  });
+  await appendAuditEvent({ organizationId: organization.id, actorUserId: user.id, action: "expense.posted", entityType: "Expense", entityId: before.id, before, after: { postedJournalId: journal.id }, category: "FINANCIAL", retentionClass: "FINANCIAL_7Y" });
+  revalidatePath(`/app/${input.organizationSlug}/expenses`);
+  revalidatePath(`/app/${input.organizationSlug}/accounting`);
 }
 
 const permissionCatalog = [
