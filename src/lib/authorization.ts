@@ -2,11 +2,12 @@ import "server-only";
 
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { getDb } from "@/lib/db";
+import { getOrganizationContext } from "@/lib/organization-context";
 
 export async function requireOrganizationAccess(slug: string, permission?: string) {
   if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || !process.env.CLERK_SECRET_KEY) {
     if (process.env.NODE_ENV === "production") throw new Error("Authentication is not configured");
-    const organization = await getDb().organization.findUnique({ where: { slug } });
+    const organization = await getOrganizationContext(slug);
     if (!organization) throw new Error("Organization not found");
     return { organization, user: null, membership: null };
   }
@@ -25,7 +26,7 @@ export async function requireOrganizationAccess(slug: string, permission?: strin
       create: { clerkUserId: session.userId, email, firstName: clerkUser.firstName, lastName: clerkUser.lastName },
     });
   }
-  const organization = await db.organization.findUnique({ where: { slug } });
+  const organization = await getOrganizationContext(slug);
   if (!organization) throw new Error("Organization not found");
   const membership = await db.organizationMembership.findUnique({
     where: { organizationId_userId: { organizationId: organization.id, userId: user.id } },

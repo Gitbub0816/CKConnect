@@ -32,7 +32,8 @@ import {
   Workflow,
   MessageSquare,
 } from "lucide-react";
-import { getDb } from "@/lib/db";
+import { KiraAssistant } from "@/components/kira-assistant";
+import { getOrganizationContext } from "@/lib/organization-context";
 
 const sections = [
   {
@@ -127,10 +128,7 @@ export async function AppShell({
   children: React.ReactNode;
 }) {
   const base = `/app/${organizationSlug}`;
-  const organization = await getDb().organization.findUnique({
-    where: { slug: organizationSlug },
-    include: { theme: true, moduleConfiguration: true },
-  });
+  const organization = await getOrganizationContext(organizationSlug);
   const theme = organization?.theme;
   const enabled = organization?.moduleConfiguration as Record<
     string,
@@ -261,6 +259,10 @@ export async function AppShell({
           </span>
         </footer>
       </div>
+      <KiraAssistant
+        activeModule={active}
+        organizationSlug={organizationSlug}
+      />
     </div>
   );
 }

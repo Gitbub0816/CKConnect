@@ -4,7 +4,6 @@ import { AppShell } from "@/components/app-shell";
 import { ModulePage } from "@/components/module-page";
 import { getModuleData, getPublishedEndpoint } from "@/lib/workspace-data";
 import { requireOrganizationAccess } from "@/lib/authorization";
-import { getDb } from "@/lib/db";
 
 const modules = new Set([
   "leads",
@@ -53,16 +52,12 @@ export default async function WorkspaceModulePage({
 }) {
   const { organizationSlug, module } = await params;
   if (!modules.has(module)) notFound();
-  await requireOrganizationAccess(
+  const { organization: configuration } = await requireOrganizationAccess(
     organizationSlug,
     ["settings", "appearance", "data-studio"].includes(module)
       ? "settings.manage"
       : `${module}.read`,
   );
-  const configuration = await getDb().organization.findUnique({
-    where: { slug: organizationSlug },
-    include: { moduleConfiguration: true },
-  });
   const featureMap: Record<string, string> = {
     leads: "crm",
     accounts: "crm",

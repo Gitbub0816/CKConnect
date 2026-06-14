@@ -1,23 +1,16 @@
+import { Headphones, Send } from "lucide-react";
 import {
-  CalendarDays,
-  Headphones,
-  MessageSquare,
-  Plus,
-  Send,
-  Video,
-} from "lucide-react";
-import {
-  createCollaborationChannel,
   createPlatformSupportTicket,
   replyPlatformSupportTicket,
-  sendCollaborationMessage,
   startStripeCustomerPayments,
   updatePaymentProvider,
 } from "@/app/app/[organizationSlug]/actions";
+import { CollaborationWorkspace } from "@/components/collaboration-workspace";
 
 type Value = Record<string, unknown>;
 type Data = { records?: Value[]; calendar?: Value[]; transactions?: Value[] };
 
+/*
 function Collaboration({
   data,
   organizationSlug,
@@ -199,6 +192,7 @@ function Collaboration({
   );
 }
 
+*/
 function Support({
   data,
   organizationSlug,
@@ -476,7 +470,13 @@ export function CommunicationsWorkbench({
   organizationSlug: string;
 }) {
   if (module === "collaboration")
-    return <Collaboration data={data} organizationSlug={organizationSlug} />;
+    return (
+      <CollaborationWorkspace
+        channels={data.records ?? []}
+        calendar={data.calendar ?? []}
+        organizationSlug={organizationSlug}
+      />
+    );
   if (module === "support")
     return <Support data={data} organizationSlug={organizationSlug} />;
   if (module === "payment-settings")
