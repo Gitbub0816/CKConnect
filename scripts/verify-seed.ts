@@ -6,8 +6,20 @@ config({ path: ".env.local" });
 const db = new PrismaClient({ adapter: new PrismaNeon({ connectionString: process.env.DATABASE_URL! }) });
 
 async function main() {
+  const organizations = await db.organization.findMany({
+    where: { deletedAt: null },
+    orderBy: { name: "asc" },
+    select: {
+      name: true,
+      slug: true,
+      orgCode: true,
+      status: true,
+    },
+  });
+
   console.log(JSON.stringify({
-    organizations: await db.organization.count(),
+    organizationCount: organizations.length,
+    organizations,
     activePricingConfigurations: await db.pricingConfig.count({ where: { active: true } }),
     websites: await db.website.count(),
     domains: await db.organizationDomain.count(),
