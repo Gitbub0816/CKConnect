@@ -311,11 +311,27 @@ export async function getModuleData(slug: string, module: string) {
       };
     }
     case "websites": {
-      const records = await db.website.findMany({
-        where: { organizationId },
-        include: { pages: true },
-        orderBy: { updatedAt: "desc" },
-      });
+      const [records, assets, automations] = await Promise.all([
+        db.website.findMany({
+          where: { organizationId },
+          include: { pages: true },
+          orderBy: { updatedAt: "desc" },
+        }),
+        db.storedFile.findMany({
+          where: {
+            organizationId,
+            relatedType: "WEBSITE_PAGE",
+            deletedAt: null,
+          },
+          orderBy: { createdAt: "desc" },
+          take: 100,
+        }),
+        db.automationRule.findMany({
+          where: { organizationId },
+          orderBy: { updatedAt: "desc" },
+          take: 30,
+        }),
+      ]);
       return {
         kind: "websites",
         websites: records.map((website) => ({
@@ -336,6 +352,20 @@ export async function getModuleData(slug: string, module: string) {
             content: page.contentJson,
           })),
         })),
+        assets: assets.map((asset) => ({
+          id: asset.id,
+          name: asset.fileName,
+          type: asset.contentType,
+          size: Number(asset.sizeBytes),
+          status: asset.status,
+          url: `/api/public/site-assets/${asset.id}`,
+        })),
+        automations: automations.map((automation) => ({
+          id: automation.id,
+          name: automation.name,
+          trigger: automation.triggerType,
+          active: automation.active,
+        })),
         metrics: [
           { label: "Websites", value: records.length },
           {
@@ -350,6 +380,220 @@ export async function getModuleData(slug: string, module: string) {
               0,
             ),
           },
+        ],
+      };
+    }
+    case "data-studio": {
+      const [links, policies, files, counts, catalogRecords] =
+        await Promise.all([
+          db.dataLink.findMany({
+            where: { organizationId },
+            orderBy: { updatedAt: "desc" },
+            take: 100,
+          }),
+          db.storagePolicy.findMany({
+            where: { organizationId },
+            orderBy: { scope: "asc" },
+          }),
+          db.storedFile.findMany({
+            where: { organizationId, deletedAt: null },
+            orderBy: { createdAt: "desc" },
+            take: 100,
+          }),
+          Promise.all([
+            db.contact.count({ where: { organizationId } }),
+            db.crmAccount.count({ where: { organizationId } }),
+            db.invoice.count({ where: { organizationId } }),
+            db.website.count({ where: { organizationId } }),
+          ]),
+          Promise.all([
+            db.contact.findMany({
+              where: { organizationId, deletedAt: null },
+              orderBy: { updatedAt: "desc" },
+              take: 20,
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            }),
+            db.crmAccount.findMany({
+              where: { organizationId, deletedAt: null },
+              orderBy: { updatedAt: "desc" },
+              take: 20,
+              select: { id: true, name: true, accountType: true },
+            }),
+            db.invoice.findMany({
+              where: { organizationId },
+              orderBy: { updatedAt: "desc" },
+              take: 20,
+              select: { id: true, invoiceNumber: true, status: true },
+            }),
+            db.website.findMany({
+              where: { organizationId },
+              orderBy: { updatedAt: "desc" },
+              take: 20,
+              select: { id: true, slug: true, status: true },
+            }),
+            db.websitePage.findMany({
+              where: { website: { organizationId } },
+              orderBy: { updatedAt: "desc" },
+              take: 20,
+              select: {
+                id: true,
+                title: true,
+                path: true,
+                website: { select: { slug: true } },
+              },
+            }),
+            db.product.findMany({
+              where: { organizationId },
+              orderBy: { updatedAt: "desc" },
+              take: 20,
+              select: { id: true, name: true, sku: true },
+            }),
+            db.automationRule.findMany({
+              where: { organizationId },
+              orderBy: { updatedAt: "desc" },
+              take: 20,
+              select: { id: true, name: true, triggerType: true },
+            }),
+          ]),
+        ]);
+      const [
+        contacts,
+        accounts,
+        invoices,
+        websites,
+        pages,
+        products,
+        automations,
+      ] = catalogRecords;
+      return {
+        kind: "data-studio",
+        entities: [
+          {
+            type: "Contact",
+            label: "Contacts",
+            count: counts[0],
+            description:
+              "People, portal identities, and communication context.",
+          },
+          {
+            type: "CrmAccount",
+            label: "Accounts",
+            count: counts[1],
+            description: "Organizations and commercial relationships.",
+          },
+          {
+            type: "Invoice",
+            label: "Invoices",
+            count: counts[2],
+            description: "Receivables linked to customers and payments.",
+          },
+          {
+            type: "Website",
+            label: "Websites",
+            count: counts[3],
+            description: "Published surfaces, pages, and site assets.",
+          },
+        ],
+        catalog: [
+          ...contacts.map((record) => ({
+            type: "Contact",
+            id: record.id,
+            label:
+              [record.firstName, record.lastName].filter(Boolean).join(" ") ||
+              record.email ||
+              "Unnamed contact",
+            detail: record.email ?? "No email",
+          })),
+          ...accounts.map((record) => ({
+            type: "CrmAccount",
+            id: record.id,
+            label: record.name,
+            detail: record.accountType,
+          })),
+          ...invoices.map((record) => ({
+            type: "Invoice",
+            id: record.id,
+            label: record.invoiceNumber,
+            detail: record.status,
+          })),
+          ...websites.map((record) => ({
+            type: "Website",
+            id: record.id,
+            label: record.slug,
+            detail: record.status,
+          })),
+          ...pages.map((record) => ({
+            type: "WebsitePage",
+            id: record.id,
+            label: record.title,
+            detail: `${record.website.slug}${record.path}`,
+          })),
+          ...products.map((record) => ({
+            type: "Product",
+            id: record.id,
+            label: record.name,
+            detail: record.sku ?? "No SKU",
+          })),
+          ...automations.map((record) => ({
+            type: "AutomationRule",
+            id: record.id,
+            label: record.name,
+            detail: record.triggerType,
+          })),
+          ...files.slice(0, 20).map((record) => ({
+            type: "StoredFile",
+            id: record.id,
+            label: record.fileName,
+            detail: record.contentType,
+          })),
+        ],
+        links: links.map((link) => ({
+          id: link.id,
+          publicId: link.publicId,
+          sourceType: link.sourceType,
+          sourceId: link.sourceId,
+          targetType: link.targetType,
+          targetId: link.targetId,
+          relationship: link.relationship,
+          permissions: link.permissions,
+          active: link.active,
+          updatedAt: iso(link.updatedAt),
+        })),
+        storagePolicies: policies.map((policy) => ({
+          id: policy.id,
+          scope: policy.scope,
+          retentionClass: policy.retentionClass,
+          maxFileSizeMb: Math.round(
+            Number(policy.maxFileSizeBytes) / 1024 / 1024,
+          ),
+          allowedTypes: Array.isArray(policy.allowedTypesJson)
+            ? policy.allowedTypesJson.join(", ")
+            : "",
+          publicAssets: policy.publicAssets,
+          versioning: policy.versioning,
+        })),
+        records: files.map((file) => ({
+          id: file.id,
+          name: file.fileName,
+          type: file.contentType,
+          size: Number(file.sizeBytes),
+          status: file.status,
+          scanStatus: file.scanStatus,
+          relatedType: file.relatedType,
+          relatedId: file.relatedId,
+          retentionClass: file.retentionClass,
+          createdAt: iso(file.createdAt),
+        })),
+        metrics: [
+          { label: "Entity types", value: 4 },
+          { label: "Explicit links", value: links.length },
+          { label: "Stored objects", value: files.length },
+          { label: "Storage policies", value: policies.length },
         ],
       };
     }

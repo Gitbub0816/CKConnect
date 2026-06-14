@@ -17,6 +17,7 @@ type PortalBlock = {
   primaryAction?: string;
   secondaryAction?: string;
   layout?: string;
+  imageUrl?: string;
   items?: Array<Record<string, string>>;
   steps?: Array<Record<string, string>>;
 };
@@ -65,16 +66,29 @@ function Block({
             )}
           </div>
         </div>
-        <div className="portal-hero-art">
-          <span />
-          <span />
-          <span />
-        </div>
+        {block.imageUrl ? (
+          <div
+            className="portal-hero-art bg-cover bg-center"
+            style={{ backgroundImage: `url("${block.imageUrl}")` }}
+          />
+        ) : (
+          <div className="portal-hero-art">
+            <span />
+            <span />
+            <span />
+          </div>
+        )}
       </section>
     );
   if (block.type === "serviceGrid" || block.type === "services")
     return (
       <section className="portal-section" id={block.id}>
+        {block.imageUrl && (
+          <div
+            className="mb-10 h-80 rounded-[var(--portal-radius)] bg-cover bg-center"
+            style={{ backgroundImage: `url("${block.imageUrl}")` }}
+          />
+        )}
         <div className="portal-section-heading">
           <span>Services</span>
           <h2>{block.title}</h2>

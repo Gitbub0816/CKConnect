@@ -43,6 +43,7 @@ const modules = new Set([
   "collaboration",
   "support",
   "payment-settings",
+  "data-studio",
 ]);
 
 export default async function WorkspaceModulePage({
@@ -54,7 +55,7 @@ export default async function WorkspaceModulePage({
   if (!modules.has(module)) notFound();
   await requireOrganizationAccess(
     organizationSlug,
-    module === "settings" || module === "appearance"
+    ["settings", "appearance", "data-studio"].includes(module)
       ? "settings.manage"
       : `${module}.read`,
   );

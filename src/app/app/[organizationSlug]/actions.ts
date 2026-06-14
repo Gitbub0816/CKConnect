@@ -2993,6 +2993,9 @@ export async function saveWebsitePage(formData: FormData) {
       seoTitle: z.string().trim().max(120),
       seoDescription: z.string().trim().max(240),
       blocksJson: z.string(),
+      codeHtml: z.string().max(100_000).optional().default(""),
+      codeCss: z.string().max(100_000).optional().default(""),
+      codeJs: z.string().max(100_000).optional().default(""),
       publish: z
         .string()
         .optional()
@@ -3023,7 +3026,14 @@ export async function saveWebsitePage(formData: FormData) {
         title: input.title,
         path: input.path,
         seoJson: { title: input.seoTitle, description: input.seoDescription },
-        contentJson: { blocks } as Prisma.InputJsonValue,
+        contentJson: {
+          blocks,
+          code: {
+            html: input.codeHtml,
+            css: input.codeCss,
+            javascript: input.codeJs,
+          },
+        } as Prisma.InputJsonValue,
         status: input.publish ? "PUBLISHED" : "DRAFT",
       },
     });
@@ -3053,6 +3063,221 @@ export async function saveWebsitePage(formData: FormData) {
   });
   revalidatePath(`/app/${input.organizationSlug}/websites`);
   revalidatePath(`/site/${website.defaultHostname}`);
+}
+
+const linkableEntityTypes = [
+  "Contact",
+  "CrmAccount",
+  "Invoice",
+  "Website",
+  "WebsitePage",
+  "StoredFile",
+  "AutomationRule",
+  "Product",
+] as const;
+
+async function tenantEntityExists(
+  organizationId: string,
+  type: (typeof linkableEntityTypes)[number],
+  id: string,
+) {
+  const db = getDb();
+  switch (type) {
+    case "Contact":
+      return Boolean(
+        await db.contact.findFirst({
+          where: { id, organizationId },
+          select: { id: true },
+        }),
+      );
+    case "CrmAccount":
+      return Boolean(
+        await db.crmAccount.findFirst({
+          where: { id, organizationId },
+          select: { id: true },
+        }),
+      );
+    case "Invoice":
+      return Boolean(
+        await db.invoice.findFirst({
+          where: { id, organizationId },
+          select: { id: true },
+        }),
+      );
+    case "Website":
+      return Boolean(
+        await db.website.findFirst({
+          where: { id, organizationId },
+          select: { id: true },
+        }),
+      );
+    case "WebsitePage":
+      return Boolean(
+        await db.websitePage.findFirst({
+          where: { id, website: { organizationId } },
+          select: { id: true },
+        }),
+      );
+    case "StoredFile":
+      return Boolean(
+        await db.storedFile.findFirst({
+          where: { id, organizationId },
+          select: { id: true },
+        }),
+      );
+    case "AutomationRule":
+      return Boolean(
+        await db.automationRule.findFirst({
+          where: { id, organizationId },
+          select: { id: true },
+        }),
+      );
+    case "Product":
+      return Boolean(
+        await db.product.findFirst({
+          where: { id, organizationId },
+          select: { id: true },
+        }),
+      );
+  }
+}
+
+export async function createDataLink(formData: FormData) {
+  const input = z
+    .object({
+      organizationSlug: z.string().min(1),
+      sourceType: z.enum(linkableEntityTypes),
+      sourceId: z.string().uuid(),
+      targetType: z.enum(linkableEntityTypes),
+      targetId: z.string().uuid(),
+      relationship: z.string().trim().min(1).max(80),
+      permissions: z
+        .array(z.enum(["read", "write", "sync", "publish"]))
+        .default([]),
+    })
+    .parse({
+      ...Object.fromEntries(formData),
+      permissions: formData.getAll("permissions"),
+    });
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    "settings.manage",
+  );
+  if (!user) throw new Error("A signed-in user is required");
+  const [sourceExists, targetExists] = await Promise.all([
+    tenantEntityExists(organization.id, input.sourceType, input.sourceId),
+    tenantEntityExists(organization.id, input.targetType, input.targetId),
+  ]);
+  if (!sourceExists || !targetExists)
+    throw new Error("Both linked records must exist inside this organization");
+  const link = await getDb().dataLink.upsert({
+    where: {
+      organizationId_sourceType_sourceId_targetType_targetId_relationship: {
+        organizationId: organization.id,
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        targetType: input.targetType,
+        targetId: input.targetId,
+        relationship: input.relationship,
+      },
+    },
+    update: { permissions: input.permissions, active: true },
+    create: {
+      organizationId: organization.id,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      targetType: input.targetType,
+      targetId: input.targetId,
+      relationship: input.relationship,
+      permissions: input.permissions,
+    },
+  });
+  await appendAuditEvent({
+    organizationId: organization.id,
+    actorUserId: user.id,
+    action: "data_link.upserted",
+    entityType: "DataLink",
+    entityId: link.id,
+    after: input,
+    category: "ADMIN",
+    retentionClass: "SECURITY_7Y",
+  });
+  revalidatePath(`/app/${input.organizationSlug}/data-studio`);
+}
+
+export async function updateStoragePolicy(formData: FormData) {
+  const input = z
+    .object({
+      organizationSlug: z.string().min(1),
+      scope: z.enum([
+        "WEBSITE_ASSETS",
+        "DOCUMENTS",
+        "CUSTOMER_UPLOADS",
+        "GENERATED_EXPORTS",
+      ]),
+      retentionClass: z.enum([
+        "EPHEMERAL",
+        "STANDARD",
+        "FINANCIAL_7Y",
+        "SECURITY_7Y",
+        "PERMANENT",
+      ]),
+      maxFileSizeMb: z.coerce.number().int().min(1).max(250),
+      allowedTypes: z.string().trim().max(1000),
+      publicAssets: z
+        .string()
+        .optional()
+        .transform((value) => value === "on"),
+      versioning: z
+        .string()
+        .optional()
+        .transform((value) => value === "on"),
+    })
+    .parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    "settings.manage",
+  );
+  if (!user) throw new Error("A signed-in user is required");
+  const allowedTypes = input.allowedTypes
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const policy = await getDb().storagePolicy.upsert({
+    where: {
+      organizationId_scope: {
+        organizationId: organization.id,
+        scope: input.scope,
+      },
+    },
+    update: {
+      retentionClass: input.retentionClass,
+      maxFileSizeBytes: BigInt(input.maxFileSizeMb * 1024 * 1024),
+      allowedTypesJson: allowedTypes,
+      publicAssets: input.publicAssets,
+      versioning: input.versioning,
+    },
+    create: {
+      organizationId: organization.id,
+      scope: input.scope,
+      retentionClass: input.retentionClass,
+      maxFileSizeBytes: BigInt(input.maxFileSizeMb * 1024 * 1024),
+      allowedTypesJson: allowedTypes,
+      publicAssets: input.publicAssets,
+      versioning: input.versioning,
+    },
+  });
+  await appendAuditEvent({
+    organizationId: organization.id,
+    actorUserId: user.id,
+    action: "storage_policy.updated",
+    entityType: "StoragePolicy",
+    entityId: policy.id,
+    after: { ...input, allowedTypes },
+    category: "SECURITY",
+    retentionClass: "SECURITY_7Y",
+  });
+  revalidatePath(`/app/${input.organizationSlug}/data-studio`);
 }
 
 export async function verifyDomainNow(formData: FormData) {
