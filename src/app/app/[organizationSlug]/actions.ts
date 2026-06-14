@@ -2213,6 +2213,7 @@ export async function addEntityNote(formData: FormData) {
     category: "BUSINESS",
   });
   revalidatePath(`/app/${input.organizationSlug}/accounts`);
+  revalidatePath(`/app/${input.organizationSlug}/contacts`);
 }
 
 export async function updateEndpointSubmission(formData: FormData) {
@@ -3278,6 +3279,235 @@ export async function updateStoragePolicy(formData: FormData) {
     retentionClass: "SECURITY_7Y",
   });
   revalidatePath(`/app/${input.organizationSlug}/data-studio`);
+}
+
+export async function updateProductOperations(formData: FormData) {
+  const input = z
+    .object({
+      organizationSlug: z.string().min(1),
+      entityId: z.string().uuid(),
+      price: z.coerce.number().min(0),
+      cost: z.coerce.number().min(0),
+      quantityOnHand: z.coerce.number().min(0),
+      reorderLevel: z.coerce.number().min(0),
+      active: z.enum(["true", "false"]).transform((value) => value === "true"),
+    })
+    .parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    "products.write",
+  );
+  const before = await getDb().product.findFirstOrThrow({
+    where: { id: input.entityId, organizationId: organization.id },
+  });
+  const product = await getDb().product.update({
+    where: { id: before.id },
+    data: {
+      price: input.price,
+      cost: input.cost,
+      quantityOnHand: input.quantityOnHand,
+      reorderLevel: input.reorderLevel,
+      active: input.active,
+    },
+  });
+  await appendAuditEvent({
+    organizationId: organization.id,
+    actorUserId: user?.id,
+    action: "product.operations_updated",
+    entityType: "Product",
+    entityId: product.id,
+    before,
+    after: product,
+    category: "BUSINESS",
+  });
+  revalidatePath(`/app/${input.organizationSlug}/products`);
+}
+
+export async function markNotifications(formData: FormData) {
+  const input = z
+    .object({
+      organizationSlug: z.string().min(1),
+      entityId: z.string().uuid().optional(),
+      command: z.enum(["READ", "UNREAD", "READ_ALL"]),
+    })
+    .parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    "notifications.read",
+  );
+  if (!user) throw new Error("A signed-in user is required");
+  const readAt = input.command === "UNREAD" ? null : new Date();
+  if (input.command === "READ_ALL") {
+    await getDb().notification.updateMany({
+      where: { organizationId: organization.id, userId: user.id, readAt: null },
+      data: { readAt },
+    });
+  } else {
+    await getDb().notification.updateMany({
+      where: {
+        id: input.entityId,
+        organizationId: organization.id,
+        userId: user.id,
+      },
+      data: { readAt },
+    });
+  }
+  await appendAuditEvent({
+    organizationId: organization.id,
+    actorUserId: user.id,
+    action: "notifications.read_state_updated",
+    entityType: "Notification",
+    entityId: input.entityId,
+    after: { command: input.command },
+    category: "BUSINESS",
+  });
+  revalidatePath(`/app/${input.organizationSlug}/notifications`);
+}
+
+export async function manageTaxDocument(formData: FormData) {
+  const input = z
+    .object({
+      organizationSlug: z.string().min(1),
+      entityId: z.string().uuid().optional(),
+      command: z.enum(["GENERATE", "READY", "FILED", "VOID"]),
+      documentType: z.string().trim().min(2).max(60).optional(),
+      taxYear: z.coerce.number().int().min(2000).max(2100).optional(),
+      provider: z.string().trim().max(80).optional(),
+      filingConfirmation: z.string().trim().max(120).optional(),
+    })
+    .parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    "tax-documents.write",
+  );
+  if (!user) throw new Error("A signed-in user is required");
+  if (input.command === "GENERATE") {
+    if (!input.documentType || !input.taxYear)
+      throw new Error("Document type and tax year are required");
+    const latest = await getDb().taxDocument.findFirst({
+      where: {
+        organizationId: organization.id,
+        documentType: input.documentType,
+        taxYear: input.taxYear,
+      },
+      orderBy: { version: "desc" },
+    });
+    const [employees, vendors, payments, payrollRuns] = await Promise.all([
+      getDb().employee.count({ where: { organizationId: organization.id } }),
+      getDb().vendor.count({ where: { organizationId: organization.id } }),
+      getDb().payment.count({ where: { organizationId: organization.id } }),
+      getDb().payrollRun.count({ where: { organizationId: organization.id } }),
+    ]);
+    const document = await getDb().taxDocument.create({
+      data: {
+        organizationId: organization.id,
+        documentType: input.documentType,
+        taxYear: input.taxYear,
+        provider: input.provider || "CLEARKEY",
+        version: (latest?.version ?? 0) + 1,
+        generatedById: user.id,
+        snapshotJson: { employees, vendors, payments, payrollRuns },
+      },
+    });
+    await appendAuditEvent({
+      organizationId: organization.id,
+      actorUserId: user.id,
+      action: "tax_document.generated",
+      entityType: "TaxDocument",
+      entityId: document.id,
+      after: document,
+      category: "FINANCIAL",
+      retentionClass: "FINANCIAL_7Y",
+    });
+  } else {
+    if (!input.entityId) throw new Error("Tax document is required");
+    const before = await getDb().taxDocument.findFirstOrThrow({
+      where: { id: input.entityId, organizationId: organization.id },
+    });
+    const status =
+      input.command === "READY"
+        ? "READY_FOR_REVIEW"
+        : input.command === "FILED"
+          ? "FILED"
+          : "VOID";
+    const document = await getDb().taxDocument.update({
+      where: { id: before.id },
+      data: {
+        status,
+        submittedAt: status === "FILED" ? new Date() : before.submittedAt,
+        filingConfirmation:
+          status === "FILED"
+            ? input.filingConfirmation || before.filingConfirmation
+            : before.filingConfirmation,
+      },
+    });
+    await appendAuditEvent({
+      organizationId: organization.id,
+      actorUserId: user.id,
+      action: `tax_document.${status.toLowerCase()}`,
+      entityType: "TaxDocument",
+      entityId: document.id,
+      before,
+      after: document,
+      category: "FINANCIAL",
+      retentionClass: "FINANCIAL_7Y",
+    });
+  }
+  revalidatePath(`/app/${input.organizationSlug}/tax-documents`);
+}
+
+export async function verifyAuditContinuity(formData: FormData) {
+  const organizationSlug = z
+    .string()
+    .min(1)
+    .parse(formData.get("organizationSlug"));
+  const { organization, user } = await requireOrganizationAccess(
+    organizationSlug,
+    "audit.read",
+  );
+  const [records, head] = await Promise.all([
+    getDb().auditLog.findMany({
+      where: { organizationId: organization.id },
+      orderBy: { sequence: "asc" },
+      select: {
+        id: true,
+        sequence: true,
+        previousHash: true,
+        recordHash: true,
+      },
+    }),
+    getDb().auditChainHead.findUnique({
+      where: { organizationId: organization.id },
+    }),
+  ]);
+  let previousHash = "GENESIS";
+  let expectedSequence = BigInt(1);
+  for (const record of records) {
+    if (
+      record.sequence !== expectedSequence ||
+      record.previousHash !== previousHash
+    )
+      throw new Error(`Audit continuity failed at event ${record.id}`);
+    previousHash = record.recordHash;
+    expectedSequence += BigInt(1);
+  }
+  if (
+    head &&
+    (head.lastSequence !== BigInt(records.length) ||
+      head.lastHash !== previousHash)
+  )
+    throw new Error("Audit chain head does not match the event ledger");
+  await appendAuditEvent({
+    organizationId: organization.id,
+    actorUserId: user?.id,
+    action: "audit.continuity_verified",
+    entityType: "AuditChainHead",
+    entityId: organization.id,
+    after: { verifiedEvents: records.length, endingHash: previousHash },
+    category: "SECURITY",
+    retentionClass: "SECURITY_7Y",
+  });
+  revalidatePath(`/app/${organizationSlug}/audit`);
 }
 
 export async function verifyDomainNow(formData: FormData) {

@@ -1127,10 +1127,8 @@ export function AppearanceStudio({
                     <p className="mx-auto mt-5 max-w-xl text-sm leading-6 opacity-60">
                       {blocks[0]?.body ?? theme.portalSubhead}
                     </p>
-                    <button
-                      aria-disabled="true"
+                    <span
                       className={`mt-7 px-5 py-3 text-sm font-semibold ${settings.buttonStyle === "outline" ? "border bg-transparent" : "text-white"}`}
-                      disabled
                       style={{
                         background:
                           settings.buttonStyle === "outline"
@@ -1146,10 +1144,9 @@ export function AppearanceStudio({
                             ? 999
                             : Math.max(2, theme.borderRadius - 5),
                       }}
-                      type="button"
                     >
                       {blocks[0]?.primaryAction ?? "Get started"}
-                    </button>
+                    </span>
                   </div>
                   <div className="grid grid-cols-3 gap-px bg-slate-200">
                     {blocks.slice(1, 4).map((item, index) => (
@@ -1583,15 +1580,12 @@ function ConsolePreview({
               >
                 <div className="flex items-center justify-between">
                   <strong>Priority work</strong>
-                  <button
-                    aria-disabled="true"
+                  <span
                     className="rounded px-3 py-2 text-xs font-semibold"
-                    disabled
                     style={{ background: theme.consolePrimaryColor }}
-                    type="button"
                   >
                     Create record
-                  </button>
+                  </span>
                 </div>
                 {[
                   "Approve payroll",
@@ -1696,18 +1690,15 @@ function PaymentPreview({
                 Bill to
               </div>
               <strong className="mt-3 block">Sample Customer</strong>
-              <button
-                aria-disabled="true"
-                className="mt-7 w-full px-4 py-3 text-sm font-semibold text-white"
-                disabled
+              <div
+                className="mt-7 w-full px-4 py-3 text-center text-sm font-semibold text-white"
                 style={{
                   background: theme.paymentPrimaryColor,
                   borderRadius: Math.max(3, theme.paymentRadius - 7),
                 }}
-                type="button"
               >
                 Pay securely
-              </button>
+              </div>
               <p
                 className="mt-4 text-[10px]"
                 style={{ color: theme.paymentMutedColor }}

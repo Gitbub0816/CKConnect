@@ -686,14 +686,9 @@ function VisualPreview({ blocks }: { blocks: SiteBlock[] }) {
                 {block.body}
               </p>
               {block.action && (
-                <button
-                  aria-disabled="true"
-                  className="mt-5 rounded bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                  disabled
-                  type="button"
-                >
+                <span className="mt-5 rounded bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950">
                   {block.action}
-                </button>
+                </span>
               )}
             </section>
           ))}

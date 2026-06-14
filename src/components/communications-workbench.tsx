@@ -382,13 +382,9 @@ function PaymentSettings({
                   </a>
                 )}
               {provider.status !== "ACTIVE" && provider.available === false && (
-                <button
-                  className="ck-button ck-button-secondary w-full cursor-not-allowed opacity-60"
-                  disabled
-                  type="button"
-                >
+                <div className="rounded-lg border bg-slate-50 px-4 py-3 text-center text-xs font-semibold text-slate-500">
                   Connection unavailable
-                </button>
+                </div>
               )}
               {provider.status === "ACTIVE" && !provider.isDefault && (
                 <form action={updatePaymentProvider}>

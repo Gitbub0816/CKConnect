@@ -10,6 +10,7 @@ import { FinanceWorkbench } from "@/components/finance-workbenches";
 import { PlatformOperationsWorkbench } from "@/components/platform-operations-workbench";
 import { CommunicationsWorkbench } from "@/components/communications-workbench";
 import { DataExplorer } from "@/components/data-explorer";
+import { RecordOperationsWorkbench } from "@/components/record-operations-workbench";
 
 type Metric = {
   label: string;
@@ -557,6 +558,13 @@ export function ModulePage({
     "support",
     "payment-settings",
   ]);
+  const recordOperationsModules = new Set([
+    "contacts",
+    "products",
+    "notifications",
+    "audit",
+    "tax-documents",
+  ]);
   return (
     <div className="p-5 lg:p-7">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -616,6 +624,12 @@ export function ModulePage({
             data={data}
             module={module}
             organizationSlug={organizationSlug}
+          />
+        ) : recordOperationsModules.has(module) ? (
+          <RecordOperationsWorkbench
+            module={module}
+            organizationSlug={organizationSlug}
+            records={data.records ?? []}
           />
         ) : module === "billing" ? (
           <BillingView data={data} organizationSlug={organizationSlug} />

@@ -1590,6 +1590,7 @@ export async function getModuleData(slug: string, module: string) {
           cost: money(r.cost),
           margin: money(r.price) - money(r.cost),
           onHand: money(r.quantityOnHand),
+          reorderLevel: money(r.reorderLevel),
           active: r.active,
         })),
         metrics: [
