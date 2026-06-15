@@ -13,6 +13,7 @@ import { publishSiteManifest } from "@/lib/integrations/cloudflare-edge";
 import { provisionZohoMailbox } from "@/lib/integrations/zoho-mail";
 import { getStripe } from "@/lib/integrations/stripe";
 import { appUrl } from "@/lib/integrations/stripe-workflows";
+import { importAccountingWorkbook } from "@/lib/accounting-import";
 
 const escapeHtml = (value: string) =>
   value
@@ -2603,6 +2604,49 @@ export async function manageAccountingPeriod(formData: FormData) {
     retentionClass: "FINANCIAL_7Y",
   });
   revalidatePath(`/app/${input.organizationSlug}/accounting`);
+}
+
+export async function importAccountingSpreadsheet(formData: FormData) {
+  const organizationSlug = z.string().min(1).parse(formData.get("organizationSlug"));
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("Upload an XLSX or CSV file");
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    throw new Error("Accounting imports are limited to 8 MB");
+  }
+  const { organization, user } = await requireOrganizationAccess(
+    organizationSlug,
+    "accounting.write",
+  );
+  if (!user) throw new Error("A signed-in user is required");
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const result = await importAccountingWorkbook({
+    buffer,
+    fileName: file.name,
+    organizationId: organization.id,
+    userId: user.id,
+  });
+  await appendAuditEvent({
+    organizationId: organization.id,
+    actorUserId: user.id,
+    action: "accounting.spreadsheet_imported",
+    entityType: "AccountingImport",
+    after: {
+      fileName: file.name,
+      fileSize: file.size,
+      result,
+    },
+    category: "FINANCIAL",
+    retentionClass: "FINANCIAL_7Y",
+  });
+  revalidatePath(`/app/${organizationSlug}/accounting`);
+  revalidatePath(`/app/${organizationSlug}/invoices`);
+  revalidatePath(`/app/${organizationSlug}/payments`);
+  revalidatePath(`/app/${organizationSlug}/expenses`);
+  revalidatePath(`/app/${organizationSlug}/vendors`);
+  revalidatePath(`/app/${organizationSlug}/products`);
+  revalidatePath(`/app/${organizationSlug}/tasks`);
 }
 
 export async function reverseJournalEntry(formData: FormData) {

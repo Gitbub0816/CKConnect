@@ -4,6 +4,7 @@ import {
   CircleDollarSign,
   ClipboardCheck,
   Download,
+  FileUp,
   FileSpreadsheet,
   GitCompareArrows,
   Landmark,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import {
+  importAccountingSpreadsheet,
   manageAccountingPeriod,
   manageBill,
   postExpense,
@@ -318,18 +320,32 @@ function AccountingWorkbench({
 
   const activePeriod = periods.find((period) => period.status === "OPEN");
   const base = `/app/${organizationSlug}`;
+  const exportBase = `/api/accounting/export?organizationSlug=${encodeURIComponent(organizationSlug)}`;
   const ribbonActions = [
     ["Ledger", "#ledger", BookOpenCheck],
     ["Trial balance", "#trial-balance", GitCompareArrows],
     ["Close", "#periods", LockKeyhole],
     ["Statements", "#statements", FileSpreadsheet],
+    ["Excel bridge", "#excel-bridge", FileUp],
     ["Bank rec", `${base}/banking`, Landmark],
     ["A/R", `${base}/invoices`, CircleDollarSign],
     ["A/P", `${base}/vendors`, ReceiptText],
     ["Payments", `${base}/payments`, BadgeCheck],
     ["Expenses", `${base}/expenses`, ReceiptText],
     ["Audit", `${base}/audit`, ShieldCheck],
-    ["Exports", `${base}/documents`, Download],
+    ["Documents", `${base}/documents`, Download],
+  ] as const;
+  const exportReports = [
+    ["Full accounting workbook", `${exportBase}&report=workbook&format=xlsx`, "XLSX"],
+    ["Raw ledger detail", `${exportBase}&report=ledger&format=csv`, "CSV"],
+    ["Trial balance", `${exportBase}&report=trial-balance&format=xlsx`, "XLSX"],
+    ["Financial statements", `${exportBase}&report=statements&format=xlsx`, "XLSX"],
+    ["Invoices and line items", `${exportBase}&report=invoices&format=xlsx`, "XLSX"],
+    ["Payment register", `${exportBase}&report=payments&format=xlsx`, "XLSX"],
+    ["Expense register", `${exportBase}&report=expenses&format=xlsx`, "XLSX"],
+    ["Vendor balances", `${exportBase}&report=vendors&format=xlsx`, "XLSX"],
+    ["Inventory and services", `${exportBase}&report=products&format=xlsx`, "XLSX"],
+    ["Migration import template", `${exportBase}&report=import-template&format=xlsx`, "XLSX"],
   ] as const;
 
   return (
@@ -368,6 +384,82 @@ function AccountingWorkbench({
             <span className="font-semibold text-slate-900">Close package</span>
             <div>Statements, audit trail, and exports linked above</div>
           </div>
+        </div>
+      </section>
+
+      <section className="ck-card overflow-hidden" id="excel-bridge">
+        <div className="grid gap-5 border-b p-5 xl:grid-cols-[1.1fr_0.9fr]">
+          <div>
+            <div className="flex items-center gap-2 font-semibold">
+              <FileSpreadsheet className="text-[#9b7420]" size={18} />
+              Excel and CSV accounting bridge
+            </div>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+              Move data both directions for migrations, accountant review,
+              inventory updates, monthly close packs, and offline finance work.
+              Clean imports update the books immediately; exceptions create a
+              review task so Kira or a human can map unclear rows.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link
+                className="ck-button"
+                href={`${exportBase}&report=workbook&format=xlsx`}
+              >
+                <Download size={14} />
+                Export close workbook
+              </Link>
+              <Link
+                className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#d8cbb8] bg-white px-4 text-sm font-semibold transition hover:border-[#b08a2f] hover:bg-[#fbf7ed]"
+                href={`${exportBase}&report=import-template&format=xlsx`}
+              >
+                <FileSpreadsheet size={14} />
+                Download import template
+              </Link>
+            </div>
+          </div>
+          <form
+            action={importAccountingSpreadsheet}
+            className="rounded-2xl border border-[#e2d6c4] bg-[#fbf8f1] p-4"
+          >
+            <input name="organizationSlug" type="hidden" value={organizationSlug} />
+            <label className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+              Import spreadsheet
+              <input
+                accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="ck-input mt-2 bg-white"
+                name="file"
+                required
+                type="file"
+              />
+            </label>
+            <div className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
+              <span>Charts, journals, invoices</span>
+              <span>Payments, expenses, vendors</span>
+              <span>Products, inventory, services</span>
+              <span>CSV raw ledger imports</span>
+            </div>
+            <button className="ck-button mt-4 w-full justify-center" type="submit">
+              <FileUp size={14} />
+              Import and reconcile
+            </button>
+          </form>
+        </div>
+        <div className="grid gap-0 md:grid-cols-2 xl:grid-cols-5">
+          {exportReports.map(([label, href, format]) => (
+            <Link
+              className="group flex min-h-24 flex-col justify-between border-b border-r border-[#eadfce] p-4 transition hover:bg-[#fbf7ed]"
+              href={href}
+              key={label}
+            >
+              <span className="text-sm font-semibold text-slate-950">
+                {label}
+              </span>
+              <span className="mt-3 inline-flex w-fit items-center gap-2 rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600 ring-1 ring-[#e2d6c4] group-hover:text-[#8a6415]">
+                <Download size={12} />
+                {format}
+              </span>
+            </Link>
+          ))}
         </div>
       </section>
 
