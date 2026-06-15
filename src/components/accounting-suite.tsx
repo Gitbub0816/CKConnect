@@ -211,213 +211,96 @@ export function AccountingSuite({
       detail: "Trace sensitive financial activity.",
     },
   ];
-  const commandGroups = [
-    {
-      label: "Customers",
-      commands: [
-        ["Create invoice", `${base}/sales-invoices`],
-        ["Record payment", `${base}/payments-deposits`],
-        ["Review A/R aging", `${base}/reports`],
-        ["Open customer account", `/app/${organizationSlug}/accounts`],
-        ["Manage products", `${base}/products-services`],
-        ["Batch send queue", `${base}/sales-invoices`],
-      ],
-    },
-    {
-      label: "Vendors",
-      commands: [
-        ["Enter bill", `${base}/vendors-bills`],
-        ["Post expense", `${base}/expenses-receipts`],
-        ["Review A/P aging", `${base}/reports`],
-        ["Prepare 1099", `${base}/taxes-1099`],
-        ["Vendor balance detail", `${base}/vendors-bills`],
-        ["Receipt matching", `${base}/expenses-receipts`],
-      ],
-    },
-    {
-      label: "Banking",
-      commands: [
-        ["Import feed", `${base}/bank-transactions`],
-        ["Match transaction", `${base}/bank-transactions`],
-        ["Create rule", `${base}/bank-transactions`],
-        ["Start reconciliation", `${base}/reconciliation`],
-        ["Review exceptions", `${base}/reconciliation`],
-        ["Cash flow view", `${base}/reports`],
-      ],
-    },
-    {
-      label: "Books",
-      commands: [
-        ["Chart of accounts", `${base}/chart-of-accounts`],
-        ["Journal register", `${base}/journal`],
-        ["Reverse entry", `${base}/journal`],
-        ["Close period", `${base}/close-books`],
-        ["Lock books", `${base}/close-books`],
-        ["Audit trail", `/app/${organizationSlug}/audit`],
-      ],
-    },
-  ];
-  const workflowLanes = [
-    ["Money in", "Quote or deal", "Invoice", "Payment", "Deposit", "A/R posting"],
-    ["Money out", "Vendor", "Bill or expense", "Approval", "Payment", "A/P posting"],
-    ["Banking", "Feed import", "Rule or match", "Review", "Reconcile", "Close"],
-    ["Close", "Trial balance", "Adjustments", "Statements", "Lock period", "Reports"],
-  ];
-
   return (
-    <div className="ck-suite space-y-5 p-5 lg:p-7">
-      <section className="ck-card ck-suite-hero overflow-hidden">
-        <div className="grid gap-5 border-b p-5 xl:grid-cols-[1fr_360px]">
-          <div>
-            <div className="ck-eyebrow">
-              {organizationSlug.replaceAll("-", " ")}
-            </div>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-              Accounting center
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-              QuickBooks-inspired workflow for money in, money out, bank review,
-              reports, close, controls, and business settings.
-            </p>
+    <div className="ck-suite ck-product-workspace p-4 lg:p-6">
+      <section className="ck-workspace-header">
+        <div className="min-w-0">
+          <div className="ck-breadcrumb">
+            {organizationSlug.replaceAll("-", " ")} / Accounting
           </div>
-          <div className="ck-suite-current rounded-lg border bg-[#f8f5ef] p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Calculator className="text-[#9b7420]" size={17} />
-              Current workspace
-            </div>
-            <h2 className="mt-3 text-xl font-semibold">{active.label}</h2>
-            <p className="mt-1 text-xs leading-5 text-slate-500">
-              {active.description}
-            </p>
-          </div>
+          <h1>{active.label}</h1>
+          <p>{active.description}</p>
         </div>
-        <div className="ck-suite-tabs grid gap-px bg-slate-200 xl:grid-cols-5">
-          {groups.map((group) => (
-            <div className="ck-suite-tab-group bg-white p-4" key={group}>
-              <div className="text-[10px] font-bold uppercase tracking-[.14em] text-slate-500">
-                {group}
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2 xl:block xl:space-y-2">
-                {accountingSections
-                  .filter((item) => item.group === group)
-                  .map((item) => {
-                    const Icon = item.icon;
-                    const selected = item.slug === active.slug;
-                    return (
-                      <Link
-                        className={`ck-suite-tab inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition xl:flex ${
-                          selected
-                            ? "ck-suite-tab-active border-[#c9a033] bg-[#fff7df] text-[#5f4308]"
-                            : "border-[#e0d5c5] bg-white hover:border-[#b08a2f] hover:bg-[#fbf7ed]"
-                        }`}
-                        href={item.slug === "overview" ? base : `${base}/${item.slug}`}
-                        key={item.slug}
-                      >
-                        <Icon size={14} />
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-              </div>
-            </div>
-          ))}
+        <div className="ck-commandbar" aria-label="Accounting commands">
+          <Link className="ck-command-primary" href={`${base}/sales-invoices`}>
+            <FileText size={15} />
+            New invoice
+          </Link>
+          {actionQueue.slice(0, 4).map((action) => {
+            const Icon = action.icon;
+            return (
+              <Link className="ck-command-button" href={action.href} key={action.label}>
+                <Icon size={15} />
+                {action.label}
+              </Link>
+            );
+          })}
+          <Link className="ck-command-button ck-command-more" href={`${base}/reports`}>
+            More
+          </Link>
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[280px_1fr]">
-        <aside className="ck-card ck-command-panel h-fit overflow-hidden">
-          <div className="border-b p-4">
-            <div className="ck-eyebrow">Action center</div>
-            <h2 className="mt-2 font-semibold">Common accounting calls</h2>
+      <nav className="ck-suite-nav" aria-label="Accounting sections">
+        {groups.map((group) => (
+          <div className="ck-suite-nav-group" key={group}>
+            <span>{group}</span>
+            <div>
+              {accountingSections
+                .filter((item) => item.group === group)
+                .map((item) => {
+                  const Icon = item.icon;
+                  const selected = item.slug === active.slug;
+                  return (
+                    <Link
+                      className={selected ? "is-active" : ""}
+                      href={item.slug === "overview" ? base : `${base}/${item.slug}`}
+                      key={item.slug}
+                    >
+                      <Icon size={14} />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+            </div>
           </div>
-          <div className="divide-y">
+        ))}
+      </nav>
+
+      <section className="ck-workspace-layout">
+        <main className="ck-workspace-main">{children}</main>
+        <aside className="ck-context-rail">
+          <div className="ck-context-card">
+            <div className="ck-context-title">
+              <Calculator size={16} />
+              Context
+            </div>
+            <dl>
+              <div>
+                <dt>Area</dt>
+                <dd>{active.label}</dd>
+              </div>
+              <div>
+                <dt>Module</dt>
+                <dd>{active.module.replaceAll("-", " ")}</dd>
+              </div>
+              <div>
+                <dt>Owner</dt>
+                <dd>Finance</dd>
+              </div>
+            </dl>
+          </div>
+          <div className="ck-context-card">
+            <div className="ck-context-title">Related work</div>
             {actionQueue.map((action) => {
               const Icon = action.icon;
               return (
-                <Link
-                  className="ck-command-item block p-4 transition hover:bg-amber-50/60"
-                  href={action.href}
-                  key={action.label}
-                >
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Icon className="text-[#9b7420]" size={16} />
-                    {action.label}
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    {action.detail}
-                  </p>
+                <Link className="ck-context-link" href={action.href} key={action.label}>
+                  <Icon size={14} />
+                  <span>{action.label}</span>
                 </Link>
               );
             })}
-          </div>
-        </aside>
-        <div className="min-w-0">{children}</div>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <div className="ck-card ck-ribbon-map overflow-hidden">
-          <div className="border-b p-5">
-            <div className="ck-eyebrow">Command ribbon</div>
-            <h2 className="mt-2 font-semibold">Accounting operations map</h2>
-          </div>
-          <div className="grid gap-px bg-slate-200 md:grid-cols-2 xl:grid-cols-4">
-            {commandGroups.map((group) => (
-              <div className="ck-ribbon-group bg-white p-4" key={group.label}>
-                <h3 className="text-sm font-semibold">{group.label}</h3>
-                <div className="mt-3 grid gap-2">
-                  {group.commands.map(([label, href]) => (
-                    <Link
-                      className="ck-ribbon-command rounded-md border border-[#e0d5c5] px-3 py-2 text-xs font-semibold transition hover:border-[#b08a2f] hover:bg-[#fbf7ed]"
-                      href={href}
-                      key={label}
-                    >
-                      {label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="border-t p-5">
-            <div className="grid gap-3">
-              {workflowLanes.map(([lane, ...steps]) => (
-                <div
-                  className="ck-flow-lane grid gap-2 rounded-lg border bg-[#fbfaf7] p-3 lg:grid-cols-[110px_1fr]"
-                  key={lane}
-                >
-                  <div className="text-xs font-bold uppercase tracking-[.12em] text-slate-500">
-                    {lane}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {steps.map((step, index) => (
-                      <span
-                        className="ck-flow-step rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold"
-                        key={step}
-                      >
-                        {index + 1}. {step}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <aside className="ck-card ck-control-panel h-fit p-5">
-          <div className="ck-eyebrow">Controls</div>
-          <h2 className="mt-2 font-semibold">Close and compliance guardrails</h2>
-          <div className="mt-4 space-y-3 text-sm">
-            {[
-              "Role-based access for posting, payment, banking, and settings.",
-              "Immutable audit records for financial changes and reversals.",
-              "Period locks prevent edits after close unless unlocked by authorized users.",
-              "Source-linked ledger entries keep invoices, bills, payments, and bank events traceable.",
-              "Tax and document retention paths keep finance evidence out of ad hoc storage.",
-            ].map((item) => (
-              <div className="ck-control-item rounded-lg border bg-[#fbfaf7] p-3" key={item}>
-                {item}
-              </div>
-            ))}
           </div>
         </aside>
       </section>
