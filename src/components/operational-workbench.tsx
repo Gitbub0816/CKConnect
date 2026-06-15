@@ -14,6 +14,7 @@ import {
   Workflow,
 } from "lucide-react";
 import {
+  addEntityNote,
   changeDealStage,
   completeTask,
   convertLead,
@@ -28,6 +29,7 @@ type WorkbenchData = {
   records?: RecordValue[];
   accounts?: RecordValue[];
   openInvoices?: { id: string; label: string; balance: number }[];
+  reconciliations?: RecordValue[];
 };
 
 function StatusPill({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "success" | "warning" | "danger" }) {
@@ -121,7 +123,7 @@ function DealWorkbench({ records, organizationSlug }: { records: RecordValue[]; 
   </div>;
 }
 
-function AccountWorkbench({ accounts }: { accounts: RecordValue[] }) {
+function AccountWorkbench({ accounts, organizationSlug }: { accounts: RecordValue[]; organizationSlug: string }) {
   if (!accounts.length) return <EmptyState title="No customer records yet" body="Convert a qualified lead or create an account to establish a shared commercial record."/>;
   return <div className="space-y-4">{accounts.map((account) => {
     const contacts = account.contacts as RecordValue[];
@@ -144,6 +146,14 @@ function AccountWorkbench({ accounts }: { accounts: RecordValue[] }) {
           ["Service cases", cases, (item: RecordValue) => `${item.number} · ${item.subject} · ${item.status}`],
         ].map(([title, items, render]) => <section className="bg-white p-5" key={String(title)}><h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">{String(title)}</h4><div className="mt-4 space-y-3">{(items as RecordValue[]).slice(0, 5).map((item) => <div className="rounded-lg bg-[#f8f5ef] p-3 text-xs leading-5" key={String(item.id)}>{(render as (item: RecordValue) => string)(item)}</div>)}{!(items as RecordValue[]).length && <p className="text-xs text-slate-400">No related records.</p>}</div></section>)}
       </div>
+      <form action={addEntityNote} className="grid gap-3 border-t bg-[#f8f5ef] p-5 md:grid-cols-[180px_1fr_auto] md:items-end">
+        <input name="organizationSlug" type="hidden" value={organizationSlug}/>
+        <input name="relatedType" type="hidden" value="CrmAccount"/>
+        <input name="relatedId" type="hidden" value={String(account.id)}/>
+        <label className="text-xs font-semibold text-slate-600">Note type<select className="ck-input mt-2" name="noteType"><option value="GENERAL">General</option><option value="CALL">Call</option><option value="MEETING">Meeting</option><option value="RISK">Risk</option></select></label>
+        <label className="text-xs font-semibold text-slate-600">Account note<input className="ck-input mt-2" name="body" placeholder="Add relationship context, next commitment, or risk note"/></label>
+        <button className="ck-button" type="submit">Save note</button>
+      </form>
     </details>;
   })}</div>;
 }
@@ -235,7 +245,7 @@ function TaskWorkbench({ records, organizationSlug }: { records: RecordValue[]; 
 export function OperationalWorkbench({ module, data, organizationSlug }: { module: string; data: WorkbenchData; organizationSlug: string }) {
   if (module === "leads") return <LeadWorkbench organizationSlug={organizationSlug} records={data.records ?? []}/>;
   if (module === "deals") return <DealWorkbench organizationSlug={organizationSlug} records={data.records ?? []}/>;
-  if (module === "accounts") return <AccountWorkbench accounts={data.accounts ?? []}/>;
+  if (module === "accounts") return <AccountWorkbench accounts={data.accounts ?? []} organizationSlug={organizationSlug}/>;
   if (module === "invoices") return <InvoiceWorkbench organizationSlug={organizationSlug} records={data.records ?? []}/>;
   if (module === "banking") return <BankingWorkbench data={data} organizationSlug={organizationSlug}/>;
   if (module === "automations") return <AutomationWorkbench organizationSlug={organizationSlug} records={data.records ?? []}/>;

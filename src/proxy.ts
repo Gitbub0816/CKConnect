@@ -45,6 +45,9 @@ const clerkProxy = clerkMiddleware(async (auth, request) => {
 });
 
 export default function proxy(request: NextRequest) {
+  if (request.headers.has("x-middleware-subrequest")) {
+    return new NextResponse(null, { status: 400 });
+  }
   if (!process.env.CLERK_SECRET_KEY || !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
     return endpointRewrite(request) ?? NextResponse.next();
   }

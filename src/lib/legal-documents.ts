@@ -15,6 +15,26 @@ const commonResponsibility = {
   body: "Customers are responsible for authorized use of their workspace, the accuracy and legality of submitted data, required notices and consents, human review of generated output, and compliance obligations specific to their business.",
 };
 
+const operationalControls = {
+  heading: "Operational controls",
+  body: "ClearKey records relevant configuration, access, financial, support, provider, and security events in tenant-scoped systems. Administrative and financial workflows are designed to preserve audit history, restrict access by role, and keep customer records separated by organization.",
+};
+
+const dataHandling = {
+  heading: "Data handling and retention",
+  body: "Customer content is used to provide, secure, support, and improve the service. Retention periods differ by record type, with financial, payment, payroll, tax, audit, and security records retained longer where needed for legal, accounting, compliance, dispute, backup, or fraud-prevention purposes.",
+};
+
+const providerTerms = {
+  heading: "Third-party providers",
+  body: "Connected providers such as authentication, payment, email, storage, analytics, domain, CRM, accounting, payroll, tax, and automation services may process data according to their own terms. ClearKey is not responsible for provider outages, rejected requests, delayed synchronization, or unsupported provider features outside ClearKey's control.",
+};
+
+const reviewAndChanges = {
+  heading: "Review, changes, and escalation",
+  body: "Production policies should identify the ClearKey legal entity, contact channels, effective date, revision history, jurisdiction-specific terms, and escalation process for privacy, security, billing, intellectual-property, law-enforcement, accessibility, and support requests.",
+};
+
 const documents: LegalDocument[] = [
   ["terms", "Terms of Service", "The primary agreement governing access to ClearKey Connect.", "Accounts, authorized users, acceptable use, subscriptions, suspension, termination, intellectual property, third-party services, disclaimers, liability, disputes, and general contract terms."],
   ["privacy", "Privacy Policy", "How ClearKey Connect collects, uses, shares, secures, retains, and deletes personal information.", "Account data, business records, employee and customer information, payment metadata, device data, analytics, communications, legal bases, rights requests, transfers, subprocessors, retention, and children's privacy."],
@@ -49,11 +69,11 @@ const documents: LegalDocument[] = [
   sections: [
     reviewNotice,
     { heading: "Scope", body: scope },
+    operationalControls,
+    dataHandling,
+    providerTerms,
     commonResponsibility,
-    {
-      heading: "Contact and effective date",
-      body: "The production version will state the legal entity, mailing address, legal and privacy contacts, effective date, revision date, and jurisdiction-specific supplements.",
-    },
+    reviewAndChanges,
   ],
 }));
 
