@@ -211,6 +211,58 @@ export function AccountingSuite({
       detail: "Trace sensitive financial activity.",
     },
   ];
+  const commandGroups = [
+    {
+      label: "Customers",
+      commands: [
+        ["Create invoice", `${base}/sales-invoices`],
+        ["Record payment", `${base}/payments-deposits`],
+        ["Review A/R aging", `${base}/reports`],
+        ["Open customer account", `/app/${organizationSlug}/accounts`],
+        ["Manage products", `${base}/products-services`],
+        ["Batch send queue", `${base}/sales-invoices`],
+      ],
+    },
+    {
+      label: "Vendors",
+      commands: [
+        ["Enter bill", `${base}/vendors-bills`],
+        ["Post expense", `${base}/expenses-receipts`],
+        ["Review A/P aging", `${base}/reports`],
+        ["Prepare 1099", `${base}/taxes-1099`],
+        ["Vendor balance detail", `${base}/vendors-bills`],
+        ["Receipt matching", `${base}/expenses-receipts`],
+      ],
+    },
+    {
+      label: "Banking",
+      commands: [
+        ["Import feed", `${base}/bank-transactions`],
+        ["Match transaction", `${base}/bank-transactions`],
+        ["Create rule", `${base}/bank-transactions`],
+        ["Start reconciliation", `${base}/reconciliation`],
+        ["Review exceptions", `${base}/reconciliation`],
+        ["Cash flow view", `${base}/reports`],
+      ],
+    },
+    {
+      label: "Books",
+      commands: [
+        ["Chart of accounts", `${base}/chart-of-accounts`],
+        ["Journal register", `${base}/journal`],
+        ["Reverse entry", `${base}/journal`],
+        ["Close period", `${base}/close-books`],
+        ["Lock books", `${base}/close-books`],
+        ["Audit trail", `/app/${organizationSlug}/audit`],
+      ],
+    },
+  ];
+  const workflowLanes = [
+    ["Money in", "Quote or deal", "Invoice", "Payment", "Deposit", "A/R posting"],
+    ["Money out", "Vendor", "Bill or expense", "Approval", "Payment", "A/P posting"],
+    ["Banking", "Feed import", "Rule or match", "Review", "Reconcile", "Close"],
+    ["Close", "Trial balance", "Adjustments", "Statements", "Lock period", "Reports"],
+  ];
 
   return (
     <div className="space-y-4 p-5 lg:p-7">
@@ -300,6 +352,74 @@ export function AccountingSuite({
           </div>
         </aside>
         <div className="min-w-0">{children}</div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
+        <div className="ck-card overflow-hidden">
+          <div className="border-b p-5">
+            <div className="ck-eyebrow">Command ribbon</div>
+            <h2 className="mt-2 font-semibold">Accounting operations map</h2>
+          </div>
+          <div className="grid gap-px bg-slate-200 md:grid-cols-2 xl:grid-cols-4">
+            {commandGroups.map((group) => (
+              <div className="bg-white p-4" key={group.label}>
+                <h3 className="text-sm font-semibold">{group.label}</h3>
+                <div className="mt-3 grid gap-2">
+                  {group.commands.map(([label, href]) => (
+                    <Link
+                      className="rounded-md border border-[#e0d5c5] px-3 py-2 text-xs font-semibold transition hover:border-[#b08a2f] hover:bg-[#fbf7ed]"
+                      href={href}
+                      key={label}
+                    >
+                      {label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="border-t p-5">
+            <div className="grid gap-3">
+              {workflowLanes.map(([lane, ...steps]) => (
+                <div
+                  className="grid gap-2 rounded-lg border bg-[#fbfaf7] p-3 lg:grid-cols-[110px_1fr]"
+                  key={lane}
+                >
+                  <div className="text-xs font-bold uppercase tracking-[.12em] text-slate-500">
+                    {lane}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {steps.map((step, index) => (
+                      <span
+                        className="rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold"
+                        key={step}
+                      >
+                        {index + 1}. {step}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <aside className="ck-card h-fit p-5">
+          <div className="ck-eyebrow">Controls</div>
+          <h2 className="mt-2 font-semibold">Close and compliance guardrails</h2>
+          <div className="mt-4 space-y-3 text-sm">
+            {[
+              "Role-based access for posting, payment, banking, and settings.",
+              "Immutable audit records for financial changes and reversals.",
+              "Period locks prevent edits after close unless unlocked by authorized users.",
+              "Source-linked ledger entries keep invoices, bills, payments, and bank events traceable.",
+              "Tax and document retention paths keep finance evidence out of ad hoc storage.",
+            ].map((item) => (
+              <div className="rounded-lg border bg-[#fbfaf7] p-3" key={item}>
+                {item}
+              </div>
+            ))}
+          </div>
+        </aside>
       </section>
     </div>
   );

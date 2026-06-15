@@ -67,6 +67,23 @@ const sections: SidebarSection[] = [
   {
     label: "CRM",
     items: [
+      {
+        slug: "crm",
+        label: "CRM center",
+        icon: Sparkles,
+        feature: "crm",
+        children: [
+          { slug: "leads", label: "Leads" },
+          { slug: "accounts", label: "Accounts" },
+          { slug: "contacts", label: "Contacts" },
+          { slug: "deals", label: "Deals" },
+          { slug: "cases", label: "Cases" },
+          { slug: "campaigns", label: "Campaigns" },
+          { slug: "tasks", label: "Tasks" },
+          { slug: "reports", label: "Reports" },
+          { slug: "automation", label: "Automation" },
+        ],
+      },
       { slug: "leads", label: "Leads", icon: Sparkles, feature: "crm" },
       { slug: "accounts", label: "Accounts", icon: Building2, feature: "crm" },
       { slug: "contacts", label: "Contacts", icon: ContactRound, feature: "crm" },

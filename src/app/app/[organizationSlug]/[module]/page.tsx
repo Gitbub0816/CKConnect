@@ -2,11 +2,13 @@ import { notFound } from "next/navigation";
 import { AppearanceStudio } from "@/components/appearance-studio";
 import { AppShell } from "@/components/app-shell";
 import { AccountingSuite } from "@/components/accounting-suite";
+import { CrmSuite } from "@/components/crm-suite";
 import { ModulePage } from "@/components/module-page";
 import { getModuleData, getPublishedEndpoint } from "@/lib/workspace-data";
 import { requireOrganizationAccess } from "@/lib/authorization";
 
 const modules = new Set([
+  "crm",
   "leads",
   "accounts",
   "contacts",
@@ -57,6 +59,8 @@ export default async function WorkspaceModulePage({
     organizationSlug,
     ["settings", "appearance", "data-studio"].includes(module)
       ? "settings.manage"
+      : module === "crm"
+        ? "accounts.read"
       : `${module}.read`,
   );
   const featureMap: Record<string, string> = {
@@ -95,7 +99,10 @@ export default async function WorkspaceModulePage({
   const data =
     module === "appearance"
       ? null
-      : await getModuleData(organizationSlug, module);
+      : await getModuleData(
+          organizationSlug,
+          module === "crm" ? "accounts" : module,
+        );
   if (
     module === "appearance" &&
     (!endpoint || !endpoint.theme || !endpoint.endpointPages[0])
@@ -116,7 +123,16 @@ export default async function WorkspaceModulePage({
           organizationSlug={organizationSlug}
         />
       ) : (
-        module === "accounting" ? (
+        module === "crm" ? (
+          <CrmSuite activeSection="overview" organizationSlug={organizationSlug}>
+            <ModulePage
+              data={data!}
+              embedded
+              module="accounts"
+              organizationSlug={organizationSlug}
+            />
+          </CrmSuite>
+        ) : module === "accounting" ? (
           <AccountingSuite
             activeSection="overview"
             organizationSlug={organizationSlug}
