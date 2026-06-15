@@ -17,6 +17,7 @@ import {
   updateProductOperations,
   verifyAuditContinuity,
 } from "@/app/app/[organizationSlug]/actions";
+import { formatCurrency } from "@/lib/utils";
 
 type Value = Record<string, unknown>;
 
@@ -125,8 +126,72 @@ function ProductsWorkbench({
   records: Value[];
   organizationSlug: string;
 }) {
+  const active = records.filter((product) => product.active);
+  const reorderQueue = records.filter((product) =>
+    ["OUT_OF_STOCK", "REORDER"].includes(String(product.stockState)),
+  );
+  const inventoryValue = records.reduce(
+    (sum, product) => sum + Number(product.inventoryValue ?? 0),
+    0,
+  );
+  const retailValue = records.reduce(
+    (sum, product) => sum + Number(product.retailValue ?? 0),
+    0,
+  );
   return (
-    <div className="space-y-4">
+    <div className="grid gap-4 2xl:grid-cols-[320px_1fr]">
+      <aside className="space-y-3">
+        <section className="ck-card p-5">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <Boxes className="text-[#9b7420]" size={18} />
+            Inventory control
+          </div>
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            {[
+              ["Active SKUs", active.length],
+              ["Reorder", reorderQueue.length],
+              ["At cost", formatCurrency(inventoryValue)],
+              ["Retail", formatCurrency(retailValue)],
+            ].map(([label, value]) => (
+              <div className="rounded-xl border bg-white p-3" key={String(label)}>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  {String(label)}
+                </div>
+                <div className="mt-1 text-lg font-semibold">{String(value)}</div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-xs leading-5 text-slate-500">
+            Stock changes update product availability and are audit logged. Low
+            inventory is calculated from each SKU reorder point.
+          </p>
+        </section>
+        <section className="ck-card overflow-hidden">
+          <div className="border-b p-4">
+            <h3 className="font-semibold">Reorder queue</h3>
+          </div>
+          <div className="divide-y">
+            {reorderQueue.map((product) => (
+              <div className="p-4" key={String(product.id)}>
+                <div className="flex items-center justify-between gap-3">
+                  <strong className="text-sm">{String(product.name)}</strong>
+                  {pill(product.stockState, true)}
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Order {Number(product.reorderQuantity)} unit(s) to restore the
+                  working level.
+                </p>
+              </div>
+            ))}
+            {!reorderQueue.length && (
+              <p className="p-4 text-xs text-slate-500">
+                No SKUs are currently below reorder point.
+              </p>
+            )}
+          </div>
+        </section>
+      </aside>
+      <section className="space-y-4">
       {records.map((product) => {
         const margin = Number(product.margin);
         const price = Number(product.price);
@@ -136,7 +201,7 @@ function ProductsWorkbench({
         return (
           <form
             action={updateProductOperations}
-            className="ck-card grid gap-5 p-5 xl:grid-cols-[1fr_2fr_auto]"
+            className="ck-card grid gap-5 p-5 xl:grid-cols-[1fr_2.2fr_220px]"
             key={String(product.id)}
           >
             <input
@@ -161,6 +226,24 @@ function ProductsWorkbench({
                 SKU {String(product.sku ?? "not assigned")} · {marginPercent}%
                 gross margin
               </p>
+              <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-lg bg-[#f8f5ef] p-3">
+                  <div className="font-bold uppercase text-slate-400">
+                    At cost
+                  </div>
+                  <div className="mt-1 font-semibold">
+                    {formatCurrency(Number(product.inventoryValue ?? 0))}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-[#f8f5ef] p-3">
+                  <div className="font-bold uppercase text-slate-400">
+                    Reorder qty
+                  </div>
+                  <div className="mt-1 font-semibold">
+                    {Number(product.reorderQuantity ?? 0)}
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-4">
               {[
@@ -182,7 +265,7 @@ function ProductsWorkbench({
                 </label>
               ))}
             </div>
-            <div className="flex min-w-40 flex-col justify-between gap-3">
+            <div className="flex flex-col justify-between gap-3">
               <label className="text-xs font-semibold">
                 Availability
                 <select
@@ -202,6 +285,7 @@ function ProductsWorkbench({
           </form>
         );
       })}
+      </section>
     </div>
   );
 }

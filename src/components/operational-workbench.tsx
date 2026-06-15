@@ -6,6 +6,7 @@ import {
   CircleAlert,
   CircleDollarSign,
   Clock3,
+  Download,
   Mail,
   Play,
   ReceiptText,
@@ -168,6 +169,7 @@ function InvoiceWorkbench({ records, organizationSlug }: { records: RecordValue[
           <div className="flex flex-wrap items-center gap-2"><StatusPill tone={invoice.collectionState === "OVERDUE" ? "danger" : invoice.collectionState === "SETTLED" ? "success" : "warning"}>{String(invoice.collectionState)}</StatusPill>{invoice.posted ? <StatusPill tone="success">Posted to ledger</StatusPill> : <StatusPill>Unposted</StatusPill>}</div>
           <h3 className="mt-3 text-lg font-semibold">{String(invoice.number)} · {String(invoice.customer ?? "Direct customer")}</h3>
           <p className="mt-1 text-sm text-slate-500">{String(invoice.contact ?? "No billing contact")} · due {invoice.dueDate ? new Date(String(invoice.dueDate)).toLocaleDateString() : "not set"}</p>
+          <p className="mt-2 text-xs font-semibold uppercase tracking-[.12em] text-slate-400">Generated from {String(invoice.generationSource ?? "Manual or imported")}</p>
         </div>
         <div className="text-right"><div className="text-[10px] font-bold uppercase text-slate-500">Balance due</div><div className="mt-1 text-2xl font-semibold">{formatCurrency(Number(invoice.balance))}</div><div className="mt-1 text-xs text-slate-500">of {formatCurrency(Number(invoice.total))}</div></div>
       </div>
@@ -178,6 +180,7 @@ function InvoiceWorkbench({ records, organizationSlug }: { records: RecordValue[
           <p className="mt-2 text-xs leading-5 text-slate-500">{invoice.email ? `Billing contact: ${invoice.email}` : "Add a billing contact email before sending."}</p>
           {actionable && <form action={sendInvoice} className="mt-4"><input name="organizationSlug" type="hidden" value={organizationSlug}/><input name="entityId" type="hidden" value={String(invoice.id)}/><button className="ck-button w-full" disabled={!invoice.email} type="submit"><Mail size={14}/>{invoice.status === "DRAFT" ? "Post and send invoice" : "Queue reminder"}</button></form>}
           {Boolean(invoice.publicTokenId) && <Link className="ck-button ck-button-secondary mt-2 w-full" href={`/pay/${String(invoice.publicTokenId)}`}>Open payment page <ArrowRight size={14}/></Link>}
+          <a className="ck-button ck-button-secondary mt-2 w-full" href={String(invoice.pdfUrl)} target="_blank" rel="noreferrer"><Download size={14}/>Open PDF for print</a>
         </div>
       </div>
     </article>;

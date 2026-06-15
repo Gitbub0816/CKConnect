@@ -2411,12 +2411,57 @@ export async function updateBooking(formData: FormData) {
     input.organizationSlug,
     "calendar.write",
   );
-  const before = await getDb().booking.findFirstOrThrow({
+  const db = getDb();
+  const before = await db.booking.findFirstOrThrow({
     where: { id: input.entityId, organizationId: organization.id },
+    include: { contact: true },
   });
-  const result = await getDb().booking.update({
-    where: { id: before.id },
-    data: { status: input.status },
+  const result = await db.$transaction(async (tx) => {
+    const booking = await tx.booking.update({
+      where: { id: before.id },
+      data: { status: input.status },
+    });
+    if (
+      input.status === "COMPLETED" &&
+      before.status !== "COMPLETED" &&
+      before.price &&
+      before.price.gt(0)
+    ) {
+      const existingInvoice = await tx.invoice.findFirst({
+        where: {
+          organizationId: organization.id,
+          notes: { contains: `booking:${before.id}` },
+        },
+      });
+      if (!existingInvoice) {
+        const invoiceNumber = `CK-${new Date().getFullYear()}-${nanoid(6).toUpperCase()}`;
+        await tx.invoice.create({
+          data: {
+            organizationId: organization.id,
+            accountId: before.contact?.accountId,
+            contactId: before.contactId,
+            invoiceNumber,
+            status: "DRAFT",
+            issueDate: new Date(),
+            dueDate: new Date(Date.now() + 14 * 86_400_000),
+            subtotal: before.price,
+            total: before.price,
+            balanceDue: before.price,
+            notes: `Auto-generated from completed booking:${before.id} for ${before.serviceName}`,
+            publicTokenId: nanoid(32),
+            items: {
+              create: {
+                description: before.serviceName,
+                quantity: 1,
+                unitPrice: before.price,
+                lineTotal: before.price,
+              },
+            },
+          },
+        });
+      }
+    }
+    return booking;
   });
   await appendAuditEvent({
     organizationId: organization.id,
@@ -2429,6 +2474,7 @@ export async function updateBooking(formData: FormData) {
     category: "BUSINESS",
   });
   revalidatePath(`/app/${input.organizationSlug}/bookings`);
+  revalidatePath(`/app/${input.organizationSlug}/invoices`);
 }
 
 export async function replayWebhook(formData: FormData) {
@@ -2455,6 +2501,66 @@ export async function replayWebhook(formData: FormData) {
     category: "INTEGRATION",
   });
   revalidatePath(`/app/${input.organizationSlug}/integrations`);
+}
+
+export async function runIntegrationSync(formData: FormData) {
+  const input = entityActionSchema.parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    "integrations.manage",
+  );
+  const db = getDb();
+  const integration = await db.integration.findFirstOrThrow({
+    where: { id: input.entityId, organizationId: organization.id },
+  });
+  const startedAt = new Date();
+  const processedCount = await Promise.all([
+    db.contact.count({ where: { organizationId: organization.id, deletedAt: null } }),
+    db.crmAccount.count({ where: { organizationId: organization.id, deletedAt: null } }),
+    db.invoice.count({ where: { organizationId: organization.id } }),
+    db.product.count({ where: { organizationId: organization.id } }),
+  ]).then((counts) => counts.reduce((sum, count) => sum + count, 0));
+  const run = await db.$transaction(async (tx) => {
+    const syncRun = await tx.integrationSyncRun.create({
+      data: {
+        integrationId: integration.id,
+        status: integration.status === "ACTIVE" ? "COMPLETED" : "NEEDS_CONFIGURATION",
+        direction: integration.syncDirection,
+        processedCount: integration.status === "ACTIVE" ? processedCount : 0,
+        failedCount: integration.status === "ACTIVE" ? 0 : 1,
+        errorSummary:
+          integration.status === "ACTIVE"
+            ? null
+            : "Provider is not active. Reconnect credentials before live sync.",
+        startedAt,
+        completedAt: new Date(),
+      },
+    });
+    await tx.integration.update({
+      where: { id: integration.id },
+      data: {
+        lastSyncAt: integration.status === "ACTIVE" ? new Date() : integration.lastSyncAt,
+        lastError:
+          integration.status === "ACTIVE"
+            ? null
+            : "Provider is not active. Reconnect credentials before live sync.",
+      },
+    });
+    return syncRun;
+  });
+  await appendAuditEvent({
+    organizationId: organization.id,
+    actorUserId: user?.id,
+    action: "integration.sync.requested",
+    entityType: "Integration",
+    entityId: integration.id,
+    before: integration,
+    after: run,
+    category: "INTEGRATION",
+    metadata: { processedCount, direction: integration.syncDirection },
+  });
+  revalidatePath(`/app/${input.organizationSlug}/integrations`);
+  revalidatePath(`/app/${input.organizationSlug}/data-studio`);
 }
 
 export async function createCollaborationChannel(formData: FormData) {

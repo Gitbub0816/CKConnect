@@ -1231,6 +1231,12 @@ export async function getModuleData(slug: string, module: string) {
           posted: Boolean(r.postedJournalId),
           sentAt: iso(r.sentAt),
           publicTokenId: r.publicTokenId,
+          pdfUrl: `/api/invoices/${r.id}/pdf?organizationSlug=${encodeURIComponent(slug)}`,
+          generationSource: r.notes?.includes("booking:")
+            ? "Booking completion"
+            : r.notes?.startsWith("Created from won opportunity")
+              ? "Won opportunity"
+              : "Manual or imported",
           collectionState: r.balanceDue.equals(0)
             ? "SETTLED"
             : r.dueDate < new Date()
@@ -1598,6 +1604,21 @@ export async function getModuleData(slug: string, module: string) {
         where: { organizationId },
         orderBy: { name: "asc" },
       });
+      const lowStock = records.filter(
+        (r) =>
+          r.active &&
+          money(r.quantityOnHand) <= money(r.reorderLevel) &&
+          money(r.reorderLevel) > 0,
+      );
+      const inactive = records.filter((r) => !r.active);
+      const inventoryValue = records.reduce(
+        (s, r) => s + money(r.quantityOnHand) * money(r.cost),
+        0,
+      );
+      const retailValue = records.reduce(
+        (s, r) => s + money(r.quantityOnHand) * money(r.price),
+        0,
+      );
       return {
         kind: "products",
         records: records.map((r) => ({
@@ -1608,10 +1629,40 @@ export async function getModuleData(slug: string, module: string) {
           price: money(r.price),
           cost: money(r.cost),
           margin: money(r.price) - money(r.cost),
+          marginPercent: money(r.price)
+            ? Math.round(((money(r.price) - money(r.cost)) / money(r.price)) * 100)
+            : 0,
           onHand: money(r.quantityOnHand),
           reorderLevel: money(r.reorderLevel),
+          inventoryValue: money(r.quantityOnHand) * money(r.cost),
+          retailValue: money(r.quantityOnHand) * money(r.price),
+          reorderQuantity: Math.max(
+            0,
+            money(r.reorderLevel) * 2 - money(r.quantityOnHand),
+          ),
+          stockState:
+            !r.active
+              ? "INACTIVE"
+              : money(r.quantityOnHand) <= 0
+                ? "OUT_OF_STOCK"
+                : money(r.reorderLevel) > 0 &&
+                    money(r.quantityOnHand) <= money(r.reorderLevel)
+                  ? "REORDER"
+                  : "AVAILABLE",
           active: r.active,
         })),
+        inventory: {
+          lowStock: lowStock.length,
+          inactive: inactive.length,
+          inventoryValue,
+          retailValue,
+          potentialMargin: retailValue - inventoryValue,
+          reorderUnits: lowStock.reduce(
+            (sum, r) =>
+              sum + Math.max(0, money(r.reorderLevel) * 2 - money(r.quantityOnHand)),
+            0,
+          ),
+        },
         metrics: [
           {
             label: "Active offerings",
@@ -1624,12 +1675,10 @@ export async function getModuleData(slug: string, module: string) {
           },
           {
             label: "Inventory value",
-            value: records.reduce(
-              (s, r) => s + money(r.quantityOnHand) * money(r.cost),
-              0,
-            ),
+            value: inventoryValue,
             format: "currency",
           },
+          { label: "Reorder queue", value: lowStock.length },
         ],
       };
     }
@@ -1756,6 +1805,23 @@ export async function getModuleData(slug: string, module: string) {
           direction: r.syncDirection,
           lastSyncAt: iso(r.lastSyncAt),
           lastError: r.lastError,
+          health:
+            r.status === "ACTIVE" && !r.lastError
+              ? "HEALTHY"
+              : r.status === "ACTIVE"
+                ? "DEGRADED"
+                : "NEEDS_CONFIGURATION",
+          coverage: {
+            contacts: true,
+            accounts: true,
+            invoices: ["quickbooks", "stripe", "clearkey"].includes(
+              r.provider.toLowerCase(),
+            ),
+            products: ["quickbooks", "clearkey"].includes(r.provider.toLowerCase()),
+            payments: ["stripe", "quickbooks", "clearkey"].includes(
+              r.provider.toLowerCase(),
+            ),
+          },
           runs: r.syncRuns.map((run) => ({
             id: run.id,
             status: run.status,
@@ -1764,6 +1830,7 @@ export async function getModuleData(slug: string, module: string) {
             failed: run.failedCount,
             error: run.errorSummary,
             startedAt: iso(run.startedAt),
+            completedAt: iso(run.completedAt),
           })),
         })),
         webhooks: webhooks.map((event) => ({
