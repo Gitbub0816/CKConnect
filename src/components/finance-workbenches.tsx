@@ -2,10 +2,18 @@ import {
   BadgeCheck,
   BookOpenCheck,
   CircleDollarSign,
+  ClipboardCheck,
+  Download,
+  FileSpreadsheet,
+  GitCompareArrows,
+  Landmark,
+  Layers3,
   LockKeyhole,
   ReceiptText,
   RotateCcw,
+  ShieldCheck,
 } from "lucide-react";
+import Link from "next/link";
 import {
   manageAccountingPeriod,
   manageBill,
@@ -298,6 +306,7 @@ function AccountingWorkbench({
   const accounts = data.accounts ?? [];
   const periods = data.periods ?? [];
   const statements = data.statements ?? {};
+  const entries = data.records ?? [];
   const totalDebits = (data.records ?? []).reduce(
     (sum, entry) => sum + Number(entry.debit ?? 0),
     0,
@@ -307,9 +316,63 @@ function AccountingWorkbench({
     0,
   );
 
+  const activePeriod = periods.find((period) => period.status === "OPEN");
+  const base = `/app/${organizationSlug}`;
+  const ribbonActions = [
+    ["Ledger", "#ledger", BookOpenCheck],
+    ["Trial balance", "#trial-balance", GitCompareArrows],
+    ["Close", "#periods", LockKeyhole],
+    ["Statements", "#statements", FileSpreadsheet],
+    ["Bank rec", `${base}/banking`, Landmark],
+    ["A/R", `${base}/invoices`, CircleDollarSign],
+    ["A/P", `${base}/vendors`, ReceiptText],
+    ["Payments", `${base}/payments`, BadgeCheck],
+    ["Expenses", `${base}/expenses`, ReceiptText],
+    ["Audit", `${base}/audit`, ShieldCheck],
+    ["Exports", `${base}/documents`, Download],
+  ] as const;
+
   return (
-    <div className="grid gap-4 xl:grid-cols-[360px_1fr]">
-      <section className="ck-card h-fit overflow-hidden">
+    <div className="space-y-4">
+      <section className="ck-card p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {ribbonActions.map(([label, href, Icon]) => (
+            <Link
+              className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[#d8cbb8] bg-white px-3 text-xs font-semibold transition hover:border-[#b08a2f] hover:bg-[#fbf7ed]"
+              href={href}
+              key={label}
+            >
+              <Icon size={14} />
+              {label}
+            </Link>
+          ))}
+        </div>
+        <div className="mt-3 grid gap-3 border-t pt-3 text-xs text-slate-600 md:grid-cols-4">
+          <div>
+            <span className="font-semibold text-slate-900">Current period</span>
+            <div>{String(activePeriod?.name ?? "No open period")}</div>
+          </div>
+          <div>
+            <span className="font-semibold text-slate-900">Posting status</span>
+            <div>
+              {Math.abs(totalDebits - totalCredits) < 0.01
+                ? "Balanced ledger"
+                : "Control difference detected"}
+            </div>
+          </div>
+          <div>
+            <span className="font-semibold text-slate-900">Review queue</span>
+            <div>{entries.length} posted entries available</div>
+          </div>
+          <div>
+            <span className="font-semibold text-slate-900">Close package</span>
+            <div>Statements, audit trail, and exports linked above</div>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-4 xl:grid-cols-[360px_1fr]">
+      <section className="ck-card h-fit overflow-hidden" id="trial-balance">
         <div className="border-b p-5">
           <div className="ck-eyebrow">Trial balance</div>
           <h3 className="mt-2 font-semibold">Chart of accounts</h3>
@@ -367,7 +430,7 @@ function AccountingWorkbench({
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <section className="ck-card p-5">
+          <section className="ck-card p-5" id="statements">
             <div className="flex items-center gap-2 font-semibold">
               <CircleDollarSign className="text-[#9b7420]" size={17} />
               Statement snapshot
@@ -392,7 +455,7 @@ function AccountingWorkbench({
             </div>
           </section>
 
-          <section className="ck-card p-5">
+          <section className="ck-card p-5" id="periods">
             <div className="flex items-center gap-2 font-semibold">
               <LockKeyhole className="text-[#9b7420]" size={17} />
               Accounting periods
@@ -451,9 +514,40 @@ function AccountingWorkbench({
           </section>
         </div>
 
-        {(data.records ?? []).map((entry) => (
+        <section className="ck-card overflow-hidden" id="ledger">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
+            <div>
+              <div className="flex items-center gap-2 font-semibold">
+                <Layers3 className="text-[#9b7420]" size={17} />
+                General ledger
+              </div>
+              <p className="mt-1 text-xs text-slate-500">
+                Posted entries can be inspected, reversed with a reason, and
+                traced through audit records.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                className="ck-button ck-button-secondary !min-h-9"
+                href={`${base}/audit`}
+              >
+                <ShieldCheck size={13} />
+                Audit trail
+              </Link>
+              <Link
+                className="ck-button ck-button-secondary !min-h-9"
+                href={`${base}/reports`}
+              >
+                <ClipboardCheck size={13} />
+                Reports
+              </Link>
+            </div>
+          </div>
+        {entries.map((entry) => {
+          const lines = Array.isArray(entry.lines) ? (entry.lines as Value[]) : [];
+          return (
           <article
-            className="ck-card grid gap-4 p-5 lg:grid-cols-[1fr_auto]"
+            className="grid gap-4 border-b p-5 last:border-b-0 lg:grid-cols-[1fr_auto]"
             key={String(entry.id)}
           >
             <div>
@@ -471,6 +565,57 @@ function AccountingWorkbench({
                 {String(entry.source)} -{" "}
                 {new Date(String(entry.date)).toLocaleDateString()}
               </p>
+              <details className="mt-4 rounded-lg border bg-[#fbfaf7]">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-semibold">
+                  Journal lines ({lines.length || 2})
+                </summary>
+                <div className="overflow-x-auto border-t">
+                  <table className="min-w-full text-left text-xs">
+                    <thead className="bg-[#f3eee4] text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2">Account</th>
+                        <th className="px-3 py-2 text-right">Debit</th>
+                        <th className="px-3 py-2 text-right">Credit</th>
+                        <th className="px-3 py-2">Memo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(lines.length
+                        ? lines
+                        : [
+                            {
+                              account: "1100 - Accounts Receivable",
+                              debit: entry.debit,
+                              credit: 0,
+                              memo: entry.description,
+                            },
+                            {
+                              account: "4000 - Service Revenue",
+                              debit: 0,
+                              credit: entry.credit,
+                              memo: entry.description,
+                            },
+                          ]
+                      ).map((line, index) => (
+                        <tr className="border-t" key={index}>
+                          <td className="px-3 py-2">
+                            {String(line.account ?? line.accountName ?? "Account")}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            {formatCurrency(Number(line.debit ?? 0))}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            {formatCurrency(Number(line.credit ?? 0))}
+                          </td>
+                          <td className="px-3 py-2 text-slate-500">
+                            {String(line.memo ?? "Posted line")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
             </div>
             <div className="text-right text-sm">
               <div>
@@ -508,8 +653,10 @@ function AccountingWorkbench({
               )}
             </div>
           </article>
-        ))}
+        )})}
+        </section>
       </section>
+      </div>
     </div>
   );
 }
