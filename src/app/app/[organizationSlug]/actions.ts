@@ -510,6 +510,94 @@ export async function createWorkspaceRecord(formData: FormData) {
   revalidatePath(`/app/${input.organizationSlug}`);
 }
 
+const dashboardWidgetSchema = z.enum([
+  "cash",
+  "pipeline",
+  "outstanding",
+  "collected",
+  "exceptions",
+  "receivables",
+  "payroll",
+]);
+
+export async function saveDashboardStudio(formData: FormData) {
+  const input = z
+    .object({
+      organizationSlug: z.string().min(1),
+      name: z.string().trim().min(2).max(80),
+      chartStyle: z.enum(["cards", "bars", "spotlight", "compact"]),
+      accent: z.enum(["gold", "emerald", "slate", "rose"]),
+      widgets: z.array(dashboardWidgetSchema).min(1).max(7),
+      shared: z
+        .string()
+        .optional()
+        .transform((value) => value === "on"),
+      isDefault: z
+        .string()
+        .optional()
+        .transform((value) => value === "on"),
+    })
+    .parse({
+      ...Object.fromEntries(formData),
+      widgets: formData.getAll("widgets"),
+    });
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    "reports.write",
+  );
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  if (input.isDefault) {
+    await db.savedView.updateMany({
+      where: { organizationId: organization.id, userId: user.id, module: "dashboard" },
+      data: { isDefault: false },
+    });
+  }
+  const config = {
+    widgets: input.widgets,
+    chartStyle: input.chartStyle,
+    accent: input.accent,
+  } as Prisma.InputJsonValue;
+  const dashboard = await db.savedView.upsert({
+    where: {
+      organizationId_userId_module_name: {
+        organizationId: organization.id,
+        userId: user.id,
+        module: "dashboard",
+        name: input.name,
+      },
+    },
+    update: {
+      filtersJson: config,
+      columnsJson: input.widgets as Prisma.InputJsonValue,
+      sortJson: { chartStyle: input.chartStyle, accent: input.accent },
+      shared: input.shared,
+      isDefault: input.isDefault,
+    },
+    create: {
+      organizationId: organization.id,
+      userId: user.id,
+      module: "dashboard",
+      name: input.name,
+      filtersJson: config,
+      columnsJson: input.widgets as Prisma.InputJsonValue,
+      sortJson: { chartStyle: input.chartStyle, accent: input.accent },
+      shared: input.shared,
+      isDefault: input.isDefault,
+    },
+  });
+  await appendAuditEvent({
+    organizationId: organization.id,
+    actorUserId: user.id,
+    action: "dashboard.studio.saved",
+    entityType: "SavedView",
+    entityId: dashboard.id,
+    after: { ...input, widgets: input.widgets },
+    category: "BUSINESS",
+  });
+  revalidatePath(`/app/${input.organizationSlug}`);
+}
+
 const entityActionSchema = z.object({
   organizationSlug: z.string().min(1),
   entityId: z.string().uuid(),

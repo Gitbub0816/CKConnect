@@ -98,7 +98,7 @@ export async function getOrganization(slug: string) {
   });
 }
 
-export async function getWorkspaceDashboard(slug: string) {
+export async function getWorkspaceDashboard(slug: string, userId?: string) {
   const db = getDb();
   const organization = await db.organization.findUnique({ where: { slug } });
   if (!organization) return null;
@@ -113,6 +113,7 @@ export async function getWorkspaceDashboard(slug: string) {
     payroll,
     unmatchedBanking,
     automationFailures,
+    dashboards,
   ] = await Promise.all([
     db.deal.findMany({
       where: {
@@ -154,6 +155,15 @@ export async function getWorkspaceDashboard(slug: string) {
         status: "FAILED",
         startedAt: { gte: new Date(Date.now() - 7 * 86_400_000) },
       },
+    }),
+    db.savedView.findMany({
+      where: {
+        organizationId,
+        module: "dashboard",
+        OR: [{ shared: true }, ...(userId ? [{ userId }] : [])],
+      },
+      orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+      take: 6,
     }),
   ]);
   const pipeline = openDeals.reduce((sum, deal) => sum + money(deal.amount), 0);
@@ -268,6 +278,14 @@ export async function getWorkspaceDashboard(slug: string) {
           "Workflow executions that failed during the last seven days.",
       },
     ],
+    dashboards: dashboards.map((dashboard) => ({
+      id: dashboard.id,
+      name: dashboard.name,
+      shared: dashboard.shared,
+      isDefault: dashboard.isDefault,
+      config: dashboard.filtersJson,
+      updatedAt: iso(dashboard.updatedAt),
+    })),
   };
 }
 

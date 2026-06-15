@@ -10,8 +10,8 @@ export default async function DashboardPage({
   params: Promise<{ organizationSlug: string }>;
 }) {
   const { organizationSlug } = await params;
-  await requireOrganizationAccess(organizationSlug);
-  const data = await getWorkspaceDashboard(organizationSlug);
+  const { user } = await requireOrganizationAccess(organizationSlug);
+  const data = await getWorkspaceDashboard(organizationSlug, user?.id);
   if (!data) notFound();
   return <AppShell active="dashboard" organizationSlug={organizationSlug}><Dashboard data={data} /></AppShell>;
 }

@@ -565,6 +565,61 @@ export function ModulePage({
     "audit",
     "tax-documents",
   ]);
+  const primaryWorkbenchModules = new Set([
+    "calendar",
+    "email",
+    "submissions",
+    "collaboration",
+    "support",
+    "bookings",
+  ]);
+  const workbench = operationalModules.has(module) ? (
+    <OperationalWorkbench
+      data={data}
+      module={module}
+      organizationSlug={organizationSlug}
+    />
+  ) : platformModules.has(module) ? (
+    <PlatformWorkbench
+      data={data}
+      module={module}
+      organizationSlug={organizationSlug}
+    />
+  ) : serviceModules.has(module) ? (
+    <ServiceWorkbench
+      data={data}
+      module={module}
+      organizationSlug={organizationSlug}
+    />
+  ) : financeModules.has(module) ? (
+    <FinanceWorkbench
+      data={data}
+      module={module}
+      organizationSlug={organizationSlug}
+    />
+  ) : platformOperations.has(module) ? (
+    <PlatformOperationsWorkbench
+      data={data}
+      module={module}
+      organizationSlug={organizationSlug}
+    />
+  ) : communicationModules.has(module) ? (
+    <CommunicationsWorkbench
+      data={data}
+      module={module}
+      organizationSlug={organizationSlug}
+    />
+  ) : recordOperationsModules.has(module) ? (
+    <RecordOperationsWorkbench
+      module={module}
+      organizationSlug={organizationSlug}
+      records={data.records ?? []}
+    />
+  ) : module === "billing" ? (
+    <BillingView data={data} organizationSlug={organizationSlug} />
+  ) : (
+    <DataExplorer module={module} records={data.records ?? []} />
+  );
   return (
     <div className="p-5 lg:p-7">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -585,58 +640,21 @@ export function ModulePage({
           organizationSlug={organizationSlug}
         />
       </div>
-      <div className="mt-6">
-        <MetricGrid metrics={data.metrics} />
-      </div>
-      <div className="mt-4">
-        {operationalModules.has(module) ? (
-          <OperationalWorkbench
-            data={data}
-            module={module}
-            organizationSlug={organizationSlug}
-          />
-        ) : platformModules.has(module) ? (
-          <PlatformWorkbench
-            data={data}
-            module={module}
-            organizationSlug={organizationSlug}
-          />
-        ) : serviceModules.has(module) ? (
-          <ServiceWorkbench
-            data={data}
-            module={module}
-            organizationSlug={organizationSlug}
-          />
-        ) : financeModules.has(module) ? (
-          <FinanceWorkbench
-            data={data}
-            module={module}
-            organizationSlug={organizationSlug}
-          />
-        ) : platformOperations.has(module) ? (
-          <PlatformOperationsWorkbench
-            data={data}
-            module={module}
-            organizationSlug={organizationSlug}
-          />
-        ) : communicationModules.has(module) ? (
-          <CommunicationsWorkbench
-            data={data}
-            module={module}
-            organizationSlug={organizationSlug}
-          />
-        ) : recordOperationsModules.has(module) ? (
-          <RecordOperationsWorkbench
-            module={module}
-            organizationSlug={organizationSlug}
-            records={data.records ?? []}
-          />
-        ) : module === "billing" ? (
-          <BillingView data={data} organizationSlug={organizationSlug} />
-        ) : (
-          <DataExplorer module={module} records={data.records ?? []} />
-        )}
-      </div>
+      {primaryWorkbenchModules.has(module) ? (
+        <>
+          <div className="mt-6">{workbench}</div>
+          <div className="mt-4">
+            <MetricGrid metrics={data.metrics} />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="mt-6">
+            <MetricGrid metrics={data.metrics} />
+          </div>
+          <div className="mt-4">{workbench}</div>
+        </>
+      )}
       {["invoices", "payments"].includes(module) && (
         <div className="mt-4 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 text-sm">
           <span className="flex items-center gap-2">
