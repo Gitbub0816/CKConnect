@@ -518,6 +518,10 @@ const dashboardWidgetSchema = z.enum([
   "exceptions",
   "receivables",
   "payroll",
+  "newLeads",
+  "overdueTasks",
+  "bankReview",
+  "automationFailures",
 ]);
 
 export async function saveDashboardStudio(formData: FormData) {
@@ -525,14 +529,42 @@ export async function saveDashboardStudio(formData: FormData) {
     .object({
       organizationSlug: z.string().min(1),
       name: z.string().trim().min(2).max(80),
-      chartStyle: z.enum(["cards", "bars", "spotlight", "compact"]),
+      chartStyle: z.enum([
+        "cards",
+        "bars",
+        "spotlight",
+        "compact",
+        "trend",
+        "donut",
+        "table",
+      ]),
       accent: z.enum(["gold", "emerald", "slate", "rose"]),
-      widgets: z.array(dashboardWidgetSchema).min(1).max(7),
+      density: z.enum(["compact", "balanced", "roomy"]),
+      columns: z.coerce.number().int().min(1).max(4),
+      dateRange: z.enum(["today", "7d", "30d", "quarter", "year"]),
+      comparison: z.enum(["none", "prior_period", "target"]),
+      refreshMinutes: z.coerce.number().int().min(0).max(1440),
+      goalMetric: z.string().max(40).optional().default(""),
+      goalTarget: z.coerce
+        .number()
+        .min(0)
+        .max(1_000_000_000)
+        .optional()
+        .default(0),
+      widgets: z.array(dashboardWidgetSchema).min(1).max(11),
       shared: z
         .string()
         .optional()
         .transform((value) => value === "on"),
       isDefault: z
+        .string()
+        .optional()
+        .transform((value) => value === "on"),
+      showInsights: z
+        .string()
+        .optional()
+        .transform((value) => value === "on"),
+      showActivity: z
         .string()
         .optional()
         .transform((value) => value === "on"),
@@ -557,6 +589,15 @@ export async function saveDashboardStudio(formData: FormData) {
     widgets: input.widgets,
     chartStyle: input.chartStyle,
     accent: input.accent,
+    density: input.density,
+    columns: input.columns,
+    dateRange: input.dateRange,
+    comparison: input.comparison,
+    refreshMinutes: input.refreshMinutes,
+    goalMetric: input.goalMetric,
+    goalTarget: input.goalTarget,
+    showInsights: input.showInsights,
+    showActivity: input.showActivity,
   } as Prisma.InputJsonValue;
   const dashboard = await db.savedView.upsert({
     where: {

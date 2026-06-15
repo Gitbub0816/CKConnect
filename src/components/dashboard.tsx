@@ -68,6 +68,44 @@ export function Dashboard({ data }: { data: DashboardData }) {
       icon: CalendarClock,
       href: `${base}/payroll`,
     },
+    newLeads: {
+      label: "New leads",
+      value: data.stats.newLeads,
+      note: "Unqualified demand waiting",
+      icon: Sparkles,
+      href: `${base}/leads`,
+      format: "number",
+    },
+    overdueTasks: {
+      label: "Overdue tasks",
+      value:
+        data.attention.find((item) => item.key === "overdue-tasks")?.count ??
+        0,
+      note: "Commitments past due",
+      icon: CircleAlert,
+      href: `${base}/tasks`,
+      format: "number",
+    },
+    bankReview: {
+      label: "Bank feed review",
+      value:
+        data.attention.find((item) => item.key === "unmatched-banking")
+          ?.count ?? 0,
+      note: "Transactions needing match",
+      icon: Landmark,
+      href: `${base}/banking`,
+      format: "number",
+    },
+    automationFailures: {
+      label: "Automation failures",
+      value:
+        data.attention.find((item) => item.key === "automation-failures")
+          ?.count ?? 0,
+      note: "Failed in the last 7 days",
+      icon: FileWarning,
+      href: `${base}/automations`,
+      format: "number",
+    },
   };
   const stats = [
     statMap.cash,
@@ -80,7 +118,20 @@ export function Dashboard({ data }: { data: DashboardData }) {
     name: string;
     shared: boolean;
     isDefault: boolean;
-    config: { widgets?: string[]; chartStyle?: string; accent?: string };
+    config: {
+      widgets?: string[];
+      chartStyle?: string;
+      accent?: string;
+      density?: string;
+      columns?: number;
+      dateRange?: string;
+      comparison?: string;
+      refreshMinutes?: number;
+      goalMetric?: string;
+      goalTarget?: number;
+      showInsights?: boolean;
+      showActivity?: boolean;
+    };
   }>;
   const accentStyles: Record<string, string> = {
     gold: "border-amber-200 bg-amber-50/40 text-amber-900",
@@ -100,7 +151,7 @@ export function Dashboard({ data }: { data: DashboardData }) {
             </summary>
             <form
               action={saveDashboardStudio}
-              className="absolute right-0 z-20 mt-2 w-[min(620px,calc(100vw-40px))] rounded-xl border bg-white p-5 text-left shadow-2xl"
+              className="absolute right-0 z-20 mt-2 max-h-[82vh] w-[min(920px,calc(100vw-40px))] overflow-y-auto rounded-xl border bg-white p-5 text-left shadow-2xl"
             >
               <input
                 name="organizationSlug"
@@ -111,7 +162,8 @@ export function Dashboard({ data }: { data: DashboardData }) {
                 <LayoutDashboard className="text-[#9b7420]" size={18} />
                 Dashboard studio
               </div>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="mt-4 grid gap-5 lg:grid-cols-[1fr_320px]">
+                <div className="grid gap-4 md:grid-cols-2">
                 <label className="text-xs font-semibold text-slate-600">
                   Dashboard name
                   <input
@@ -128,6 +180,9 @@ export function Dashboard({ data }: { data: DashboardData }) {
                     <option value="bars">Horizontal bars</option>
                     <option value="spotlight">Spotlight tiles</option>
                     <option value="compact">Compact list</option>
+                    <option value="trend">Trend strips</option>
+                    <option value="donut">Goal rings</option>
+                    <option value="table">Executive table</option>
                   </select>
                 </label>
                 <label className="text-xs font-semibold text-slate-600">
@@ -139,6 +194,71 @@ export function Dashboard({ data }: { data: DashboardData }) {
                     <option value="rose">Rose</option>
                   </select>
                 </label>
+                <label className="text-xs font-semibold text-slate-600">
+                  Density
+                  <select className="ck-input mt-2" name="density">
+                    <option value="balanced">Balanced</option>
+                    <option value="compact">Compact</option>
+                    <option value="roomy">Roomy</option>
+                  </select>
+                </label>
+                <label className="text-xs font-semibold text-slate-600">
+                  Columns
+                  <select className="ck-input mt-2" name="columns">
+                    <option value="2">2 columns</option>
+                    <option value="3">3 columns</option>
+                    <option value="4">4 columns</option>
+                    <option value="1">1 column</option>
+                  </select>
+                </label>
+                <label className="text-xs font-semibold text-slate-600">
+                  Date range
+                  <select className="ck-input mt-2" name="dateRange">
+                    <option value="30d">Last 30 days</option>
+                    <option value="today">Today</option>
+                    <option value="7d">Last 7 days</option>
+                    <option value="quarter">This quarter</option>
+                    <option value="year">This year</option>
+                  </select>
+                </label>
+                <label className="text-xs font-semibold text-slate-600">
+                  Compare against
+                  <select className="ck-input mt-2" name="comparison">
+                    <option value="prior_period">Prior period</option>
+                    <option value="target">Target</option>
+                    <option value="none">No comparison</option>
+                  </select>
+                </label>
+                <label className="text-xs font-semibold text-slate-600">
+                  Refresh cadence
+                  <select className="ck-input mt-2" name="refreshMinutes">
+                    <option value="0">Manual refresh</option>
+                    <option value="15">Every 15 minutes</option>
+                    <option value="60">Hourly</option>
+                    <option value="240">Every 4 hours</option>
+                    <option value="1440">Daily</option>
+                  </select>
+                </label>
+                <label className="text-xs font-semibold text-slate-600">
+                  Goal metric
+                  <select className="ck-input mt-2" name="goalMetric">
+                    <option value="">No goal</option>
+                    {Object.entries(statMap).map(([key, item]) => (
+                      <option key={key} value={key}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs font-semibold text-slate-600">
+                  Goal target
+                  <input
+                    className="ck-input mt-2"
+                    min="0"
+                    name="goalTarget"
+                    type="number"
+                  />
+                </label>
                 <div className="grid gap-2 text-xs font-semibold text-slate-600">
                   <label className="flex items-center gap-2">
                     <input name="isDefault" type="checkbox" /> Make default
@@ -146,6 +266,36 @@ export function Dashboard({ data }: { data: DashboardData }) {
                   <label className="flex items-center gap-2">
                     <input name="shared" type="checkbox" /> Share with team
                   </label>
+                  <label className="flex items-center gap-2">
+                    <input defaultChecked name="showInsights" type="checkbox" /> Show insights
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input name="showActivity" type="checkbox" /> Include activity feed
+                  </label>
+                </div>
+                </div>
+                <div className="rounded-xl border bg-slate-950 p-4 text-white">
+                  <div className="text-xs font-semibold uppercase tracking-[.14em] text-amber-300">
+                    Studio preview
+                  </div>
+                  <div className="mt-4 grid gap-3">
+                    <div className="rounded-lg bg-white/10 p-3">
+                      <div className="text-xs text-white/60">Cash position</div>
+                      <div className="mt-1 text-2xl font-semibold">
+                        {formatCurrency(data.stats.cash)}
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-white/10 p-3">
+                      <div className="text-xs text-white/60">Open pipeline</div>
+                      <div className="mt-2 h-2 rounded-full bg-white/15">
+                        <div className="h-2 w-3/4 rounded-full bg-amber-300" />
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-white/10 p-3 text-xs leading-5 text-white/75">
+                      Saved dashboards become reusable, shareable scorecards
+                      with linked widgets that open the source module.
+                    </div>
+                  </div>
                 </div>
               </div>
               <fieldset className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -158,7 +308,12 @@ export function Dashboard({ data }: { data: DashboardData }) {
                     key={key}
                   >
                     <input
-                      defaultChecked={["cash", "pipeline", "outstanding"].includes(key)}
+                      defaultChecked={[
+                        "cash",
+                        "pipeline",
+                        "outstanding",
+                        "exceptions",
+                      ].includes(key)}
                       name="widgets"
                       type="checkbox"
                       value={key}
@@ -186,6 +341,22 @@ export function Dashboard({ data }: { data: DashboardData }) {
               : ["cash", "pipeline", "outstanding"];
             const style = dashboard.config?.chartStyle ?? "cards";
             const accent = dashboard.config?.accent ?? "gold";
+            const density = dashboard.config?.density ?? "balanced";
+            const columns = Number(dashboard.config?.columns ?? 2);
+            const cardPadding =
+              density === "compact"
+                ? "p-3"
+                : density === "roomy"
+                  ? "p-5"
+                  : "p-4";
+            const gridColumns =
+              columns === 1
+                ? ""
+                : columns === 3
+                  ? "sm:grid-cols-2 2xl:grid-cols-3"
+                  : columns === 4
+                    ? "sm:grid-cols-2 2xl:grid-cols-4"
+                    : "sm:grid-cols-2";
             return (
               <article className="ck-card overflow-hidden" key={dashboard.id}>
                 <div className="flex items-center justify-between border-b p-5">
@@ -207,20 +378,21 @@ export function Dashboard({ data }: { data: DashboardData }) {
                 </div>
                 <div
                   className={`grid gap-3 p-4 ${
-                    style === "compact" ? "" : "sm:grid-cols-2"
+                    style === "compact" || style === "table" ? "" : gridColumns
                   }`}
                 >
                   {widgetKeys.map((key) => {
                     const item = statMap[key as keyof typeof statMap];
                     if (!item) return null;
                     const Icon = item.icon;
+                    const numericValue = Number(item.value);
                     const percent =
-                      style === "bars"
-                        ? Math.min(100, Math.max(8, Number(item.value) / 800))
+                      ["bars", "trend", "donut"].includes(style)
+                        ? Math.min(100, Math.max(8, numericValue / 800))
                         : 0;
                     return (
                       <Link
-                        className={`rounded-lg border p-4 ${accentStyles[accent] ?? accentStyles.gold}`}
+                        className={`rounded-lg border ${cardPadding} ${accentStyles[accent] ?? accentStyles.gold}`}
                         href={item.href}
                         key={key}
                       >
@@ -230,9 +402,9 @@ export function Dashboard({ data }: { data: DashboardData }) {
                               {item.label}
                             </div>
                             <div className="mt-2 text-xl font-semibold">
-                              {key === "exceptions"
-                                ? Number(item.value).toLocaleString()
-                                : formatCurrency(Number(item.value))}
+                              {"format" in item && item.format === "number"
+                                ? numericValue.toLocaleString()
+                                : formatCurrency(numericValue)}
                             </div>
                           </div>
                           <Icon size={18} />
@@ -246,10 +418,45 @@ export function Dashboard({ data }: { data: DashboardData }) {
                             />
                           </div>
                         )}
+                        {style === "trend" && (
+                          <div className="mt-4 flex h-10 items-end gap-1">
+                            {[38, 54, 42, 68, 58, 79, percent].map(
+                              (height, point) => (
+                                <span
+                                  className="flex-1 rounded-t bg-current opacity-70"
+                                  key={point}
+                                  style={{ height: `${height}%` }}
+                                />
+                              ),
+                            )}
+                          </div>
+                        )}
+                        {style === "donut" && (
+                          <div
+                            className="mt-4 grid size-16 place-items-center rounded-full"
+                            style={{
+                              background: `conic-gradient(currentColor ${percent}%, rgba(255,255,255,.65) 0)`,
+                            }}
+                          >
+                            <span className="grid size-11 place-items-center rounded-full bg-white text-[11px] font-bold">
+                              {Math.round(percent)}%
+                            </span>
+                          </div>
+                        )}
                       </Link>
                     );
                   })}
                 </div>
+                {dashboard.config?.showInsights && (
+                  <div className="border-t bg-slate-50 p-4 text-xs leading-5 text-slate-600">
+                    Watching {widgetKeys.length} widgets, comparing against{" "}
+                    {dashboard.config.comparison?.replaceAll("_", " ") ??
+                      "prior period"}
+                    {dashboard.config.refreshMinutes
+                      ? `, refreshing every ${dashboard.config.refreshMinutes} minutes.`
+                      : ", refreshing manually."}
+                  </div>
+                )}
               </article>
             );
           })}
