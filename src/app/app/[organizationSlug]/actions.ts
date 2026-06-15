@@ -1577,6 +1577,9 @@ export async function composeEmail(formData: FormData) {
       organizationSlug: z.string().min(1),
       recipientEmail: z.string().email(),
       recipientName: z.string().trim().max(120).optional().default(""),
+      templateId: z.string().uuid().or(z.literal("")).optional().default(""),
+      relatedType: z.string().trim().max(60).optional().default(""),
+      relatedId: z.string().uuid().or(z.literal("")).optional().default(""),
       subject: z.string().trim().min(1).max(180),
       body: z.string().trim().min(1).max(10000),
     })
@@ -1589,10 +1592,13 @@ export async function composeEmail(formData: FormData) {
   const message = await getDb().emailMessage.create({
     data: {
       organizationId: organization.id,
+      templateId: input.templateId || null,
       recipientEmail: input.recipientEmail,
       recipientName: input.recipientName || null,
       subject: input.subject,
       bodyHtml: `<p>${escapeHtml(input.body).replaceAll("\n", "</p><p>")}</p>`,
+      relatedType: input.relatedType || null,
+      relatedId: input.relatedId || null,
       status: process.env.MAILERSEND_API_KEY
         ? "QUEUED"
         : "PENDING_CONFIGURATION",
@@ -2347,7 +2353,11 @@ export async function addEntityNote(formData: FormData) {
 
 export async function updateEndpointSubmission(formData: FormData) {
   const input = entityActionSchema
-    .extend({ status: z.enum(["NEW", "IN_REVIEW", "RESOLVED", "SPAM"]) })
+    .extend({
+      status: z.enum(["NEW", "IN_REVIEW", "RESOLVED", "SPAM"]),
+      followUp: z.string().trim().max(180).optional().default(""),
+      dueAt: z.string().optional().default(""),
+    })
     .parse(Object.fromEntries(formData));
   const { organization, user } = await requireOrganizationAccess(
     input.organizationSlug,
@@ -2356,9 +2366,27 @@ export async function updateEndpointSubmission(formData: FormData) {
   const before = await getDb().endpointSubmission.findFirstOrThrow({
     where: { id: input.entityId, organizationId: organization.id },
   });
-  const result = await getDb().endpointSubmission.update({
-    where: { id: before.id },
-    data: { status: input.status },
+  const result = await getDb().$transaction(async (tx) => {
+    const submission = await tx.endpointSubmission.update({
+      where: { id: before.id },
+      data: { status: input.status },
+    });
+    if (input.followUp && user) {
+      await tx.task.create({
+        data: {
+          organizationId: organization.id,
+          title: input.followUp,
+          dueAt: input.dueAt
+            ? new Date(input.dueAt)
+            : new Date(Date.now() + 86_400_000),
+          relatedType: "ENDPOINT_SUBMISSION",
+          relatedId: before.id,
+          createdById: user.id,
+          assignedToId: user.id,
+        },
+      });
+    }
+    return submission;
   });
   await appendAuditEvent({
     organizationId: organization.id,

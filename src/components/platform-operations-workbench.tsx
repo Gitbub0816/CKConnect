@@ -51,10 +51,24 @@ function BookingsWorkbench({ data, organizationSlug }: { data: Data; organizatio
 }
 
 function SubmissionsWorkbench({ data, organizationSlug }: { data: Data; organizationSlug: string }) {
-  return <div className="space-y-3">{(data.records ?? []).map((submission) => <article className="ck-card grid gap-4 p-5 xl:grid-cols-[1fr_420px]" key={String(submission.id)}>
-    <div><div className="flex items-center gap-2"><ShieldAlert className="text-[#9b7420]" size={18}/><strong>{String(submission.type)}</strong><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold">{String(submission.status)}</span></div><pre className="mt-3 max-h-48 overflow-auto rounded-lg bg-slate-950 p-4 text-xs leading-5 text-slate-200">{JSON.stringify(submission.payload, null, 2)}</pre><p className="mt-2 text-xs text-slate-500">Received {new Date(String(submission.createdAt)).toLocaleString()}</p></div>
-    <form action={updateEndpointSubmission} className="flex flex-wrap items-end gap-3 rounded-lg border bg-slate-50 p-4"><input name="organizationSlug" type="hidden" value={organizationSlug}/><input name="entityId" type="hidden" value={String(submission.id)}/><label className="min-w-44 flex-1 text-xs font-semibold">Triage state<select className="ck-input mt-2" defaultValue={String(submission.status)} name="status">{["NEW","IN_REVIEW","RESOLVED","SPAM"].map((status) => <option key={status}>{status}</option>)}</select></label><button className="ck-button" type="submit">Save triage</button></form>
-  </article>)}</div>;
+  return <div className="space-y-3">{(data.records ?? []).map((submission) => {
+    const payload = (submission.payload ?? {}) as Value;
+    const fields = Object.entries(payload).filter(([key]) => key !== "organizationSlug");
+    return <article className="ck-card grid gap-4 p-5 xl:grid-cols-[1fr_420px]" key={String(submission.id)}>
+      <div>
+        <div className="flex items-center gap-2"><ShieldAlert className="text-[#9b7420]" size={18}/><strong>{String(submission.type)}</strong><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold">{String(submission.status)}</span></div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          {fields.map(([key, value]) => <div className="rounded-lg bg-[#f8f5ef] p-3" key={key}><div className="text-[10px] font-bold uppercase text-slate-500">{key.replaceAll("_", " ")}</div><div className="mt-1 text-sm font-semibold">{String(value)}</div></div>)}
+        </div>
+        <details className="mt-3">
+          <summary className="cursor-pointer text-xs font-semibold text-[#8b6914]">View raw JSON</summary>
+          <pre className="mt-2 max-h-48 overflow-auto rounded-lg bg-slate-950 p-4 text-xs leading-5 text-slate-200">{JSON.stringify(submission.payload, null, 2)}</pre>
+        </details>
+        <p className="mt-2 text-xs text-slate-500">Received {new Date(String(submission.createdAt)).toLocaleString()}</p>
+      </div>
+      <form action={updateEndpointSubmission} className="grid gap-3 rounded-lg border bg-slate-50 p-4"><input name="organizationSlug" type="hidden" value={organizationSlug}/><input name="entityId" type="hidden" value={String(submission.id)}/><label className="text-xs font-semibold">Triage state<select className="ck-input mt-2" defaultValue={String(submission.status)} name="status">{["NEW","IN_REVIEW","RESOLVED","SPAM"].map((status) => <option key={status}>{status}</option>)}</select></label><label className="text-xs font-semibold">Create follow-up task<input className="ck-input mt-2" name="followUp" placeholder="Call customer, quote job, or review spam signal"/></label><label className="text-xs font-semibold">Due date<input className="ck-input mt-2" name="dueAt" type="date"/></label><button className="ck-button" type="submit">Save triage</button></form>
+    </article>;
+  })}</div>;
 }
 
 function IntegrationsWorkbench({ data, organizationSlug }: { data: Data; organizationSlug: string }) {

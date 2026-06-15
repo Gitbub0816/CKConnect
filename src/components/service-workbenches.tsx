@@ -22,6 +22,7 @@ type Value = Record<string, unknown>;
 type Data = {
   records?: Value[];
   contacts?: Value[];
+  templates?: Value[];
   connection?: Value | null;
   runs?: Value[];
   time?: Value[];
@@ -397,6 +398,17 @@ function EmailWorkbench({
         </p>
         <div className="mt-5 grid gap-4">
           <label className="text-xs font-semibold text-slate-600">
+            Template
+            <select className="ck-input mt-2" name="templateId">
+              <option value="">No template</option>
+              {(data.templates ?? []).map((template) => (
+                <option key={String(template.id)} value={String(template.id)}>
+                  {String(template.name)} · {String(template.category)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-slate-600">
             Recipient
             <select className="ck-input mt-2" name="recipientEmail" required>
               <option value="">Choose a contact</option>
@@ -415,6 +427,22 @@ function EmailWorkbench({
             Subject
             <input className="ck-input mt-2" name="subject" required />
           </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-xs font-semibold text-slate-600">
+              Related record type
+              <select className="ck-input mt-2" name="relatedType">
+                <option value="">None</option>
+                <option value="INVOICE">Invoice</option>
+                <option value="CASE">Case</option>
+                <option value="DEAL">Deal</option>
+                <option value="SUBMISSION">Form submission</option>
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-slate-600">
+              Related ID
+              <input className="ck-input mt-2" name="relatedId" />
+            </label>
+          </div>
           <label className="text-xs font-semibold text-slate-600">
             Message
             <textarea
