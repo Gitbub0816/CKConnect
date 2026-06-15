@@ -31,7 +31,7 @@ export type AuditEvent = {
 export async function appendAuditEvent(event: AuditEvent) {
   const db = getDb();
   return db.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${event.organizationId}, 0))`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${event.organizationId}, 0))`;
     const head = await tx.auditChainHead.upsert({
       where: { organizationId: event.organizationId },
       create: { organizationId: event.organizationId },
