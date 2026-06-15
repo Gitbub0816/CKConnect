@@ -3133,13 +3133,14 @@ export async function saveWebsitePage(formData: FormData) {
       });
     return result;
   });
-  if (input.publish)
-    await publishSiteManifest({
+  const edgeMirror = input.publish
+    ? await publishSiteManifest({
       organizationId: organization.id,
       websiteId: website.id,
       hostname: website.defaultHostname,
       publishedAt: new Date().toISOString(),
-    });
+    })
+    : null;
   await appendAuditEvent({
     organizationId: organization.id,
     actorUserId: user.id,
@@ -3147,7 +3148,7 @@ export async function saveWebsitePage(formData: FormData) {
     entityType: "WebsitePage",
     entityId: page.id,
     before,
-    after: page,
+    after: { page, edgeMirror },
     category: "BUSINESS",
   });
   revalidatePath(`/app/${input.organizationSlug}/websites`);

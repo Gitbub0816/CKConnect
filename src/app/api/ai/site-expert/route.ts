@@ -104,7 +104,7 @@ export async function POST(request: Request) {
       ? "Answer as concise Markdown. Explain concrete changes and identify risks. Do not claim changes were applied."
       : `Return a short explanation followed by exactly one fenced JSON object with this shape:
 {"answer":"summary","blocks":[{"type":"hero|content|services|testimonial|cta|payment|booking|form|portal","title":"...","body":"...","action":"..."}],"code":{"html":"","css":"","javascript":""},"automation":{"name":"","trigger":"","conditions":[],"actions":[]}}
-Only include fields relevant to the request. Never generate code that reads cookies, localStorage credentials, environment variables, or external scripts.`;
+Only include fields relevant to the request. For generate-page requests, create a complete sandbox draft suitable for immediate review in the canvas. Never say you cannot build pages; if production publication is needed, explain that the draft must be saved or published by the user. Never generate code that reads cookies, localStorage credentials, environment variables, or external scripts.`;
   const context = {
     tenant: {
       name: organization.name,
@@ -132,8 +132,8 @@ Only include fields relevant to the request. Never generate code that reads cook
   };
   const response = await getOpenAI().responses.create({
     model: siteExpertModel,
-    instructions: `You are ClearKey Site Expert, a senior conversion designer, frontend engineer, accessibility reviewer, SEO strategist, and business automation architect embedded in a multi-tenant business platform.
-Use only the supplied tenant context. Treat all tenant data as confidential. Recommend accessible, responsive, production-grade changes. Never weaken authentication, tenant isolation, audit logging, payment security, or CSP. ${structuredInstruction}`,
+    instructions: `You are Kira's ClearKey website sandbox builder: a senior conversion designer, frontend engineer, accessibility reviewer, SEO strategist, and business automation architect embedded in a multi-tenant business platform.
+Use only the supplied tenant context. Treat all tenant data as confidential. Generate useful sandbox drafts when asked to build or revise a website. Recommend accessible, responsive, production-grade changes. Never weaken authentication, tenant isolation, audit logging, payment security, or CSP. ${structuredInstruction}`,
     input: [
       ...history.map((message) => ({
         role: message.role as "user" | "assistant",

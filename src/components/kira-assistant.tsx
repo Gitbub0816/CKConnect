@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { Bot, LoaderCircle, Send, Sparkles, X } from "lucide-react";
+import { MarkdownMessage } from "@/components/markdown-message";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -19,7 +20,7 @@ export function KiraAssistant({
     {
       role: "assistant",
       content:
-        "I am Kira. Ask me how to use this workspace, diagnose a workflow, or plan a website and automation.",
+        "I am Kira. Ask me how to use this workspace, diagnose a workflow, or build a website draft in the sandbox builder.",
     },
   ]);
   const [pending, setPending] = useState(false);
@@ -100,14 +101,14 @@ export function KiraAssistant({
           <div className="flex-1 space-y-4 overflow-y-auto bg-[#faf8f3] p-4">
             {messages.map((message, index) => (
               <div
-                className={`max-w-[88%] whitespace-pre-wrap rounded-xl px-4 py-3 text-sm leading-6 ${
+                className={`max-w-[88%] rounded-xl px-4 py-3 text-sm leading-6 ${
                   message.role === "user"
                     ? "ml-auto bg-slate-950 text-white"
                     : "border bg-white text-slate-700"
                 }`}
                 key={`${message.role}-${index}`}
               >
-                {message.content}
+                <MarkdownMessage content={message.content} />
               </div>
             ))}
             {pending && (

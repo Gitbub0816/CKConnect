@@ -16,6 +16,7 @@ import {
   Workflow,
 } from "lucide-react";
 import { saveWebsitePage } from "@/app/app/[organizationSlug]/actions";
+import { MarkdownMessage } from "@/components/markdown-message";
 
 type SiteBlock = {
   _id?: string;
@@ -99,7 +100,7 @@ export function WebsiteStudio({
     {
       role: "assistant",
       content:
-        "I know this site, its pages, available business data, and enabled automations. Ask for a page, conversion review, code, or workflow.",
+        "I can build sandbox drafts for this site. Describe the page or change, choose Generate sandbox draft, then review the draft canvas before saving or publishing.",
     },
   ]);
   const [prompt, setPrompt] = useState("");
@@ -316,7 +317,7 @@ export function WebsiteStudio({
                 ["design", LayoutTemplate, "Visual canvas"],
                 ["code", Braces, "Code canvas"],
                 ["assets", ImagePlus, "Files & assets"],
-                ["ai", Bot, "AI site expert"],
+                ["ai", Bot, "Kira sandbox"],
                 ["automations", Workflow, "AI automations"],
               ] as const
             ).map(([value, Icon, label]) => (
@@ -604,7 +605,7 @@ export function WebsiteStudio({
                   Design an automation
                 </div>
                 <p className="mt-2 text-xs leading-5 text-slate-500">
-                  Switch the AI site expert to automation mode. It will use the
+                  Switch Kira to automation mode. It will use the
                   current site structure and available business events.
                 </p>
                 <button
@@ -721,20 +722,20 @@ function AiPanel({
         <div className="border-b p-5">
           <div className="flex items-center gap-2 font-semibold">
             <Bot className="text-amber-700" size={18} />
-            OpenAI site expert
+            Kira website sandbox
           </div>
           <p className="mt-1 text-xs text-slate-500">
-            Tenant-aware guidance with persisted conversation history and
-            audited model calls.
+            Build or revise draft pages in an isolated canvas, then publish only
+            after review.
           </p>
         </div>
         <div className="max-h-[560px] space-y-3 overflow-y-auto bg-[#f8f5ef] p-5">
           {messages.map((message, index) => (
             <div
-              className={`max-w-[85%] whitespace-pre-wrap rounded-xl p-4 text-sm leading-6 ${message.role === "user" ? "ml-auto bg-slate-950 text-white" : "border bg-white"}`}
+              className={`max-w-[85%] rounded-xl p-4 text-sm leading-6 ${message.role === "user" ? "ml-auto bg-slate-950 text-white" : "border bg-white text-slate-700"}`}
               key={index}
             >
-              {message.content}
+              <MarkdownMessage content={message.content} />
             </div>
           ))}
           {aiBusy && (
@@ -748,7 +749,7 @@ function AiPanel({
           <textarea
             className="ck-input min-h-28 py-3"
             onChange={(event) => setPrompt(event.target.value)}
-            placeholder="Build a high-converting service page, audit accessibility, generate code, or design a follow-up workflow..."
+            placeholder="Build a high-converting service page, redesign the hero, generate sandboxed code, or design a follow-up workflow..."
             value={prompt}
           />
           <button
@@ -758,7 +759,7 @@ function AiPanel({
             type="button"
           >
             <Send size={14} />
-            Ask site expert
+            Run Kira
           </button>
         </div>
       </section>
@@ -768,7 +769,7 @@ function AiPanel({
           {(
             [
               ["chat", "Review and advise"],
-              ["generate-page", "Generate and apply page"],
+              ["generate-page", "Generate sandbox draft"],
               ["automation", "Design automation"],
             ] as const
           ).map(([value, label]) => (
@@ -783,8 +784,8 @@ function AiPanel({
           ))}
         </div>
         <p className="mt-4 text-[11px] leading-5 text-slate-500">
-          Generated page and code suggestions apply to the draft canvas. They
-          are not public until Save or Publish is selected.
+          Kira applies generated page sections and code to this draft canvas.
+          Nothing becomes public until you press Save draft or Publish.
         </p>
       </aside>
     </div>
