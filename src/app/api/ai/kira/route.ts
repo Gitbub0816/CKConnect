@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createHash } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { requireOrganizationAccess } from "@/lib/authorization";
 import { getDb } from "@/lib/db";
@@ -12,6 +13,22 @@ const requestSchema = z.object({
   conversationId: z.string().uuid().optional(),
   message: z.string().trim().min(1).max(4000),
 });
+
+function sha256(value: string) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function aiRiskCategory(module: string, message: string) {
+  const riskyModules = new Set(["accounting", "invoices", "payments", "payroll", "team", "settings", "compliance"]);
+  const lower = message.toLowerCase();
+  if (
+    riskyModules.has(module) ||
+    ["delete", "fire", "hire", "legal", "tax", "payroll", "bank", "security", "permission"].some((term) => lower.includes(term))
+  ) {
+    return "HIGH_IMPACT_ASSISTIVE";
+  }
+  return "LIMITED_RISK";
+}
 
 export async function POST(request: Request) {
   try {
@@ -110,6 +127,26 @@ Request: ${input.message}`,
         model: siteExpertModel,
         responseId: response.id,
         usageJson: (response.usage ?? {}) as Prisma.InputJsonValue,
+      },
+    });
+
+    await db.aiGovernanceEvent.create({
+      data: {
+        organizationId: organization.id,
+        conversationId: conversation.id,
+        feature: `kira.${input.activeModule}`,
+        riskCategory: aiRiskCategory(input.activeModule, input.message),
+        model: siteExpertModel,
+        promptHash: sha256(input.message),
+        outputHash: sha256(response.output_text),
+        humanReviewed: false,
+        transparencyNotice:
+          "Kira is an AI assistant. Outputs require human review before financial, legal, employment, publishing, security, or customer-impacting use.",
+        metadata: {
+          messageId: assistant.id,
+          responseId: response.id,
+          module: input.activeModule,
+        },
       },
     });
 

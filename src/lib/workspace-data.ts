@@ -1935,7 +1935,7 @@ export async function getModuleData(slug: string, module: string) {
       };
     }
     case "email": {
-      const [templates, messages, contacts] = await Promise.all([
+      const [templates, messages, contacts, mailboxes, domains, zohoIntegration] = await Promise.all([
         db.emailTemplate.findMany({ where: { organizationId } }),
         db.emailMessage.findMany({
           where: { organizationId },
@@ -1945,19 +1945,58 @@ export async function getModuleData(slug: string, module: string) {
           where: { organizationId, email: { not: null }, emailOptOut: false },
           orderBy: { firstName: "asc" },
         }),
+        db.managedMailbox.findMany({
+          where: { organizationId },
+          include: { aliases: true, domain: true },
+          orderBy: { createdAt: "desc" },
+        }),
+        db.organizationDomain.findMany({
+          where: { organizationId },
+          include: { dnsRecords: true },
+          orderBy: { hostname: "asc" },
+        }),
+        db.integration.findUnique({
+          where: { organizationId_provider: { organizationId, provider: "ZOHO_MAIL" } },
+        }),
       ]);
       const activeTemplates = templates.filter((template) => template.active);
       const failedMessages = messages.filter((message) => message.status === "FAILED");
       const queuedMessages = messages.filter((message) => message.status === "QUEUED");
+      const verifiedDomains = domains.filter((domain) => domain.status === "VERIFIED" && domain.verifiedAt);
       return {
         kind: "email",
         readiness: {
           providerConfigured: Boolean(process.env.MAILERSEND_API_KEY),
+          zohoConnected: zohoIntegration?.status === "ACTIVE",
+          verifiedDomains: verifiedDomains.length,
+          activeMailboxes: mailboxes.filter((mailbox) => mailbox.active && mailbox.status === "ACTIVE").length,
           emailableContacts: contacts.length,
           activeTemplates: activeTemplates.length,
           failedMessages: failedMessages.length,
           queuedMessages: queuedMessages.length,
         },
+        domains: domains.map((domain) => ({
+          id: domain.id,
+          hostname: domain.hostname,
+          status: domain.status,
+          verifiedAt: iso(domain.verifiedAt),
+          mailReady: domain.dnsRecords.some((record) => record.name === "mx" && record.status === "HEALTHY"),
+        })),
+        mailboxes: mailboxes.map((mailbox) => ({
+          id: mailbox.id,
+          email: mailbox.email,
+          localPart: mailbox.localPart,
+          displayName: mailbox.displayName,
+          domain: mailbox.domain?.hostname,
+          status: mailbox.status,
+          provider: mailbox.provider,
+          providerStatus: mailbox.providerStatus,
+          providerMailboxId: mailbox.providerMailboxId,
+          active: mailbox.active,
+          aliases: mailbox.aliases.map((alias) => alias.email),
+          error: mailbox.lastProvisioningError,
+          createdAt: iso(mailbox.createdAt),
+        })),
         templateCategories: [...new Set(templates.map((template) => template.category))].map((category) => ({
           category,
           templates: templates.filter((template) => template.category === category).length,
@@ -2004,7 +2043,137 @@ export async function getModuleData(slug: string, module: string) {
             value: messages.filter((r) => r.status === "PENDING_CONFIGURATION")
               .length,
           },
-          { label: "Templates", value: templates.length },
+          { label: "Mailboxes", value: mailboxes.length },
+        ],
+      };
+    }
+    case "compliance": {
+      const [
+        controls,
+        evidence,
+        vendors,
+        requests,
+        activities,
+        consents,
+        aiEvents,
+        auditFailures,
+      ] = await Promise.all([
+        db.complianceControl.findMany({
+          where: { organizationId },
+          include: { evidence: { orderBy: { collectedAt: "desc" }, take: 3 } },
+          orderBy: [{ framework: "asc" }, { controlId: "asc" }],
+        }),
+        db.complianceEvidence.findMany({
+          where: { organizationId },
+          orderBy: { collectedAt: "desc" },
+          take: 50,
+        }),
+        db.vendorAssessment.findMany({
+          where: { organizationId },
+          orderBy: [{ riskLevel: "desc" }, { vendorName: "asc" }],
+        }),
+        db.dataSubjectRequest.findMany({
+          where: { organizationId },
+          orderBy: { dueAt: "asc" },
+        }),
+        db.processingActivity.findMany({
+          where: { organizationId },
+          orderBy: { name: "asc" },
+        }),
+        db.consentRecord.findMany({
+          where: { organizationId },
+          orderBy: { capturedAt: "desc" },
+          take: 100,
+        }),
+        db.aiGovernanceEvent.findMany({
+          where: { organizationId },
+          orderBy: { createdAt: "desc" },
+          take: 100,
+        }),
+        db.auditLog.count({
+          where: { organizationId, outcome: { in: ["FAILURE", "DENIED"] } },
+        }),
+      ]);
+      const implemented = controls.filter((control) => control.status === "IMPLEMENTED").length;
+      const overdueRequests = requests.filter((request) => !request.completedAt && request.dueAt < new Date()).length;
+      return {
+        kind: "compliance",
+        controls: controls.map((control) => ({
+          id: control.id,
+          framework: control.framework,
+          controlId: control.controlId,
+          title: control.title,
+          status: control.status,
+          owner: control.owner,
+          riskLevel: control.riskLevel,
+          implementation: control.implementation,
+          evidenceCount: control.evidence.length,
+          lastReviewedAt: iso(control.lastReviewedAt),
+          nextReviewAt: iso(control.nextReviewAt),
+        })),
+        evidence: evidence.map((item) => ({
+          id: item.id,
+          title: item.title,
+          evidenceType: item.evidenceType,
+          sourceType: item.sourceType,
+          collectedAt: iso(item.collectedAt),
+          expiresAt: iso(item.expiresAt),
+          summary: item.summary,
+        })),
+        vendors: vendors.map((vendor) => ({
+          id: vendor.id,
+          vendorName: vendor.vendorName,
+          service: vendor.service,
+          riskLevel: vendor.riskLevel,
+          status: vendor.status,
+          dpaStatus: vendor.dpaStatus,
+          dataCategories: vendor.dataCategories,
+          region: vendor.region,
+          nextReviewAt: iso(vendor.nextReviewAt),
+        })),
+        requests: requests.map((request) => ({
+          id: request.id,
+          requesterEmail: request.requesterEmail,
+          requestType: request.requestType,
+          status: request.status,
+          jurisdiction: request.jurisdiction,
+          dueAt: iso(request.dueAt),
+          completedAt: iso(request.completedAt),
+        })),
+        activities: activities.map((activity) => ({
+          id: activity.id,
+          name: activity.name,
+          purpose: activity.purpose,
+          legalBasis: activity.legalBasis,
+          retentionClass: activity.retentionClass,
+          crossBorderTransfer: activity.crossBorderTransfer,
+          status: activity.status,
+        })),
+        consents: consents.map((consent) => ({
+          id: consent.id,
+          subjectEmail: consent.subjectEmail,
+          purpose: consent.purpose,
+          lawfulBasis: consent.lawfulBasis,
+          status: consent.status,
+          capturedAt: iso(consent.capturedAt),
+          withdrawnAt: iso(consent.withdrawnAt),
+        })),
+        aiEvents: aiEvents.map((event) => ({
+          id: event.id,
+          feature: event.feature,
+          riskCategory: event.riskCategory,
+          model: event.model,
+          humanReviewed: event.humanReviewed,
+          transparencyNotice: event.transparencyNotice,
+          createdAt: iso(event.createdAt),
+        })),
+        metrics: [
+          { label: "Controls", value: controls.length },
+          { label: "Implemented", value: implemented },
+          { label: "Open DSARs", value: requests.filter((request) => !request.completedAt).length },
+          { label: "Audit failures", value: auditFailures },
+          { label: "Overdue privacy", value: overdueRequests },
+          { label: "AI events", value: aiEvents.length },
         ],
       };
     }

@@ -9,6 +9,7 @@ import { ServiceWorkbench } from "@/components/service-workbenches";
 import { FinanceWorkbench } from "@/components/finance-workbenches";
 import { PlatformOperationsWorkbench } from "@/components/platform-operations-workbench";
 import { CommunicationsWorkbench } from "@/components/communications-workbench";
+import { ComplianceWorkbench } from "@/components/compliance-workbench";
 import { DataExplorer } from "@/components/data-explorer";
 import { RecordOperationsWorkbench } from "@/components/record-operations-workbench";
 
@@ -170,6 +171,12 @@ const copy: Record<
     description:
       "Tamper-evident history for sensitive, administrative, and financial activity.",
     action: "Verify chain",
+  },
+  compliance: {
+    title: "Compliance center",
+    description:
+      "SOC 2, ISO 27001, GDPR, and EU AI Act controls, evidence, privacy requests, vendors, and AI governance.",
+    action: "Seed controls",
   },
   team: {
     title: "Team & permissions",
@@ -619,6 +626,8 @@ export function ModulePage({
     />
   ) : module === "billing" ? (
     <BillingView data={data} organizationSlug={organizationSlug} />
+  ) : module === "compliance" ? (
+    <ComplianceWorkbench data={data} organizationSlug={organizationSlug} />
   ) : (
     <DataExplorer module={module} records={data.records ?? []} />
   );

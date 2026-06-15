@@ -46,6 +46,7 @@ const modules = new Set([
   "support",
   "payment-settings",
   "data-studio",
+  "compliance",
 ]);
 
 export default async function WorkspaceModulePage({
@@ -57,7 +58,7 @@ export default async function WorkspaceModulePage({
   if (!modules.has(module)) notFound();
   const { organization: configuration } = await requireOrganizationAccess(
     organizationSlug,
-    ["settings", "appearance", "data-studio"].includes(module)
+    ["settings", "appearance", "data-studio", "compliance"].includes(module)
       ? "settings.manage"
       : module === "crm"
         ? "accounts.read"

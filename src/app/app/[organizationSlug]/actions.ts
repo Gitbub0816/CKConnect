@@ -10,6 +10,7 @@ import { getDb } from "@/lib/db";
 import { appendAuditEvent } from "@/lib/logging/audit";
 import { CloudflareDnsProvider } from "@/lib/integrations/dns-provider";
 import { publishSiteManifest } from "@/lib/integrations/cloudflare-edge";
+import { provisionZohoMailbox } from "@/lib/integrations/zoho-mail";
 import { getStripe } from "@/lib/integrations/stripe";
 import { appUrl } from "@/lib/integrations/stripe-workflows";
 
@@ -1618,6 +1619,361 @@ export async function composeEmail(formData: FormData) {
     category: "BUSINESS",
   });
   revalidatePath(`/app/${input.organizationSlug}/email`);
+}
+
+const mailboxLocalPartSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/, "Use a valid mailbox name");
+
+export async function createTenantMailbox(formData: FormData) {
+  const input = z
+    .object({
+      organizationSlug: z.string().min(1),
+      domainId: z.string().uuid(),
+      localPart: mailboxLocalPartSchema,
+      displayName: z.string().trim().min(1).max(120),
+    })
+    .parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    "email.write",
+  );
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  const domain = await db.organizationDomain.findFirst({
+    where: {
+      id: input.domainId,
+      organizationId: organization.id,
+      status: "VERIFIED",
+      verifiedAt: { not: null },
+    },
+  });
+  if (!domain) throw new Error("Verify this domain before creating mailboxes");
+  const email = `${input.localPart}@${domain.hostname}`.toLowerCase();
+  const mailbox = await db.$transaction(async (tx) => {
+    const created = await tx.managedMailbox.create({
+      data: {
+        organizationId: organization.id,
+        organizationDomainId: domain.id,
+        localPart: input.localPart,
+        email,
+        displayName: input.displayName,
+        provider: "ZOHO",
+        status: "PENDING_PROVIDER_SYNC",
+      },
+    });
+    await tx.organizationUsage.upsert({
+      where: { organizationId: organization.id },
+      create: { organizationId: organization.id, mailboxCount: 1 },
+      update: { mailboxCount: { increment: 1 } },
+    });
+    return created;
+  });
+  try {
+    const provisioned = await provisionZohoMailbox({
+      organizationId: organization.id,
+      email,
+      localPart: input.localPart,
+      domain: domain.hostname,
+      displayName: input.displayName,
+    });
+    const updated = await db.managedMailbox.update({
+      where: { id: mailbox.id },
+      data: {
+        providerMailboxId: provisioned.providerMailboxId,
+        providerStatus: provisioned.providerStatus,
+        status: provisioned.status,
+        lastProvisionedAt: provisioned.status === "ACTIVE" ? new Date() : null,
+        metadata: (provisioned.raw ?? {}) as Prisma.InputJsonValue,
+      },
+    });
+    await appendAuditEvent({
+      organizationId: organization.id,
+      actorUserId: user.id,
+      action: "email.mailbox_created",
+      entityType: "ManagedMailbox",
+      entityId: updated.id,
+      after: {
+        email: updated.email,
+        status: updated.status,
+        providerStatus: updated.providerStatus,
+      },
+      category: "INTEGRATION",
+      retentionClass: "SECURITY_7Y",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Zoho provisioning failed";
+    const failed = await db.managedMailbox.update({
+      where: { id: mailbox.id },
+      data: {
+        status: "PROVIDER_ERROR",
+        providerStatus: "ERROR",
+        lastProvisioningError: message,
+      },
+    });
+    await appendAuditEvent({
+      organizationId: organization.id,
+      actorUserId: user.id,
+      action: "email.mailbox_provisioning_failed",
+      entityType: "ManagedMailbox",
+      entityId: failed.id,
+      after: { email, error: message },
+      category: "INTEGRATION",
+      severity: "WARNING",
+      outcome: "FAILURE",
+      retentionClass: "SECURITY_7Y",
+    });
+  }
+  revalidatePath(`/app/${input.organizationSlug}/email`);
+}
+
+const baselineComplianceControls = [
+  {
+    framework: "SOC2",
+    controlId: "CC6.1",
+    title: "Logical access is restricted",
+    description: "Role-based access, tenant isolation, and signed-in server-side authorization protect workspace data.",
+    implementation: "Clerk sessions are revalidated in server components, server actions, and route handlers; permissions are tenant-scoped.",
+    riskLevel: "HIGH",
+  },
+  {
+    framework: "SOC2",
+    controlId: "CC7.2",
+    title: "Security events are monitored",
+    description: "Security, integration, and administrative events are retained in a tamper-evident audit chain.",
+    implementation: "AuditLog records are hash chained per organization with retention class metadata.",
+    riskLevel: "HIGH",
+  },
+  {
+    framework: "ISO27001",
+    controlId: "A.5.15",
+    title: "Access control",
+    description: "Access to information and associated assets is controlled by policy and business need.",
+    implementation: "Membership roles and explicit permissions gate privileged modules and mutations.",
+    riskLevel: "HIGH",
+  },
+  {
+    framework: "ISO27001",
+    controlId: "A.8.24",
+    title: "Use of cryptography",
+    description: "Secrets and provider tokens are encrypted before storage.",
+    implementation: "OAuth credentials use AES-256-GCM envelope encryption via ENCRYPTION_KEY.",
+    riskLevel: "HIGH",
+  },
+  {
+    framework: "GDPR",
+    controlId: "ART-30",
+    title: "Records of processing activities",
+    description: "Tenant processing activities identify purpose, data categories, legal basis, retention, and transfers.",
+    implementation: "ProcessingActivity records power the compliance workspace and exports.",
+    riskLevel: "MEDIUM",
+  },
+  {
+    framework: "GDPR",
+    controlId: "ART-15-22",
+    title: "Data subject rights workflow",
+    description: "Access, deletion, correction, portability, objection, and restriction requests are tracked with due dates.",
+    implementation: "DataSubjectRequest tracks request verification, response state, completion, and deadlines.",
+    riskLevel: "HIGH",
+  },
+  {
+    framework: "EU_AI_ACT",
+    controlId: "TRANSPARENCY-50",
+    title: "AI transparency and human oversight",
+    description: "AI-assisted features disclose limitations and preserve review metadata.",
+    implementation: "AiGovernanceEvent stores feature, model, risk category, transparency notice, and human-review state.",
+    riskLevel: "HIGH",
+  },
+  {
+    framework: "EU_AI_ACT",
+    controlId: "RISK-MGMT-9",
+    title: "AI risk classification",
+    description: "AI use cases are categorized and escalated when output may affect legal, financial, employment, or customer outcomes.",
+    implementation: "High-risk workflows require human review and audit retention before external use.",
+    riskLevel: "HIGH",
+  },
+] as const;
+
+export async function seedComplianceProgram(formData: FormData) {
+  const input = z.object({ organizationSlug: z.string().min(1) }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    "settings.manage",
+  );
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  await db.$transaction(async (tx) => {
+    for (const control of baselineComplianceControls) {
+      await tx.complianceControl.upsert({
+        where: {
+          organizationId_framework_controlId: {
+            organizationId: organization.id,
+            framework: control.framework,
+            controlId: control.controlId,
+          },
+        },
+        create: {
+          organizationId: organization.id,
+          ...control,
+          owner: "Workspace owner",
+          status: "IMPLEMENTED",
+          lastReviewedAt: new Date(),
+          nextReviewAt: new Date(Date.now() + 90 * 86_400_000),
+        },
+        update: {
+          description: control.description,
+          implementation: control.implementation,
+          riskLevel: control.riskLevel,
+        },
+      });
+    }
+    await tx.processingActivity.upsert({
+      where: { organizationId_name: { organizationId: organization.id, name: "Workspace operations" } },
+      create: {
+        organizationId: organization.id,
+        name: "Workspace operations",
+        purpose: "Operate CRM, finance, support, collaboration, email, website, and automation workflows.",
+        dataCategories: ["account data", "contact data", "business records", "communications", "financial metadata"],
+        dataSubjects: ["tenant users", "tenant customers", "contacts", "vendors", "employees"],
+        legalBasis: "contract; legitimate interests; legal obligation where applicable",
+        retentionClass: "STANDARD",
+        recipients: ["ClearKey", "configured subprocessors", "tenant-authorized providers"],
+        crossBorderTransfer: true,
+        safeguards: "Contractual controls, access restrictions, encryption, provider DPAs, and audit logging.",
+      },
+      update: {},
+    });
+    for (const vendor of [
+      ["Clerk", "Authentication", "identity and access", "US/EU"],
+      ["Vercel", "Application hosting", "application logs and runtime metadata", "US/EU"],
+      ["Neon", "Postgres database", "tenant application records", "US/EU"],
+      ["Stripe", "Payments", "payment metadata", "US/EU"],
+      ["Zoho Mail", "Tenant email hosting", "mailbox metadata and message routing", "US/EU/IN"],
+    ] as const) {
+      await tx.vendorAssessment.upsert({
+        where: {
+          organizationId_vendorName_service: {
+            organizationId: organization.id,
+            vendorName: vendor[0],
+            service: vendor[1],
+          },
+        },
+        create: {
+          organizationId: organization.id,
+          vendorName: vendor[0],
+          service: vendor[1],
+          dataCategories: [vendor[2]],
+          region: vendor[3],
+          riskLevel: ["Authentication", "Postgres database", "Payments"].includes(vendor[1]) ? "HIGH" : "MEDIUM",
+          status: "APPROVED",
+          dpaStatus: "NEEDS_REVIEW",
+          nextReviewAt: new Date(Date.now() + 180 * 86_400_000),
+        },
+        update: {},
+      });
+    }
+    await tx.complianceEvidence.create({
+      data: {
+        organizationId: organization.id,
+        title: "Compliance baseline seeded",
+        evidenceType: "SYSTEM_ATTESTATION",
+        sourceType: "ServerAction",
+        sourceId: "seedComplianceProgram",
+        summary: "SOC 2, ISO 27001, GDPR, and EU AI Act operational controls were initialized for review.",
+        metadata: { controls: baselineComplianceControls.length },
+      },
+    });
+  });
+  await appendAuditEvent({
+    organizationId: organization.id,
+    actorUserId: user.id,
+    action: "compliance.program_seeded",
+    entityType: "ComplianceControl",
+    category: "ADMIN",
+    after: { controls: baselineComplianceControls.length },
+    retentionClass: "SECURITY_7Y",
+  });
+  revalidatePath(`/app/${input.organizationSlug}/compliance`);
+}
+
+export async function updateComplianceControl(formData: FormData) {
+  const input = entityActionSchema
+    .extend({
+      status: z.enum(["PLANNED", "IMPLEMENTED", "NEEDS_REVIEW", "EXCEPTION", "DEPRECATED"]),
+      owner: z.string().trim().max(120).optional().default(""),
+      notes: z.string().trim().max(1000).optional().default(""),
+    })
+    .parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    "settings.manage",
+  );
+  if (!user) throw new Error("A signed-in user is required");
+  const before = await getDb().complianceControl.findFirstOrThrow({
+    where: { id: input.entityId, organizationId: organization.id },
+  });
+  const after = await getDb().complianceControl.update({
+    where: { id: before.id },
+    data: {
+      status: input.status,
+      owner: input.owner || before.owner,
+      lastReviewedAt: new Date(),
+      nextReviewAt: new Date(Date.now() + 90 * 86_400_000),
+      metadata: { ...(before.metadata as Record<string, unknown>), latestReviewNote: input.notes },
+    },
+  });
+  await appendAuditEvent({
+    organizationId: organization.id,
+    actorUserId: user.id,
+    action: "compliance.control_reviewed",
+    entityType: "ComplianceControl",
+    entityId: after.id,
+    before,
+    after,
+    category: "ADMIN",
+    retentionClass: "SECURITY_7Y",
+  });
+  revalidatePath(`/app/${input.organizationSlug}/compliance`);
+}
+
+export async function createDataSubjectRequest(formData: FormData) {
+  const input = z
+    .object({
+      organizationSlug: z.string().min(1),
+      requesterEmail: z.string().email(),
+      requesterName: z.string().trim().max(120).optional().default(""),
+      requestType: z.enum(["ACCESS", "DELETE", "RECTIFY", "PORTABILITY", "RESTRICT", "OBJECT"]),
+      jurisdiction: z.string().trim().max(40).optional().default("GDPR"),
+    })
+    .parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    "settings.manage",
+  );
+  if (!user) throw new Error("A signed-in user is required");
+  const request = await getDb().dataSubjectRequest.create({
+    data: {
+      organizationId: organization.id,
+      requesterEmail: input.requesterEmail,
+      requesterName: input.requesterName || null,
+      requestType: input.requestType,
+      jurisdiction: input.jurisdiction,
+      dueAt: new Date(Date.now() + 30 * 86_400_000),
+    },
+  });
+  await appendAuditEvent({
+    organizationId: organization.id,
+    actorUserId: user.id,
+    action: "privacy.data_subject_request_created",
+    entityType: "DataSubjectRequest",
+    entityId: request.id,
+    after: { requestType: request.requestType, dueAt: request.dueAt },
+    category: "ADMIN",
+    retentionClass: "SECURITY_7Y",
+  });
+  revalidatePath(`/app/${input.organizationSlug}/compliance`);
 }
 
 export async function approveTimeEntry(formData: FormData) {

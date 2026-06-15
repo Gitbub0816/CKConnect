@@ -11,6 +11,7 @@ import {
   advancePayrollRun,
   approveTimeEntry,
   composeEmail,
+  createTenantMailbox,
   executeCampaign,
   reviewTimeOff,
   updateCaseWorkflow,
@@ -25,6 +26,8 @@ type Data = {
   templates?: Value[];
   readiness?: Value;
   templateCategories?: Value[];
+  domains?: Value[];
+  mailboxes?: Value[];
   connection?: Value | null;
   runs?: Value[];
   time?: Value[];
@@ -398,6 +401,9 @@ function EmailWorkbench({
           <div className="mt-4 grid grid-cols-2 gap-3">
             {[
               ["Provider", readiness.providerConfigured ? "Ready" : "Missing"],
+              ["Zoho", readiness.zohoConnected ? "Connected" : "Needs setup"],
+              ["Domains", readiness.verifiedDomains ?? 0],
+              ["Mailboxes", readiness.activeMailboxes ?? 0],
               ["Contacts", readiness.emailableContacts ?? 0],
               ["Templates", readiness.activeTemplates ?? 0],
               ["Failures", readiness.failedMessages ?? 0],
@@ -417,6 +423,72 @@ function EmailWorkbench({
                 <strong>{String(category.active)} active / {String(category.templates)} total</strong>
               </div>
             ))}
+          </div>
+        </section>
+        <section className="ck-card p-5">
+          <div className="flex items-center gap-2 font-semibold">
+            <Mail className="text-[#9b7420]" size={18} />
+            Domain mailboxes
+          </div>
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            Create Zoho-hosted addresses only on domains verified in Domains & DNS.
+          </p>
+          <form action={createTenantMailbox} className="mt-4 grid gap-3">
+            <input name="organizationSlug" type="hidden" value={organizationSlug} />
+            <label className="text-xs font-semibold text-slate-600">
+              Verified domain
+              <select className="ck-input mt-2" name="domainId" required>
+                <option value="">Choose domain</option>
+                {(data.domains ?? [])
+                  .filter((domain) => domain.status === "VERIFIED")
+                  .map((domain) => (
+                    <option key={String(domain.id)} value={String(domain.id)}>
+                      {String(domain.hostname)}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-slate-600">
+              Mailbox name
+              <div className="mt-2 flex items-center gap-2">
+                <input className="ck-input" name="localPart" placeholder="charlemaine" required />
+                <span className="text-xs text-slate-500">@domain</span>
+              </div>
+            </label>
+            <label className="text-xs font-semibold text-slate-600">
+              Display name
+              <input className="ck-input mt-2" name="displayName" placeholder="Charlemaine" required />
+            </label>
+            <button className="ck-button" type="submit">
+              <Send size={14} />
+              Create Zoho mailbox
+            </button>
+          </form>
+          <div className="mt-5 space-y-2">
+            {(data.mailboxes ?? []).map((mailbox) => (
+              <div className="rounded-lg border bg-white p-3 text-xs" key={String(mailbox.id)}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <strong className="text-sm">{String(mailbox.email)}</strong>
+                    <p className="mt-1 text-slate-500">{String(mailbox.displayName)} - {String(mailbox.provider)}</p>
+                  </div>
+                  <Pill tone={mailbox.status === "ACTIVE" ? "success" : mailbox.status === "PROVIDER_ERROR" ? "danger" : "warning"}>
+                    {String(mailbox.status)}
+                  </Pill>
+                </div>
+                {Boolean(mailbox.error) && (
+                  <p className="mt-2 rounded-md bg-red-50 p-2 text-red-700">{String(mailbox.error)}</p>
+                )}
+                {Array.isArray(mailbox.aliases) && mailbox.aliases.length > 0 && (
+                  <p className="mt-2 text-slate-500">Aliases: {mailbox.aliases.map(String).join(", ")}</p>
+                )}
+              </div>
+            ))}
+            {!data.mailboxes?.length && (
+              <p className="rounded-lg bg-[#f8f5ef] p-3 text-xs text-slate-500">
+                No tenant mailboxes yet.
+              </p>
+            )}
           </div>
         </section>
         <form action={composeEmail} className="ck-card h-fit p-5">
