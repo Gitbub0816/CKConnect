@@ -40,7 +40,7 @@ export async function AppShell({
 
   return (
     <div
-      className={`grid min-h-screen lg:h-screen lg:overflow-hidden ${theme?.consoleNavigationStyle === "rail" ? "lg:grid-cols-[82px_1fr]" : "lg:grid-cols-[238px_1fr]"} ${theme?.consoleDensity === "compact" ? "console-compact" : theme?.consoleDensity === "spacious" ? "console-spacious" : ""}`}
+      className={`ck-app-shell grid min-h-screen lg:h-screen lg:overflow-hidden ${theme?.consoleNavigationStyle === "rail" ? "lg:grid-cols-[82px_1fr]" : "lg:grid-cols-[258px_1fr]"} ${theme?.consoleDensity === "compact" ? "console-compact" : theme?.consoleDensity === "spacious" ? "console-spacious" : ""}`}
       style={shellStyle}
     >
       <AppSidebar

@@ -138,6 +138,277 @@ a {
   box-shadow: 0 10px 30px color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
+.ck-app-shell {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 42%), transparent 240px),
+    var(--background);
+  color: var(--foreground);
+}
+
+.ck-app-shell > div {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 78%), rgb(255 255 255 / 26%) 78px),
+    color-mix(in srgb, var(--background) 94%, #eef5f7);
+}
+
+.ck-app-shell header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  border-color: color-mix(in srgb, var(--border) 72%, transparent);
+  background: color-mix(in srgb, var(--surface) 88%, transparent) !important;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 1px 0 rgb(15 23 42 / 4%);
+}
+
+.ck-app-shell .ck-card {
+  border-color: color-mix(in srgb, var(--border) 76%, transparent);
+  border-radius: max(14px, calc(var(--radius) + 6px));
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 98%), rgb(255 255 255 / 92%)),
+    var(--surface);
+  box-shadow:
+    0 1px 1px rgb(15 23 42 / 4%),
+    0 14px 34px rgb(15 23 42 / 5%);
+}
+
+.ck-app-shell .ck-card .ck-card,
+.ck-app-shell details.ck-card {
+  box-shadow: 0 1px 3px rgb(15 23 42 / 5%);
+}
+
+.ck-app-shell .ck-button {
+  min-height: 42px;
+  border-radius: 999px;
+  padding-inline: 16px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--primary) 92%, white), var(--primary));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 34%),
+    0 8px 18px color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+.ck-app-shell .ck-button:hover {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--primary-strong) 88%, white), var(--primary-strong));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 24%),
+    0 12px 24px color-mix(in srgb, var(--primary) 24%, transparent);
+}
+
+.ck-app-shell .ck-button-secondary {
+  border-color: color-mix(in srgb, var(--border) 82%, transparent);
+  background:
+    linear-gradient(180deg, #fff, color-mix(in srgb, var(--surface-muted) 86%, white));
+  color: color-mix(in srgb, var(--foreground) 88%, #243b53);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
+}
+
+.ck-app-shell .ck-button-secondary:hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  background: #fff;
+}
+
+.ck-app-shell .ck-input {
+  min-height: 43px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 96%, #eef5f7);
+  box-shadow: inset 0 1px 1px rgb(15 23 42 / 3%);
+}
+
+.ck-sidebar {
+  border-right: 1px solid rgb(255 255 255 / 7%);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 6%), transparent 160px),
+    color-mix(in srgb, var(--console-sidebar) 90%, #0f172a) !important;
+}
+
+.ck-sidebar-brand {
+  min-height: 72px;
+  border-color: rgb(255 255 255 / 9%);
+}
+
+.ck-sidebar-brand span:first-child {
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 10px 24px rgb(0 0 0 / 22%);
+}
+
+.ck-sidebar-nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 22%) transparent;
+}
+
+.ck-sidebar-section {
+  margin-block: 6px 4px;
+  border-radius: 12px;
+}
+
+.ck-sidebar-link {
+  min-height: 40px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+}
+
+.ck-sidebar-link:hover {
+  border-color: rgb(255 255 255 / 8%);
+  background: rgb(255 255 255 / 8%);
+}
+
+.ck-sidebar-link-active {
+  border-color: color-mix(in srgb, var(--console-primary) 68%, white);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--console-primary) 92%, white), var(--console-primary)) !important;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 12px 22px rgb(0 0 0 / 18%);
+}
+
+.ck-sidebar-child {
+  border-radius: 10px;
+}
+
+.ck-sidebar-child:hover {
+  background: rgb(255 255 255 / 8%);
+}
+
+.ck-suite {
+  --suite-blue: #2563eb;
+  --suite-teal: #0f766e;
+  --suite-violet: #6d5bd0;
+}
+
+.ck-suite-hero {
+  overflow: hidden;
+  border-radius: 20px !important;
+}
+
+.ck-suite-hero > div:first-child {
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 94%), rgb(248 250 252 / 92%)),
+    color-mix(in srgb, var(--background) 80%, white);
+}
+
+.ck-suite-current {
+  border-radius: 18px !important;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 92%), color-mix(in srgb, var(--primary) 9%, #eef7ff)) !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 72%);
+}
+
+.ck-suite-tabs {
+  background: color-mix(in srgb, var(--border) 62%, #dbeafe) !important;
+}
+
+.ck-suite-tab-group {
+  background:
+    linear-gradient(180deg, #fff, color-mix(in srgb, var(--surface-muted) 70%, white)) !important;
+}
+
+.ck-suite-tab {
+  border-radius: 999px !important;
+  border-color: color-mix(in srgb, var(--border) 76%, transparent) !important;
+  background: rgb(255 255 255 / 86%) !important;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+}
+
+.ck-suite-tab:nth-child(3n + 1):hover {
+  border-color: color-mix(in srgb, var(--suite-blue) 48%, var(--border)) !important;
+  background: color-mix(in srgb, var(--suite-blue) 8%, white) !important;
+}
+
+.ck-suite-tab:nth-child(3n + 2):hover {
+  border-color: color-mix(in srgb, var(--suite-teal) 48%, var(--border)) !important;
+  background: color-mix(in srgb, var(--suite-teal) 8%, white) !important;
+}
+
+.ck-suite-tab:nth-child(3n):hover {
+  border-color: color-mix(in srgb, var(--suite-violet) 45%, var(--border)) !important;
+  background: color-mix(in srgb, var(--suite-violet) 8%, white) !important;
+}
+
+.ck-suite-tab-active {
+  border-color: color-mix(in srgb, var(--primary) 72%, #fff) !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--primary) 18%, white), color-mix(in srgb, var(--primary) 8%, white)) !important;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 76%),
+    0 8px 18px color-mix(in srgb, var(--primary) 15%, transparent);
+}
+
+.ck-command-panel,
+.ck-ribbon-map,
+.ck-control-panel {
+  border-radius: 20px !important;
+}
+
+.ck-command-item {
+  position: relative;
+}
+
+.ck-command-item::before {
+  content: "";
+  position: absolute;
+  inset: 10px auto 10px 0;
+  width: 3px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.ck-command-item:nth-child(3n + 1):hover::before {
+  background: var(--suite-blue);
+}
+
+.ck-command-item:nth-child(3n + 2):hover::before {
+  background: var(--suite-teal);
+}
+
+.ck-command-item:nth-child(3n):hover::before {
+  background: var(--suite-violet);
+}
+
+.ck-ribbon-group {
+  background:
+    linear-gradient(180deg, #fff, color-mix(in srgb, var(--surface-muted) 82%, white)) !important;
+}
+
+.ck-ribbon-command {
+  min-height: 36px;
+  border-radius: 12px !important;
+  background: rgb(255 255 255 / 88%);
+}
+
+.ck-ribbon-command:nth-child(2n) {
+  border-radius: 999px !important;
+}
+
+.ck-ribbon-command:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgb(15 23 42 / 7%);
+}
+
+.ck-flow-lane {
+  border-radius: 16px !important;
+  background: linear-gradient(135deg, #fff, color-mix(in srgb, #e0f2fe 22%, #fff)) !important;
+}
+
+.ck-flow-step {
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 999px !important;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+}
+
+.ck-control-item {
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, #fff, color-mix(in srgb, var(--surface-muted) 86%, white)) !important;
+}
+
+.ck-app-shell :focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--primary) 34%, transparent);
+  outline-offset: 2px;
+}
+
 .portal-root {
   min-height: 100vh;
   padding: 24px;

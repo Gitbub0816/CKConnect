@@ -265,8 +265,8 @@ export function AccountingSuite({
   ];
 
   return (
-    <div className="space-y-4 p-5 lg:p-7">
-      <section className="ck-card overflow-hidden">
+    <div className="ck-suite space-y-5 p-5 lg:p-7">
+      <section className="ck-card ck-suite-hero overflow-hidden">
         <div className="grid gap-5 border-b p-5 xl:grid-cols-[1fr_360px]">
           <div>
             <div className="ck-eyebrow">
@@ -280,7 +280,7 @@ export function AccountingSuite({
               reports, close, controls, and business settings.
             </p>
           </div>
-          <div className="rounded-lg border bg-[#f8f5ef] p-4">
+          <div className="ck-suite-current rounded-lg border bg-[#f8f5ef] p-4">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Calculator className="text-[#9b7420]" size={17} />
               Current workspace
@@ -291,9 +291,9 @@ export function AccountingSuite({
             </p>
           </div>
         </div>
-        <div className="grid gap-px bg-slate-200 xl:grid-cols-5">
+        <div className="ck-suite-tabs grid gap-px bg-slate-200 xl:grid-cols-5">
           {groups.map((group) => (
-            <div className="bg-white p-4" key={group}>
+            <div className="ck-suite-tab-group bg-white p-4" key={group}>
               <div className="text-[10px] font-bold uppercase tracking-[.14em] text-slate-500">
                 {group}
               </div>
@@ -305,9 +305,9 @@ export function AccountingSuite({
                     const selected = item.slug === active.slug;
                     return (
                       <Link
-                        className={`inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition xl:flex ${
+                        className={`ck-suite-tab inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition xl:flex ${
                           selected
-                            ? "border-[#c9a033] bg-[#fff7df] text-[#5f4308]"
+                            ? "ck-suite-tab-active border-[#c9a033] bg-[#fff7df] text-[#5f4308]"
                             : "border-[#e0d5c5] bg-white hover:border-[#b08a2f] hover:bg-[#fbf7ed]"
                         }`}
                         href={item.slug === "overview" ? base : `${base}/${item.slug}`}
@@ -325,7 +325,7 @@ export function AccountingSuite({
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[280px_1fr]">
-        <aside className="ck-card h-fit overflow-hidden">
+        <aside className="ck-card ck-command-panel h-fit overflow-hidden">
           <div className="border-b p-4">
             <div className="ck-eyebrow">Action center</div>
             <h2 className="mt-2 font-semibold">Common accounting calls</h2>
@@ -335,7 +335,7 @@ export function AccountingSuite({
               const Icon = action.icon;
               return (
                 <Link
-                  className="block p-4 transition hover:bg-amber-50/60"
+                  className="ck-command-item block p-4 transition hover:bg-amber-50/60"
                   href={action.href}
                   key={action.label}
                 >
@@ -355,19 +355,19 @@ export function AccountingSuite({
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <div className="ck-card overflow-hidden">
+        <div className="ck-card ck-ribbon-map overflow-hidden">
           <div className="border-b p-5">
             <div className="ck-eyebrow">Command ribbon</div>
             <h2 className="mt-2 font-semibold">Accounting operations map</h2>
           </div>
           <div className="grid gap-px bg-slate-200 md:grid-cols-2 xl:grid-cols-4">
             {commandGroups.map((group) => (
-              <div className="bg-white p-4" key={group.label}>
+              <div className="ck-ribbon-group bg-white p-4" key={group.label}>
                 <h3 className="text-sm font-semibold">{group.label}</h3>
                 <div className="mt-3 grid gap-2">
                   {group.commands.map(([label, href]) => (
                     <Link
-                      className="rounded-md border border-[#e0d5c5] px-3 py-2 text-xs font-semibold transition hover:border-[#b08a2f] hover:bg-[#fbf7ed]"
+                      className="ck-ribbon-command rounded-md border border-[#e0d5c5] px-3 py-2 text-xs font-semibold transition hover:border-[#b08a2f] hover:bg-[#fbf7ed]"
                       href={href}
                       key={label}
                     >
@@ -382,7 +382,7 @@ export function AccountingSuite({
             <div className="grid gap-3">
               {workflowLanes.map(([lane, ...steps]) => (
                 <div
-                  className="grid gap-2 rounded-lg border bg-[#fbfaf7] p-3 lg:grid-cols-[110px_1fr]"
+                  className="ck-flow-lane grid gap-2 rounded-lg border bg-[#fbfaf7] p-3 lg:grid-cols-[110px_1fr]"
                   key={lane}
                 >
                   <div className="text-xs font-bold uppercase tracking-[.12em] text-slate-500">
@@ -391,7 +391,7 @@ export function AccountingSuite({
                   <div className="flex flex-wrap gap-2">
                     {steps.map((step, index) => (
                       <span
-                        className="rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold"
+                        className="ck-flow-step rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold"
                         key={step}
                       >
                         {index + 1}. {step}
@@ -403,7 +403,7 @@ export function AccountingSuite({
             </div>
           </div>
         </div>
-        <aside className="ck-card h-fit p-5">
+        <aside className="ck-card ck-control-panel h-fit p-5">
           <div className="ck-eyebrow">Controls</div>
           <h2 className="mt-2 font-semibold">Close and compliance guardrails</h2>
           <div className="mt-4 space-y-3 text-sm">
@@ -414,7 +414,7 @@ export function AccountingSuite({
               "Source-linked ledger entries keep invoices, bills, payments, and bank events traceable.",
               "Tax and document retention paths keep finance evidence out of ad hoc storage.",
             ].map((item) => (
-              <div className="rounded-lg border bg-[#fbfaf7] p-3" key={item}>
+              <div className="ck-control-item rounded-lg border bg-[#fbfaf7] p-3" key={item}>
                 {item}
               </div>
             ))}

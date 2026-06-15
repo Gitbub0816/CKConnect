@@ -223,9 +223,9 @@ export function AppSidebar({
   }
 
   return (
-    <aside className="hidden h-screen overflow-hidden bg-[var(--console-sidebar)] text-slate-300 lg:flex lg:flex-col">
+    <aside className="ck-sidebar hidden h-screen overflow-hidden bg-[var(--console-sidebar)] text-slate-300 lg:flex lg:flex-col">
       <Link
-        className="flex h-16 shrink-0 items-center gap-3 border-b border-white/8 px-5 font-semibold text-white"
+        className="ck-sidebar-brand flex h-16 shrink-0 items-center gap-3 border-b border-white/8 px-5 font-semibold text-white"
         href={base}
         onClick={persistScroll}
       >
@@ -241,7 +241,7 @@ export function AppSidebar({
         {!isRail && <span className="truncate">{title}</span>}
       </Link>
       <nav
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4"
+        className="ck-sidebar-nav min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4"
         onScroll={persistScroll}
         ref={navRef}
       >
@@ -251,7 +251,7 @@ export function AppSidebar({
             <div className="mb-2" key={section.label}>
               {!isRail && (
                 <button
-                  className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[.16em] text-slate-500 transition hover:bg-white/7 hover:text-slate-300"
+                  className="ck-sidebar-section flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[.16em] text-slate-500 transition hover:bg-white/7 hover:text-slate-300"
                   onClick={() => toggleSection(section.label)}
                   type="button"
                 >
@@ -263,18 +263,16 @@ export function AppSidebar({
                 </button>
               )}
               {isOpen && (
-                <div
-                  className={`mt-1 space-y-1 ${isRail ? "" : "border-l border-white/10 pl-2"}`}
-                >
+                <div className={`mt-1 space-y-1 ${isRail ? "" : "pl-1"}`}>
                   {section.items.map((item) => {
                     const selected = active === item.slug;
                     const Icon = item.icon;
                     return (
                       <div key={item.slug}>
                       <Link
-                        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition ${
+                        className={`ck-sidebar-link flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition ${
                           selected
-                            ? "bg-[var(--console-primary)] text-[#211b0d] shadow-sm"
+                            ? "ck-sidebar-link-active bg-[var(--console-primary)] text-[#211b0d] shadow-sm"
                             : "hover:bg-white/7 hover:text-white"
                         }`}
                         href={
@@ -290,7 +288,7 @@ export function AppSidebar({
                         <div className="ml-7 mt-1 grid gap-1 border-l border-white/10 pl-2">
                           {item.children.map((child) => (
                             <Link
-                              className="rounded-md px-2 py-1.5 text-[12px] text-slate-400 transition hover:bg-white/7 hover:text-white"
+                              className="ck-sidebar-child rounded-md px-2 py-1.5 text-[12px] text-slate-400 transition hover:bg-white/7 hover:text-white"
                               href={`${base}/${item.slug}/${child.slug}`}
                               key={child.slug}
                               onClick={persistScroll}
