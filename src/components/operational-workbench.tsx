@@ -178,6 +178,20 @@ function InvoiceWorkbench({ records, organizationSlug }: { records: RecordValue[
         <div className="bg-[#f8f5ef] p-5">
           <div className="flex items-center gap-2 text-sm font-semibold"><ReceiptText className="text-[#9b7420]" size={17}/>Collection controls</div>
           <p className="mt-2 text-xs leading-5 text-slate-500">{invoice.email ? `Billing contact: ${invoice.email}` : "Add a billing contact email before sending."}</p>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-lg bg-white p-3">
+              <div className="font-bold uppercase text-slate-400">Paid</div>
+              <div className="mt-1 font-semibold">{Number(invoice.paymentProgress)}%</div>
+            </div>
+            <div className="rounded-lg bg-white p-3">
+              <div className="font-bold uppercase text-slate-400">Aging</div>
+              <div className="mt-1 font-semibold">{Number(invoice.daysPastDue) ? `${Number(invoice.daysPastDue)} days late` : `${Number(invoice.ageDays)} days old`}</div>
+            </div>
+          </div>
+          <div className="mt-3 rounded-lg border bg-white p-3 text-xs">
+            <div className="font-bold uppercase text-slate-400">Next action</div>
+            <div className="mt-1 font-semibold">{String(invoice.nextCollectionAction)}</div>
+          </div>
           {actionable && <form action={sendInvoice} className="mt-4"><input name="organizationSlug" type="hidden" value={organizationSlug}/><input name="entityId" type="hidden" value={String(invoice.id)}/><button className="ck-button w-full" disabled={!invoice.email} type="submit"><Mail size={14}/>{invoice.status === "DRAFT" ? "Post and send invoice" : "Queue reminder"}</button></form>}
           {Boolean(invoice.publicTokenId) && <Link className="ck-button ck-button-secondary mt-2 w-full" href={`/pay/${String(invoice.publicTokenId)}`}>Open payment page <ArrowRight size={14}/></Link>}
           <a className="ck-button ck-button-secondary mt-2 w-full" href={String(invoice.pdfUrl)} target="_blank" rel="noreferrer"><Download size={14}/>Open PDF for print</a>

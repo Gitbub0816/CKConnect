@@ -1222,6 +1222,25 @@ export async function getModuleData(slug: string, module: string) {
           total: money(r.total),
           paid: money(r.amountPaid),
           balance: money(r.balanceDue),
+          paymentProgress: money(r.total)
+            ? Math.round((money(r.amountPaid) / money(r.total)) * 100)
+            : 0,
+          ageDays: Math.max(
+            0,
+            Math.floor((Date.now() - r.issueDate.getTime()) / 86_400_000),
+          ),
+          daysPastDue:
+            r.balanceDue.greaterThan(0) && r.dueDate < new Date()
+              ? Math.floor((Date.now() - r.dueDate.getTime()) / 86_400_000)
+              : 0,
+          nextCollectionAction:
+            r.balanceDue.equals(0)
+              ? "Archive paid invoice"
+              : r.dueDate < new Date()
+                ? "Send overdue reminder"
+                : r.status === "DRAFT"
+                  ? "Post and send"
+                  : "Monitor payment page",
           items: r.items.map((item) => ({
             description: item.description,
             quantity: money(item.quantity),
@@ -1927,8 +1946,23 @@ export async function getModuleData(slug: string, module: string) {
           orderBy: { firstName: "asc" },
         }),
       ]);
+      const activeTemplates = templates.filter((template) => template.active);
+      const failedMessages = messages.filter((message) => message.status === "FAILED");
+      const queuedMessages = messages.filter((message) => message.status === "QUEUED");
       return {
         kind: "email",
+        readiness: {
+          providerConfigured: Boolean(process.env.MAILERSEND_API_KEY),
+          emailableContacts: contacts.length,
+          activeTemplates: activeTemplates.length,
+          failedMessages: failedMessages.length,
+          queuedMessages: queuedMessages.length,
+        },
+        templateCategories: [...new Set(templates.map((template) => template.category))].map((category) => ({
+          category,
+          templates: templates.filter((template) => template.category === category).length,
+          active: activeTemplates.filter((template) => template.category === category).length,
+        })),
         templates: templates.map((r) => ({
           id: r.id,
           name: r.name,
@@ -1948,8 +1982,13 @@ export async function getModuleData(slug: string, module: string) {
           subject: r.subject,
           status: r.status,
           relatedType: r.relatedType,
+          relatedId: r.relatedId,
+          createdAt: iso(r.createdAt),
           sentAt: iso(r.sentAt),
+          deliveredAt: iso(r.deliveredAt),
+          failedAt: iso(r.failedAt),
           error: r.lastError,
+          providerMessageId: r.providerMessageId,
         })),
         metrics: [
           {
@@ -2571,6 +2610,15 @@ export async function getModuleData(slug: string, module: string) {
         orderBy: { createdAt: "desc" },
         take: 100,
       });
+      const extract = (payload: unknown, keys: string[]) => {
+        if (!payload || typeof payload !== "object" || Array.isArray(payload)) return "";
+        const record = payload as Record<string, unknown>;
+        for (const key of keys) {
+          const value = record[key];
+          if (typeof value === "string" && value.trim()) return value.trim();
+        }
+        return "";
+      };
       return {
         kind: "submissions",
         records: records.map((submission) => ({
@@ -2578,6 +2626,21 @@ export async function getModuleData(slug: string, module: string) {
           type: submission.submissionType,
           status: submission.status,
           payload: submission.payloadJson,
+          name: extract(submission.payloadJson, ["name", "fullName", "customerName"]),
+          email: extract(submission.payloadJson, ["email", "emailAddress"]),
+          phone: extract(submission.payloadJson, ["phone", "phoneNumber", "mobile"]),
+          subject: extract(submission.payloadJson, ["subject", "topic"]),
+          message: extract(submission.payloadJson, ["message", "notes", "details", "description"]),
+          contactId: submission.contactId,
+          ageHours: Math.max(
+            0,
+            Math.round((Date.now() - submission.createdAt.getTime()) / 3_600_000),
+          ),
+          routeScore:
+            (extract(submission.payloadJson, ["email", "emailAddress"]) ? 25 : 0) +
+            (extract(submission.payloadJson, ["phone", "phoneNumber", "mobile"]) ? 20 : 0) +
+            (extract(submission.payloadJson, ["message", "notes", "details", "description"]).length > 60 ? 25 : 0) +
+            (submission.status === "NEW" ? 15 : 0),
           createdAt: iso(submission.createdAt),
           updatedAt: iso(submission.updatedAt),
         })),

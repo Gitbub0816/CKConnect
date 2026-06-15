@@ -23,6 +23,8 @@ type Data = {
   records?: Value[];
   contacts?: Value[];
   templates?: Value[];
+  readiness?: Value;
+  templateCategories?: Value[];
   connection?: Value | null;
   runs?: Value[];
   time?: Value[];
@@ -384,83 +386,115 @@ function EmailWorkbench({
   data: Data;
   organizationSlug: string;
 }) {
+  const readiness = data.readiness ?? {};
   return (
     <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
-      <form action={composeEmail} className="ck-card h-fit p-5">
-        <input name="organizationSlug" type="hidden" value={organizationSlug} />
-        <div className="flex items-center gap-2 font-semibold">
-          <Mail className="text-[#9b7420]" size={18} />
-          Compose operational email
-        </div>
-        <p className="mt-2 text-xs leading-5 text-slate-500">
-          Messages are tenant-scoped, auditable, and queued for MailerSend when
-          configured.
-        </p>
-        <div className="mt-5 grid gap-4">
-          <label className="text-xs font-semibold text-slate-600">
-            Template
-            <select className="ck-input mt-2" name="templateId">
-              <option value="">No template</option>
-              {(data.templates ?? []).map((template) => (
-                <option key={String(template.id)} value={String(template.id)}>
-                  {String(template.name)} · {String(template.category)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs font-semibold text-slate-600">
-            Recipient
-            <select className="ck-input mt-2" name="recipientEmail" required>
-              <option value="">Choose a contact</option>
-              {(data.contacts ?? []).map((contact) => (
-                <option key={String(contact.id)} value={String(contact.email)}>
-                  {String(contact.name)} · {String(contact.email)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs font-semibold text-slate-600">
-            Recipient name
-            <input className="ck-input mt-2" name="recipientName" />
-          </label>
-          <label className="text-xs font-semibold text-slate-600">
-            Subject
-            <input className="ck-input mt-2" name="subject" required />
-          </label>
-          <div className="grid gap-3 sm:grid-cols-2">
+      <aside className="space-y-4">
+        <section className="ck-card p-5">
+          <div className="flex items-center gap-2 font-semibold">
+            <ShieldCheck className="text-[#9b7420]" size={18} />
+            Delivery readiness
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            {[
+              ["Provider", readiness.providerConfigured ? "Ready" : "Missing"],
+              ["Contacts", readiness.emailableContacts ?? 0],
+              ["Templates", readiness.activeTemplates ?? 0],
+              ["Failures", readiness.failedMessages ?? 0],
+            ].map(([label, value]) => (
+              <div className="rounded-lg border bg-white p-3" key={String(label)}>
+                <div className="text-[10px] font-bold uppercase text-slate-400">
+                  {String(label)}
+                </div>
+                <div className="mt-1 font-semibold">{String(value)}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 space-y-2">
+            {(data.templateCategories ?? []).map((category) => (
+              <div className="flex items-center justify-between rounded-lg bg-[#f8f5ef] p-3 text-xs" key={String(category.category)}>
+                <span>{String(category.category)}</span>
+                <strong>{String(category.active)} active / {String(category.templates)} total</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+        <form action={composeEmail} className="ck-card h-fit p-5">
+          <input name="organizationSlug" type="hidden" value={organizationSlug} />
+          <div className="flex items-center gap-2 font-semibold">
+            <Mail className="text-[#9b7420]" size={18} />
+            Compose operational email
+          </div>
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            Messages are tenant-scoped, auditable, linked to records, and queued
+            when the provider is configured.
+          </p>
+          <div className="mt-5 grid gap-4">
             <label className="text-xs font-semibold text-slate-600">
-              Related record type
-              <select className="ck-input mt-2" name="relatedType">
-                <option value="">None</option>
-                <option value="INVOICE">Invoice</option>
-                <option value="CASE">Case</option>
-                <option value="DEAL">Deal</option>
-                <option value="SUBMISSION">Form submission</option>
+              Template
+              <select className="ck-input mt-2" name="templateId">
+                <option value="">No template</option>
+                {(data.templates ?? []).map((template) => (
+                  <option key={String(template.id)} value={String(template.id)}>
+                    {String(template.name)} - {String(template.category)}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="text-xs font-semibold text-slate-600">
-              Related ID
-              <input className="ck-input mt-2" name="relatedId" />
+              Recipient
+              <select className="ck-input mt-2" name="recipientEmail" required>
+                <option value="">Choose a contact</option>
+                {(data.contacts ?? []).map((contact) => (
+                  <option key={String(contact.id)} value={String(contact.email)}>
+                    {String(contact.name)} - {String(contact.email)}
+                  </option>
+                ))}
+              </select>
             </label>
+            <label className="text-xs font-semibold text-slate-600">
+              Recipient name
+              <input className="ck-input mt-2" name="recipientName" />
+            </label>
+            <label className="text-xs font-semibold text-slate-600">
+              Subject
+              <input className="ck-input mt-2" name="subject" required />
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-semibold text-slate-600">
+                Related record type
+                <select className="ck-input mt-2" name="relatedType">
+                  <option value="">None</option>
+                  <option value="INVOICE">Invoice</option>
+                  <option value="CASE">Case</option>
+                  <option value="DEAL">Deal</option>
+                  <option value="SUBMISSION">Form submission</option>
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Related ID
+                <input className="ck-input mt-2" name="relatedId" />
+              </label>
+            </div>
+            <label className="text-xs font-semibold text-slate-600">
+              Message
+              <textarea
+                className="ck-input mt-2 min-h-36 py-3"
+                name="body"
+                required
+              />
+            </label>
+            <button className="ck-button" type="submit">
+              <Send size={14} />
+              Queue message
+            </button>
           </div>
-          <label className="text-xs font-semibold text-slate-600">
-            Message
-            <textarea
-              className="ck-input mt-2 min-h-36 py-3"
-              name="body"
-              required
-            />
-          </label>
-          <button className="ck-button" type="submit">
-            <Send size={14} />
-            Queue message
-          </button>
-        </div>
-      </form>
+        </form>
+      </aside>
       <section className="space-y-3">
         {(data.records ?? []).map((message) => (
           <article
-            className="ck-card flex flex-wrap items-center justify-between gap-4 p-5"
+            className="ck-card grid gap-4 p-5 lg:grid-cols-[1fr_220px]"
             key={String(message.id)}
           >
             <div>
@@ -487,12 +521,18 @@ function EmailWorkbench({
                   ? new Date(String(message.sentAt)).toLocaleString()
                   : "Not sent yet"}
               </p>
+              {Boolean(message.error) && (
+                <p className="mt-2 rounded-lg bg-red-50 p-3 text-xs text-red-700">
+                  {String(message.error)}
+                </p>
+              )}
             </div>
-            {Boolean(message.relatedType) && (
-              <span className="rounded-lg bg-[#f8f5ef] px-3 py-2 text-xs font-semibold">
-                {String(message.relatedType)}
-              </span>
-            )}
+            <div className="rounded-lg bg-[#f8f5ef] p-3 text-xs">
+              <div className="font-bold uppercase text-slate-400">Record link</div>
+              <div className="mt-1 font-semibold">{String(message.relatedType ?? "Unlinked")}</div>
+              <div className="mt-3 font-bold uppercase text-slate-400">Provider ID</div>
+              <div className="mt-1 break-all font-mono">{String(message.providerMessageId ?? "Pending")}</div>
+            </div>
           </article>
         ))}
       </section>

@@ -2401,6 +2401,142 @@ export async function updateEndpointSubmission(formData: FormData) {
   revalidatePath(`/app/${input.organizationSlug}/submissions`);
 }
 
+function submissionText(payload: Prisma.JsonValue, keys: string[]) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return "";
+  const record = payload as Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+export async function promoteEndpointSubmission(formData: FormData) {
+  const input = entityActionSchema
+    .extend({
+      command: z.enum(["CREATE_LEAD", "CREATE_CASE", "SAVE_CONTACT"]),
+    })
+    .parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    input.command === "CREATE_CASE"
+      ? "cases.write"
+      : input.command === "CREATE_LEAD"
+        ? "leads.write"
+        : "contacts.write",
+  );
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  const before = await db.endpointSubmission.findFirstOrThrow({
+    where: { id: input.entityId, organizationId: organization.id },
+  });
+  const name = submissionText(before.payloadJson, ["name", "fullName", "customerName"]) || "Website inquiry";
+  const [firstName, ...rest] = name.split(" ");
+  const lastName = rest.join(" ") || null;
+  const email = submissionText(before.payloadJson, ["email", "emailAddress"]);
+  const phone = submissionText(before.payloadJson, ["phone", "phoneNumber", "mobile"]);
+  const company = submissionText(before.payloadJson, ["company", "business", "organization"]);
+  const subject = submissionText(before.payloadJson, ["subject", "topic"]) || before.submissionType.replaceAll("_", " ");
+  const message = submissionText(before.payloadJson, ["message", "notes", "details", "description"]);
+
+  const result = await db.$transaction(async (tx) => {
+    let entityType = "EndpointSubmission";
+    let entityId = before.id;
+    let contactId = before.contactId;
+    if (input.command === "SAVE_CONTACT") {
+      const contact = await tx.contact.create({
+        data: {
+          organizationId: organization.id,
+          firstName,
+          lastName,
+          email: email || null,
+          phone: phone || null,
+          lifecycleStatus: "LEAD",
+          customFields: { source: "Endpoint submission", submissionId: before.id },
+        },
+      });
+      contactId = contact.id;
+      entityType = "Contact";
+      entityId = contact.id;
+    } else if (input.command === "CREATE_LEAD") {
+      const lead = await tx.lead.create({
+        data: {
+          organizationId: organization.id,
+          firstName,
+          lastName,
+          company: company || null,
+          email: email || null,
+          phone: phone || null,
+          source: "Endpoint form",
+          status: "NEW",
+          rating: message.length > 120 ? "HIGH_INTENT" : "UNRATED",
+          score: Math.min(100, 35 + (email ? 20 : 0) + (phone ? 15 : 0) + (message.length > 80 ? 20 : 0)),
+        },
+      });
+      entityType = "Lead";
+      entityId = lead.id;
+    } else {
+      const count = await tx.supportCase.count({
+        where: { organizationId: organization.id },
+      });
+      const supportCase = await tx.supportCase.create({
+        data: {
+          organizationId: organization.id,
+          contactId,
+          caseNumber: `CS-${String(count + 1).padStart(5, "0")}`,
+          subject,
+          description: message || JSON.stringify(before.payloadJson),
+          status: "NEW",
+          priority: message.toLowerCase().includes("urgent") ? "HIGH" : "NORMAL",
+          ownerUserId: user.id,
+        },
+      });
+      entityType = "SupportCase";
+      entityId = supportCase.id;
+    }
+    const submission = await tx.endpointSubmission.update({
+      where: { id: before.id },
+      data: {
+        status: "IN_REVIEW",
+        contactId,
+      },
+    });
+    await tx.task.create({
+      data: {
+        organizationId: organization.id,
+        title:
+          input.command === "CREATE_CASE"
+            ? `Respond to ${subject}`
+            : `Follow up with ${name}`,
+        description: message || "Promoted from endpoint submission.",
+        priority: input.command === "CREATE_CASE" ? "HIGH" : "NORMAL",
+        dueAt: new Date(Date.now() + 86_400_000),
+        relatedType: entityType,
+        relatedId: entityId,
+        createdById: user.id,
+        assignedToId: user.id,
+      },
+    });
+    return { submission, entityType, entityId };
+  });
+
+  await appendAuditEvent({
+    organizationId: organization.id,
+    actorUserId: user.id,
+    action: `endpoint_submission.${input.command.toLowerCase()}`,
+    entityType: result.entityType,
+    entityId: result.entityId,
+    before,
+    after: result,
+    category: "BUSINESS",
+  });
+  revalidatePath(`/app/${input.organizationSlug}/submissions`);
+  revalidatePath(`/app/${input.organizationSlug}/leads`);
+  revalidatePath(`/app/${input.organizationSlug}/cases`);
+  revalidatePath(`/app/${input.organizationSlug}/contacts`);
+  revalidatePath(`/app/${input.organizationSlug}/tasks`);
+}
+
 export async function updateBooking(formData: FormData) {
   const input = entityActionSchema
     .extend({
@@ -3585,6 +3721,52 @@ export async function updateProductOperations(formData: FormData) {
     category: "BUSINESS",
   });
   revalidatePath(`/app/${input.organizationSlug}/products`);
+}
+
+export async function createProductReorderTask(formData: FormData) {
+  const input = entityActionSchema
+    .extend({
+      reorderQuantity: z.coerce.number().min(0).optional().default(0),
+    })
+    .parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    "products.write",
+  );
+  if (!user) throw new Error("A signed-in user is required");
+  const product = await getDb().product.findFirstOrThrow({
+    where: { id: input.entityId, organizationId: organization.id },
+  });
+  const quantity =
+    input.reorderQuantity ||
+    Math.max(
+      1,
+      Number(product.reorderLevel ?? 0) * 2 - Number(product.quantityOnHand),
+    );
+  const task = await getDb().task.create({
+    data: {
+      organizationId: organization.id,
+      title: `Reorder ${product.name}`,
+      description: `Order ${quantity} unit(s). SKU: ${product.sku ?? "unassigned"}. Current stock: ${Number(product.quantityOnHand)}. Reorder point: ${Number(product.reorderLevel ?? 0)}.`,
+      priority: Number(product.quantityOnHand) <= 0 ? "HIGH" : "NORMAL",
+      dueAt: new Date(Date.now() + 86_400_000),
+      relatedType: "Product",
+      relatedId: product.id,
+      createdById: user.id,
+      assignedToId: user.id,
+    },
+  });
+  await appendAuditEvent({
+    organizationId: organization.id,
+    actorUserId: user.id,
+    action: "product.reorder_task_created",
+    entityType: "Task",
+    entityId: task.id,
+    after: { productId: product.id, quantity },
+    category: "BUSINESS",
+  });
+  revalidatePath(`/app/${input.organizationSlug}/products`);
+  revalidatePath(`/app/${input.organizationSlug}/tasks`);
 }
 
 export async function markNotifications(formData: FormData) {

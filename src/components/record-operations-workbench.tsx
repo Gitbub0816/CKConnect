@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import {
   addEntityNote,
+  createProductReorderTask,
   manageTaxDocument,
   markNotifications,
   updateProductOperations,
@@ -181,6 +182,14 @@ function ProductsWorkbench({
                   Order {Number(product.reorderQuantity)} unit(s) to restore the
                   working level.
                 </p>
+                <form action={createProductReorderTask} className="mt-3">
+                  <input name="organizationSlug" type="hidden" value={organizationSlug} />
+                  <input name="entityId" type="hidden" value={String(product.id)} />
+                  <input name="reorderQuantity" type="hidden" value={Number(product.reorderQuantity)} />
+                  <button className="ck-button ck-button-secondary !min-h-9 w-full" type="submit">
+                    Create reorder task
+                  </button>
+                </form>
               </div>
             ))}
             {!reorderQueue.length && (
