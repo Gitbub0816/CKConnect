@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 
 type SidebarItem = {
+  children?: { label: string; slug: string }[];
   feature?: string;
   icon: LucideIcon;
   label: string;
@@ -81,7 +82,24 @@ const sections: SidebarSection[] = [
       { slug: "payments", label: "Payments", icon: CircleDollarSign, feature: "accounting" },
       { slug: "expenses", label: "Expenses", icon: Receipt, feature: "accounting" },
       { slug: "vendors", label: "Vendors & bills", icon: HandCoins, feature: "accounting" },
-      { slug: "accounting", label: "Accounting", icon: BookOpen, feature: "accounting" },
+      {
+        slug: "accounting",
+        label: "Accounting",
+        icon: BookOpen,
+        feature: "accounting",
+        children: [
+          { slug: "sales-invoices", label: "Invoices" },
+          { slug: "payments-deposits", label: "Payments" },
+          { slug: "vendors-bills", label: "Bills" },
+          { slug: "expenses-receipts", label: "Expenses" },
+          { slug: "bank-transactions", label: "Bank feed" },
+          { slug: "reconciliation", label: "Reconcile" },
+          { slug: "chart-of-accounts", label: "Chart" },
+          { slug: "journal", label: "Journal" },
+          { slug: "close-books", label: "Close" },
+          { slug: "reports", label: "Reports" },
+        ],
+      },
       { slug: "banking", label: "Banking", icon: Landmark, feature: "banking" },
       { slug: "products", label: "Products", icon: Boxes },
       { slug: "payroll", label: "Payroll", icon: BadgeDollarSign, feature: "payroll" },
@@ -235,6 +253,7 @@ export function AppSidebar({
                     const selected = active === item.slug;
                     const Icon = item.icon;
                     return (
+                      <div key={item.slug}>
                       <Link
                         className={`flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition ${
                           selected
@@ -244,13 +263,27 @@ export function AppSidebar({
                         href={
                           item.slug === "dashboard" ? base : `${base}/${item.slug}`
                         }
-                        key={item.slug}
                         onClick={persistScroll}
                         title={isRail ? item.label : undefined}
                       >
                         <Icon className="shrink-0" size={16} />
                         {!isRail && <span className="truncate">{item.label}</span>}
                       </Link>
+                      {selected && item.children && !isRail && (
+                        <div className="ml-7 mt-1 grid gap-1 border-l border-white/10 pl-2">
+                          {item.children.map((child) => (
+                            <Link
+                              className="rounded-md px-2 py-1.5 text-[12px] text-slate-400 transition hover:bg-white/7 hover:text-white"
+                              href={`${base}/${item.slug}/${child.slug}`}
+                              key={child.slug}
+                              onClick={persistScroll}
+                            >
+                              {child.label}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                      </div>
                     );
                   })}
                 </div>

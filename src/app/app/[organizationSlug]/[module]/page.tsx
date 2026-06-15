@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { AppearanceStudio } from "@/components/appearance-studio";
 import { AppShell } from "@/components/app-shell";
+import { AccountingSuite } from "@/components/accounting-suite";
 import { ModulePage } from "@/components/module-page";
 import { getModuleData, getPublishedEndpoint } from "@/lib/workspace-data";
 import { requireOrganizationAccess } from "@/lib/authorization";
@@ -115,11 +116,25 @@ export default async function WorkspaceModulePage({
           organizationSlug={organizationSlug}
         />
       ) : (
-        <ModulePage
-          data={data!}
-          module={module}
-          organizationSlug={organizationSlug}
-        />
+        module === "accounting" ? (
+          <AccountingSuite
+            activeSection="overview"
+            organizationSlug={organizationSlug}
+          >
+            <ModulePage
+              data={data!}
+              embedded
+              module={module}
+              organizationSlug={organizationSlug}
+            />
+          </AccountingSuite>
+        ) : (
+          <ModulePage
+            data={data!}
+            module={module}
+            organizationSlug={organizationSlug}
+          />
+        )
       )}
     </AppShell>
   );

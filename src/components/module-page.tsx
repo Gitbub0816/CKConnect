@@ -507,10 +507,12 @@ export function ModulePage({
   module,
   data,
   organizationSlug,
+  embedded = false,
 }: {
   module: string;
   data: ModuleData;
   organizationSlug: string;
+  embedded?: boolean;
 }) {
   const config = copy[module] ?? {
     title: module.replaceAll("-", " "),
@@ -621,15 +623,25 @@ export function ModulePage({
     <DataExplorer module={module} records={data.records ?? []} />
   );
   return (
-    <div className="p-5 lg:p-7">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className={embedded ? "" : "p-5 lg:p-7"}>
+      <div
+        className={`flex flex-wrap items-end justify-between gap-4 ${embedded ? "rounded-lg border bg-white p-4" : ""}`}
+      >
         <div>
-          <div className="ck-eyebrow">
-            {organizationSlug.replaceAll("-", " ")}
-          </div>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-            {config.title}
-          </h1>
+          {!embedded && (
+            <div className="ck-eyebrow">
+              {organizationSlug.replaceAll("-", " ")}
+            </div>
+          )}
+          {embedded ? (
+            <h2 className="text-xl font-semibold tracking-tight">
+              {config.title}
+            </h2>
+          ) : (
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+              {config.title}
+            </h1>
+          )}
           <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
             {config.description}
           </p>
