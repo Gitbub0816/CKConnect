@@ -10,6 +10,14 @@ export const metadata: Metadata = {
     template: "%s | ClearKey Connect",
   },
   description: "CRM, operations, payments, and double-entry accounting for growing businesses.",
+  icons: {
+    icon: [
+      { url: "/icon.png", type: "image/png" },
+      { url: "/logo.png", type: "image/png" },
+    ],
+    shortcut: "/icon.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({
