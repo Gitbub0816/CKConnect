@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { Activity, Building2, Headphones, ScrollText, ShieldCheck } from "lucide-react";
 import { requirePlatformAdmin } from "@/lib/admin-authorization";
