@@ -3,9 +3,12 @@ import {
   AccountingSuite,
   getAccountingSection,
 } from "@/components/accounting-suite";
+import {
+  AccountingAddendumWorkspace,
+  CrmAddendumWorkspace,
+} from "@/components/addendum-workspaces";
 import { AppShell } from "@/components/app-shell";
 import { CrmSuite, getCrmSection } from "@/components/crm-suite";
-import { ModulePage } from "@/components/module-page";
 import { requireOrganizationAccess } from "@/lib/authorization";
 import { getModuleData } from "@/lib/workspace-data";
 
@@ -32,18 +35,36 @@ export default async function WorkspaceModuleSectionPage({
       : `${suiteSection.module}.read`,
   );
 
-  const data = await getModuleData(organizationSlug, suiteSection.module);
-  if (!data) notFound();
+  const bundleModules =
+    module === "crm"
+      ? ["leads", "accounts", "contacts", "deals", "cases", "tasks", "invoices"]
+      : [
+          "accounting",
+          "invoices",
+          "payments",
+          "vendors",
+          "expenses",
+          "banking",
+          "products",
+        ];
+  const bundle = Object.fromEntries(
+    await Promise.all(
+      bundleModules.map(async (key) => [
+        key,
+        await getModuleData(organizationSlug, key),
+      ]),
+    ),
+  );
+  if (!bundle[suiteSection.module]) notFound();
 
   if (module === "crm") {
     return (
       <AppShell active="crm" organizationSlug={organizationSlug}>
         <CrmSuite activeSection={suiteSection.slug} organizationSlug={organizationSlug}>
-          <ModulePage
-            data={data}
-            embedded
-            module={suiteSection.module}
+          <CrmAddendumWorkspace
+            data={bundle}
             organizationSlug={organizationSlug}
+            section={suiteSection.slug}
           />
         </CrmSuite>
       </AppShell>
@@ -56,10 +77,8 @@ export default async function WorkspaceModuleSectionPage({
         activeSection={suiteSection.slug}
         organizationSlug={organizationSlug}
       >
-        <ModulePage
-          data={data}
-          embedded
-          module={suiteSection.module}
+        <AccountingAddendumWorkspace
+          data={bundle}
           organizationSlug={organizationSlug}
         />
       </AccountingSuite>

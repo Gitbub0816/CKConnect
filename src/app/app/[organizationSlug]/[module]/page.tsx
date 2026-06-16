@@ -2,6 +2,10 @@ import { notFound } from "next/navigation";
 import { AppearanceStudio } from "@/components/appearance-studio";
 import { AppShell } from "@/components/app-shell";
 import { AccountingSuite } from "@/components/accounting-suite";
+import {
+  AccountingAddendumWorkspace,
+  CrmAddendumWorkspace,
+} from "@/components/addendum-workspaces";
 import { CrmSuite } from "@/components/crm-suite";
 import { ModulePage } from "@/components/module-page";
 import { getModuleData, getPublishedEndpoint } from "@/lib/workspace-data";
@@ -97,13 +101,36 @@ export default async function WorkspaceModulePage({
     module === "appearance"
       ? await getPublishedEndpoint(organizationSlug)
       : null;
+  const bundleModules =
+    module === "crm"
+      ? ["leads", "accounts", "contacts", "deals", "cases", "tasks", "invoices"]
+      : module === "accounting"
+        ? [
+            "accounting",
+            "invoices",
+            "payments",
+            "vendors",
+            "expenses",
+            "banking",
+            "products",
+          ]
+        : [];
+  const bundle = bundleModules.length
+    ? Object.fromEntries(
+        await Promise.all(
+          bundleModules.map(async (key) => [
+            key,
+            await getModuleData(organizationSlug, key),
+          ]),
+        ),
+      )
+    : null;
   const data =
     module === "appearance"
       ? null
-      : await getModuleData(
-          organizationSlug,
-          module === "crm" ? "accounts" : module,
-        );
+      : bundle
+        ? null
+        : await getModuleData(organizationSlug, module);
   if (
     module === "appearance" &&
     (!endpoint || !endpoint.theme || !endpoint.endpointPages[0])
@@ -126,10 +153,8 @@ export default async function WorkspaceModulePage({
       ) : (
         module === "crm" ? (
           <CrmSuite activeSection="overview" organizationSlug={organizationSlug}>
-            <ModulePage
-              data={data!}
-              embedded
-              module="accounts"
+            <CrmAddendumWorkspace
+              data={bundle!}
               organizationSlug={organizationSlug}
             />
           </CrmSuite>
@@ -138,10 +163,8 @@ export default async function WorkspaceModulePage({
             activeSection="overview"
             organizationSlug={organizationSlug}
           >
-            <ModulePage
-              data={data!}
-              embedded
-              module={module}
+            <AccountingAddendumWorkspace
+              data={bundle!}
               organizationSlug={organizationSlug}
             />
           </AccountingSuite>

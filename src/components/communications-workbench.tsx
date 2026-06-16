@@ -5,7 +5,7 @@ import {
   startStripeCustomerPayments,
   updatePaymentProvider,
 } from "@/app/app/[organizationSlug]/actions";
-import { CollaborationWorkspace } from "@/components/collaboration-workspace";
+import { CollaborationAddendumWorkspace } from "@/components/addendum-workspaces";
 
 type Value = Record<string, unknown>;
 type Data = { records?: Value[]; calendar?: Value[]; transactions?: Value[] };
@@ -471,10 +471,9 @@ export function CommunicationsWorkbench({
 }) {
   if (module === "collaboration")
     return (
-      <CollaborationWorkspace
+      <CollaborationAddendumWorkspace
         channels={data.records ?? []}
         calendar={data.calendar ?? []}
-        organizationSlug={organizationSlug}
       />
     );
   if (module === "support")
