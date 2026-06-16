@@ -20,19 +20,19 @@ export async function AppShell({
     unknown
   > | null;
   const shellStyle = {
-    "--console-primary": theme?.consolePrimaryColor ?? "#c9a033",
-    "--console-sidebar": theme?.consoleSidebarColor ?? "#1c1917",
-    "--background": theme?.consoleBackgroundColor ?? "#f5f0e8",
-    "--surface": theme?.consoleSurfaceColor ?? "#ffffff",
-    "--surface-muted": `color-mix(in srgb, ${theme?.consoleSurfaceColor ?? "#ffffff"} 92%, ${theme?.consoleBackgroundColor ?? "#f5f0e8"})`,
-    "--foreground": theme?.consoleTextColor ?? "#1c1917",
-    "--muted": theme?.consoleMutedColor ?? "#746c64",
-    "--primary": theme?.consolePrimaryColor ?? "#c9a033",
-    "--primary-strong": theme?.consolePrimaryColor ?? "#c9a033",
-    "--radius": `${theme?.consoleRadius ?? 8}px`,
+    "--console-primary": theme?.consolePrimaryColor ?? "#5B5FCF",
+    "--console-sidebar": theme?.consoleSidebarColor ?? "#15171E",
+    "--background": theme?.consoleBackgroundColor ?? "#F7F8FA",
+    "--surface": theme?.consoleSurfaceColor ?? "#FFFFFF",
+    "--surface-muted": `color-mix(in srgb, ${theme?.consoleSurfaceColor ?? "#FFFFFF"} 88%, ${theme?.consoleBackgroundColor ?? "#F7F8FA"})`,
+    "--foreground": theme?.consoleTextColor ?? "#0F1117",
+    "--muted": theme?.consoleMutedColor ?? "#52576B",
+    "--primary": theme?.consolePrimaryColor ?? "#5B5FCF",
+    "--primary-strong": theme?.consolePrimaryColor ?? "#393DAD",
+    "--radius": `${theme?.consoleRadius ?? 14}px`,
     fontFamily: theme?.consoleFont ?? "Geist",
     backgroundImage: theme?.consoleBackgroundImageUrl
-      ? `linear-gradient(rgb(245 240 232 / 92%), rgb(245 240 232 / 92%)), url("${theme.consoleBackgroundImageUrl}")`
+      ? `linear-gradient(rgb(247 248 250 / 94%), rgb(247 248 250 / 94%)), url("${theme.consoleBackgroundImageUrl}")`
       : undefined,
     backgroundSize: "cover",
     backgroundAttachment: "fixed",
@@ -40,7 +40,7 @@ export async function AppShell({
 
   return (
     <div
-      className={`ck-app-shell grid min-h-screen lg:h-screen lg:overflow-hidden ${theme?.consoleNavigationStyle === "rail" ? "lg:grid-cols-[82px_1fr]" : "lg:grid-cols-[258px_1fr]"} ${theme?.consoleDensity === "compact" ? "console-compact" : theme?.consoleDensity === "spacious" ? "console-spacious" : ""}`}
+      className={`ck-app-shell grid min-h-screen lg:h-screen lg:overflow-hidden ${theme?.consoleNavigationStyle === "rail" ? "lg:grid-cols-[82px_1fr]" : "lg:grid-cols-[280px_1fr]"} ${theme?.consoleDensity === "compact" ? "console-compact" : theme?.consoleDensity === "spacious" ? "console-spacious" : ""}`}
       style={shellStyle}
     >
       <AppSidebar
@@ -53,13 +53,10 @@ export async function AppShell({
         title={theme?.consoleTitle ?? organization?.name ?? "ClearKey Connect"}
       />
       <div className="flex min-w-0 flex-col lg:h-screen lg:overflow-y-auto">
-        <header
-          className="flex h-16 shrink-0 items-center justify-between border-b px-5 lg:px-7"
-          style={{ background: theme?.consoleHeaderColor ?? "#ffffff" }}
-        >
+        <header className="ck-topbar flex h-16 shrink-0 items-center justify-between border-b px-5 lg:px-7">
           <div>
-            <div className="text-xs text-slate-500">ClearKey workspace</div>
-            <div className="text-sm font-semibold capitalize">
+            <div className="ck-section-label">ClearKey workspace</div>
+            <div className="text-sm font-semibold capitalize text-[var(--ck-ink-primary)]">
               {organizationSlug.replaceAll("-", " ")}
             </div>
           </div>
@@ -70,13 +67,13 @@ export async function AppShell({
             >
               View client endpoint
             </Link>
-            <div className="grid size-9 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white">
+            <div className="grid size-9 place-items-center rounded-full bg-[var(--ck-chrome-base)] text-xs font-semibold text-white shadow-sm">
               CB
             </div>
           </div>
         </header>
         <main className="flex-1">{children}</main>
-        <footer className="flex flex-wrap items-center justify-between gap-3 border-t bg-white px-5 py-3 text-[10px] text-slate-400 lg:px-7">
+        <footer className="ck-app-footer flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3 text-[10px] lg:px-7">
           <span>ClearKey Connect - Tenant {organization?.publicId}</span>
           <span>
             <Link href="/legal/terms">Terms</Link> -{" "}

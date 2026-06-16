@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import {
   ArrowRight,
   BarChart3,
@@ -140,9 +141,26 @@ export function Dashboard({ data }: { data: DashboardData }) {
     rose: "border-rose-200 bg-rose-50/50 text-rose-900",
   };
   return (
-    <div className="p-5 lg:p-7">
-      <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
-        <div><div className="ck-eyebrow">{data.organization.name}</div><h1 className="mt-2 text-3xl font-semibold tracking-tight">Business command center</h1><p className="mt-1 text-sm text-slate-500">Live operational, customer, and financial signals from one tenant record.</p></div>
+    <div
+      className="ck-module-page p-5 lg:p-7"
+      style={
+        { "--module-tint": "#5B5FCF" } as CSSProperties &
+          Record<"--module-tint", string>
+      }
+    >
+      <div className="ck-module-header mb-5 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="ck-module-pill">Command</span>
+            <div className="ck-section-label">{data.organization.name}</div>
+          </div>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+            Business command center
+          </h1>
+          <p className="mt-1 text-sm text-[var(--ck-ink-secondary)]">
+            Live operational, customer, and financial signals from one tenant record.
+          </p>
+        </div>
         <div className="flex flex-wrap gap-2">
           <details className="group relative">
             <summary className="ck-button !min-h-11 cursor-pointer list-none">
@@ -330,11 +348,17 @@ export function Dashboard({ data }: { data: DashboardData }) {
           <Link className="ck-button ck-button-secondary !min-h-11" href={`${base}/invoices`}>Create invoice</Link>
         </div>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map(({ label, value, note, icon: Icon }, index) => <article className="ck-card relative overflow-hidden p-5" key={label}><div className="absolute inset-y-0 left-0 w-1 bg-[#c9a033]" style={{ opacity: .35 + index * .14 }} /><div className="flex items-start justify-between"><div><div className="text-[10px] font-bold uppercase tracking-[.14em] text-slate-500">{label}</div><div className="mt-2 text-2xl font-semibold">{formatCurrency(value)}</div><div className="mt-2 text-xs text-slate-500">{note}</div></div><Icon className="text-[#9b7420]" size={19} /></div></article>)}
+      <nav className="ck-module-tabs mb-6" aria-label="Dashboard sections">
+        <a className="is-active" href="#signals">Signals</a>
+        <a href="#saved-dashboards">Dashboards</a>
+        <a href="#pipeline">Pipeline</a>
+        <a href="#queue">Queue</a>
+      </nav>
+      <div className="ck-metric-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4" id="signals">
+        {stats.map(({ label, value, note, icon: Icon }, index) => <article className="ck-card ck-metric-card relative overflow-hidden p-5" key={label}><div className="absolute inset-y-0 left-0 w-1 bg-[var(--module-tint)]" style={{ opacity: .35 + index * .14 }} /><div className="flex items-start justify-between"><div><div className="ck-section-label">{label}</div><div className="data-metric mt-2 text-2xl font-semibold">{formatCurrency(value)}</div><div className="mt-2 text-xs text-slate-500">{note}</div></div><Icon className="text-[var(--module-tint)]" size={19} /></div></article>)}
       </div>
       {savedDashboards.length > 0 && (
-        <section className="mt-4 grid gap-4 xl:grid-cols-2">
+        <section className="mt-4 grid gap-4 xl:grid-cols-2" id="saved-dashboards">
           {savedDashboards.map((dashboard) => {
             const widgetKeys = dashboard.config?.widgets?.length
               ? dashboard.config.widgets

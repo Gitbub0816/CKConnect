@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { ArrowRight, CircleDollarSign, Sparkles } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { QuickCreate } from "@/components/quick-create";
@@ -322,6 +323,39 @@ const labels: Record<string, string> = {
   healthyRecords: "Healthy",
 };
 
+const moduleMeta: Record<
+  string,
+  { center: string; tint: string; tabs: string[] }
+> = {
+  dashboard: { center: "Command", tint: "#5B5FCF", tabs: ["Signals", "Dashboards", "Queue", "Insights"] },
+  leads: { center: "CRM", tint: "#0EA5E9", tabs: ["Queue", "Scoring", "Conversion", "Segments"] },
+  accounts: { center: "CRM", tint: "#0EA5E9", tabs: ["Companies", "Health", "Revenue", "Timeline"] },
+  contacts: { center: "CRM", tint: "#0EA5E9", tabs: ["People", "Activity", "Lists", "Duplicates"] },
+  deals: { center: "CRM", tint: "#0EA5E9", tabs: ["Pipeline", "Forecast", "Products", "Stage rules"] },
+  cases: { center: "Service", tint: "#EF4444", tabs: ["Triage", "SLA", "Knowledge", "History"] },
+  campaigns: { center: "CRM", tint: "#0EA5E9", tabs: ["Audience", "Journey", "Responses", "ROI"] },
+  tasks: { center: "Operations", tint: "#5B5FCF", tabs: ["Mine", "Queues", "Approvals", "Rules"] },
+  calendar: { center: "Scheduling", tint: "#F97316", tabs: ["Calendar", "Agenda", "Bookings", "Resources"] },
+  bookings: { center: "Scheduling", tint: "#F97316", tabs: ["Requests", "Capacity", "Routes", "Rules"] },
+  collaboration: { center: "Collaboration", tint: "#3B82F6", tabs: ["Channels", "Customer spaces", "Meetings", "Files"] },
+  invoices: { center: "Accounting", tint: "#10B981", tabs: ["Invoices", "Collections", "PDFs", "Posting"] },
+  payments: { center: "Accounting", tint: "#10B981", tabs: ["Payments", "Deposits", "Refunds", "Processors"] },
+  expenses: { center: "Accounting", tint: "#10B981", tabs: ["Expenses", "Receipts", "Rules", "Posting"] },
+  vendors: { center: "Accounting", tint: "#10B981", tabs: ["Vendors", "Bills", "1099", "Payables"] },
+  accounting: { center: "Accounting", tint: "#10B981", tabs: ["Ledger", "COA", "Reconcile", "Reports", "Close"] },
+  banking: { center: "Accounting", tint: "#10B981", tabs: ["Feeds", "Matching", "Rules", "Reconcile"] },
+  products: { center: "Inventory", tint: "#10B981", tabs: ["Catalog", "Inventory", "Pricing", "Purchasing"] },
+  payroll: { center: "Payroll", tint: "#8B5CF6", tabs: ["Runs", "People", "Time", "Liabilities"] },
+  "tax-documents": { center: "Tax", tint: "#F59E0B", tabs: ["1099s", "Review", "Filing", "Archive"] },
+  email: { center: "Email", tint: "#06B6D4", tabs: ["Compose", "Mailboxes", "Templates", "Sync"] },
+  websites: { center: "Website", tint: "#EC4899", tabs: ["Pages", "Builder", "Assets", "Publish"] },
+  domains: { center: "Domains", tint: "#A855F7", tabs: ["Domains", "DNS", "SSL", "Mail auth"] },
+  integrations: { center: "Integrations", tint: "#A855F7", tabs: ["Connections", "Sync", "Webhooks", "Recovery"] },
+  support: { center: "Support", tint: "#EF4444", tabs: ["Tickets", "Context", "Replies", "History"] },
+  compliance: { center: "Compliance", tint: "#F59E0B", tabs: ["Controls", "Evidence", "Privacy", "AI governance"] },
+  settings: { center: "Settings", tint: "#6B7280", tabs: ["Profile", "Security", "Modules", "Policies"] },
+};
+
 const moneyFields = new Set([
   "value",
   "pipeline",
@@ -377,20 +411,20 @@ function display(value: unknown, key: string) {
 
 function MetricGrid({ metrics = [] }: { metrics?: Metric[] }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="ck-metric-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {metrics.map((metric, index) => (
         <article
-          className="ck-card relative overflow-hidden p-5"
+          className="ck-card ck-metric-card relative overflow-hidden p-5"
           key={metric.label}
         >
           <div
-            className="absolute inset-y-0 left-0 w-1 bg-[#c9a033]"
+            className="absolute inset-y-0 left-0 w-1 bg-[var(--module-tint)]"
             style={{ opacity: 0.35 + index * 0.16 }}
           />
-          <div className="text-[10px] font-bold uppercase tracking-[.14em] text-slate-500">
+          <div className="ck-section-label">
             {metric.label}
           </div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight">
+          <div className="mt-2 text-2xl font-semibold tracking-tight data-metric">
             {metric.format === "currency"
               ? formatCurrency(metric.value)
               : metric.value.toLocaleString()}
@@ -413,8 +447,8 @@ function DataTable({ records = [] }: { records?: Record<string, unknown>[] }) {
     : [];
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[760px] border-collapse text-left text-sm">
-        <thead className="bg-[#f8f5ef] text-[10px] uppercase tracking-[.12em] text-slate-500">
+      <table className="ck-data-table w-full min-w-[760px] border-collapse text-left text-sm">
+        <thead>
           <tr>
             {columns.map((column) => (
               <th className="border-b px-4 py-3 font-bold" key={column}>
@@ -430,7 +464,10 @@ function DataTable({ records = [] }: { records?: Record<string, unknown>[] }) {
               key={String(record.id ?? row)}
             >
               {columns.map((column, index) => (
-                <td className="border-b px-4 py-4" key={column}>
+                <td
+                  className={moneyFields.has(column) ? "money border-b px-4 py-4" : "border-b px-4 py-4"}
+                  key={column}
+                >
                   {index === 0 ? (
                     <span className="font-semibold text-[#755714]">
                       {display(record[column], column)}
@@ -525,6 +562,11 @@ export function ModulePage({
     title: module.replaceAll("-", " "),
     description: "Organization operations and records.",
     action: "Create record",
+  };
+  const meta = moduleMeta[module] ?? {
+    center: "Workspace",
+    tint: "#5B5FCF",
+    tabs: ["Overview", "Records", "Reports", "Automation"],
   };
   const operationalModules = new Set([
     "leads",
@@ -632,14 +674,23 @@ export function ModulePage({
     <DataExplorer module={module} records={data.records ?? []} />
   );
   return (
-    <div className={embedded ? "" : "p-5 lg:p-7"}>
+    <div
+      className={embedded ? "" : "ck-module-page p-5 lg:p-7"}
+      style={
+        { "--module-tint": meta.tint } as CSSProperties &
+          Record<"--module-tint", string>
+      }
+    >
       <div
-        className={`flex flex-wrap items-end justify-between gap-4 ${embedded ? "rounded-lg border bg-white p-4" : ""}`}
+        className={`ck-module-header flex flex-wrap items-end justify-between gap-4 ${embedded ? "rounded-lg border bg-white p-4" : ""}`}
       >
         <div>
           {!embedded && (
-            <div className="ck-eyebrow">
-              {organizationSlug.replaceAll("-", " ")}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="ck-module-pill">{meta.center}</span>
+              <div className="ck-section-label">
+                {organizationSlug.replaceAll("-", " ")}
+              </div>
             </div>
           )}
           {embedded ? (
@@ -651,7 +702,7 @@ export function ModulePage({
               {config.title}
             </h1>
           )}
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--ck-ink-secondary)]">
             {config.description}
           </p>
         </div>
@@ -661,6 +712,15 @@ export function ModulePage({
           organizationSlug={organizationSlug}
         />
       </div>
+      {!embedded && (
+        <nav className="ck-module-tabs mt-4" aria-label={`${config.title} sections`}>
+          {meta.tabs.map((tab, index) => (
+            <a className={index === 0 ? "is-active" : ""} href="#" key={tab}>
+              {tab}
+            </a>
+          ))}
+        </nav>
+      )}
       {primaryWorkbenchModules.has(module) ? (
         <>
           <div className="mt-6">{workbench}</div>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
@@ -50,6 +51,49 @@ type SidebarItem = {
 type SidebarSection = {
   label: string;
   items: SidebarItem[];
+};
+
+const moduleTints: Record<string, string> = {
+  dashboard: "#5B5FCF",
+  reports: "#5B5FCF",
+  tasks: "#5B5FCF",
+  calendar: "#F97316",
+  bookings: "#F97316",
+  collaboration: "#3B82F6",
+  crm: "#0EA5E9",
+  leads: "#0EA5E9",
+  accounts: "#0EA5E9",
+  contacts: "#0EA5E9",
+  deals: "#0EA5E9",
+  cases: "#EF4444",
+  campaigns: "#0EA5E9",
+  invoices: "#10B981",
+  payments: "#10B981",
+  expenses: "#10B981",
+  vendors: "#10B981",
+  accounting: "#10B981",
+  banking: "#10B981",
+  products: "#10B981",
+  payroll: "#8B5CF6",
+  "tax-documents": "#F59E0B",
+  automations: "#A855F7",
+  email: "#06B6D4",
+  documents: "#6B7280",
+  submissions: "#EF4444",
+  notifications: "#6B7280",
+  integrations: "#A855F7",
+  "payment-settings": "#10B981",
+  support: "#EF4444",
+  team: "#6B7280",
+  appearance: "#EC4899",
+  websites: "#EC4899",
+  "data-studio": "#5B5FCF",
+  domains: "#A855F7",
+  billing: "#10B981",
+  audit: "#6B7280",
+  compliance: "#F59E0B",
+  admin: "#6B7280",
+  settings: "#6B7280",
 };
 
 const sections: SidebarSection[] = [
@@ -235,7 +279,7 @@ export function AppSidebar({
           // eslint-disable-next-line @next/next/no-img-element
           <img alt="" className="size-9 rounded-lg object-contain" src={logoUrl} />
         ) : (
-          <span className="grid size-9 place-items-center rounded-lg bg-[var(--console-primary)] text-xs font-bold text-[#211b0d]">
+          <span className="grid size-9 place-items-center rounded-xl bg-[var(--ck-accent)] text-xs font-bold text-white">
             CK
           </span>
         )}
@@ -268,23 +312,34 @@ export function AppSidebar({
                   {section.items.map((item) => {
                     const selected = active === item.slug;
                     const Icon = item.icon;
+                    const tint = moduleTints[item.slug] ?? "#5B5FCF";
                     return (
-                      <div key={item.slug}>
-                      <Link
-                        className={`ck-sidebar-link flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition ${
-                          selected
-                            ? "ck-sidebar-link-active bg-[var(--console-primary)] text-[#211b0d] shadow-sm"
-                            : "hover:bg-white/7 hover:text-white"
-                        }`}
-                        href={
-                          item.slug === "dashboard" ? base : `${base}/${item.slug}`
+                      <div
+                        key={item.slug}
+                        style={
+                          { "--module-tint": tint } as CSSProperties &
+                            Record<"--module-tint", string>
                         }
-                        onClick={persistScroll}
-                        title={isRail ? item.label : undefined}
                       >
-                        <Icon className="shrink-0" size={16} />
-                        {!isRail && <span className="truncate">{item.label}</span>}
-                      </Link>
+                        <Link
+                          className={`ck-sidebar-link relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition ${
+                            selected
+                              ? "ck-sidebar-link-active text-white"
+                              : "hover:bg-white/7 hover:text-white"
+                          }`}
+                          href={
+                            item.slug === "dashboard"
+                              ? base
+                              : `${base}/${item.slug}`
+                          }
+                          onClick={persistScroll}
+                          title={isRail ? item.label : undefined}
+                        >
+                          <Icon className="shrink-0" size={16} />
+                          {!isRail && (
+                            <span className="truncate">{item.label}</span>
+                          )}
+                        </Link>
                       {selected && item.children && !isRail && (
                         <div className="ml-7 mt-1 grid gap-1 border-l border-white/10 pl-2">
                           {item.children.map((child) => (
