@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { ArrowRight, CircleDollarSign, Sparkles } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { QuickCreate } from "@/components/quick-create";
@@ -576,6 +576,244 @@ function BillingView({
   );
 }
 
+// Tab-specific content overrides — returns null to fall back to the primary workbench
+function buildTabOverride(
+  module: string,
+  data: ModuleData,
+  organizationSlug: string,
+  tab: string,
+  primaryTab: string,
+): ReactNode | null {
+  if (tab === primaryTab) return null; // use primary workbench
+
+  const records = data.records ?? [];
+
+  if (module === "leads") {
+    if (tab === "scoring") {
+      const sorted = [...records].sort((a, b) => Number(b.score) - Number(a.score));
+      return (
+        <section className="ck-card overflow-hidden">
+          <div className="border-b p-5">
+            <h3 className="font-semibold">All leads — sorted by score</h3>
+            <p className="mt-1 text-xs text-slate-500">Score 80+ = HOT, 60–79 = WARM, below 60 = NURTURE. Convert when qualified.</p>
+          </div>
+          <DataTable module="leads" organizationSlug={organizationSlug} records={sorted} />
+        </section>
+      );
+    }
+    if (tab === "conversion") {
+      const converted = records.filter((r) => r.status === "CONVERTED");
+      const rate = records.length ? Math.round((converted.length / records.length) * 100) : 0;
+      return (
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            {[
+              { label: "Total leads", value: records.length },
+              { label: "Converted", value: converted.length },
+              { label: "Conversion rate", value: `${rate}%` },
+            ].map(({ label, value }) => (
+              <div className="ck-card p-5" key={label}>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</div>
+                <div className="mt-2 text-2xl font-semibold">{value}</div>
+              </div>
+            ))}
+          </div>
+          <section className="ck-card overflow-hidden">
+            <div className="border-b p-5"><h3 className="font-semibold">Converted leads</h3></div>
+            <DataTable module="leads" organizationSlug={organizationSlug} records={converted} />
+          </section>
+        </div>
+      );
+    }
+    if (tab === "segments") {
+      const bySource: Record<string, typeof records> = {};
+      for (const r of records) {
+        const src = String(r.source ?? "Unknown");
+        (bySource[src] ??= []).push(r);
+      }
+      return (
+        <div className="space-y-4">
+          {Object.entries(bySource).map(([src, recs]) => (
+            <section className="ck-card overflow-hidden" key={src}>
+              <div className="border-b p-5"><h3 className="font-semibold">{src} <span className="ml-2 text-sm font-normal text-slate-500">({recs.length} leads)</span></h3></div>
+              <DataTable module="leads" organizationSlug={organizationSlug} records={recs} />
+            </section>
+          ))}
+        </div>
+      );
+    }
+  }
+
+  if (module === "deals") {
+    if (tab === "forecast") {
+      const stageOrder = ["PROSPECTING","QUALIFICATION","NEEDS_ANALYSIS","PROPOSAL","NEGOTIATION","CLOSED_WON","CLOSED_LOST"];
+      const byStage: Record<string, typeof records> = {};
+      for (const r of records) {
+        const stage = String(r.stage ?? "UNKNOWN");
+        (byStage[stage] ??= []).push(r);
+      }
+      return (
+        <div className="space-y-4">
+          {stageOrder.filter((s) => byStage[s]?.length).map((stage) => {
+            const recs = byStage[stage] ?? [];
+            const total = recs.reduce((s, r) => s + Number(r.amount ?? 0), 0);
+            const weighted = recs.reduce((s, r) => s + (Number(r.amount ?? 0) * Number(r.probability ?? 0)) / 100, 0);
+            return (
+              <section className="ck-card overflow-hidden" key={stage}>
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b p-5">
+                  <h3 className="font-semibold">{stage.replaceAll("_", " ")}</h3>
+                  <div className="flex gap-6 text-sm">
+                    <span className="text-slate-500">{recs.length} deals · {formatCurrency(total)} total</span>
+                    <strong>{formatCurrency(weighted)} weighted</strong>
+                  </div>
+                </div>
+                <DataTable module="deals" organizationSlug={organizationSlug} records={recs} />
+              </section>
+            );
+          })}
+        </div>
+      );
+    }
+    if (tab === "stage-rules") {
+      const gates = [
+        { stage: "PROSPECTING", pct: 10, criteria: "Lead identified, contact info verified" },
+        { stage: "QUALIFICATION", pct: 25, criteria: "Need, budget, authority, and timeline confirmed" },
+        { stage: "NEEDS ANALYSIS", pct: 45, criteria: "Discovery complete, pain documented" },
+        { stage: "PROPOSAL", pct: 65, criteria: "Pricing shared, decision criteria known" },
+        { stage: "NEGOTIATION", pct: 80, criteria: "Verbal agreement, contract in review" },
+        { stage: "CLOSED WON", pct: 100, criteria: "Signed and invoiced" },
+      ];
+      return (
+        <div className="ck-card overflow-hidden">
+          <div className="border-b p-5"><h3 className="font-semibold">Stage gate policy</h3><p className="mt-1 text-xs text-slate-500">Required evidence to advance a deal to each stage.</p></div>
+          <div className="divide-y">
+            {gates.map((gate) => (
+              <div className="flex items-center gap-6 p-5" key={gate.stage}>
+                <div className="grid size-12 shrink-0 place-items-center rounded-full bg-[#f0dfaa] text-sm font-bold">{gate.pct}%</div>
+                <div><div className="font-semibold">{gate.stage}</div><p className="mt-1 text-xs text-slate-500">{gate.criteria}</p></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+  }
+
+  if (module === "invoices") {
+    if (tab === "collections") {
+      const overdue = records.filter((r) => Number(r.daysPastDue ?? 0) > 0 || r.collectionState === "OVERDUE");
+      return (
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            {[
+              { label: "Past due", value: overdue.length },
+              { label: "Total overdue balance", value: formatCurrency(overdue.reduce((s, r) => s + Number(r.balance ?? 0), 0)) },
+              { label: "Avg days late", value: overdue.length ? `${Math.round(overdue.reduce((s, r) => s + Number(r.daysPastDue ?? 0), 0) / overdue.length)} days` : "—" },
+            ].map(({ label, value }) => (
+              <div className="ck-card p-5" key={label}>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</div>
+                <div className="mt-2 text-2xl font-semibold">{value}</div>
+              </div>
+            ))}
+          </div>
+          <section className="ck-card overflow-hidden">
+            <div className="border-b p-5"><h3 className="font-semibold">Overdue invoices requiring action</h3></div>
+            <DataTable module="invoices" organizationSlug={organizationSlug} records={overdue.sort((a, b) => Number(b.daysPastDue ?? 0) - Number(a.daysPastDue ?? 0))} />
+          </section>
+        </div>
+      );
+    }
+    if (tab === "pdfs") {
+      return (
+        <section className="ck-card overflow-hidden">
+          <div className="border-b p-5"><h3 className="font-semibold">Invoice PDFs</h3><p className="mt-1 text-xs text-slate-500">Download or print any invoice. PDFs are generated on-demand from the current record state.</p></div>
+          <div className="divide-y">
+            {records.map((r) => (
+              <div className="flex items-center justify-between gap-4 p-4 text-sm" key={String(r.id)}>
+                <div>
+                  <span className="font-semibold text-[#755714]">{String(r.number)}</span>
+                  <span className="ml-3 text-slate-500">{String(r.customer ?? "—")} · {formatCurrency(Number(r.total ?? 0))}</span>
+                </div>
+                <div className="flex gap-2">
+                  <Link className="ck-button ck-button-secondary !py-1.5 text-xs" href={`/app/${organizationSlug}/invoices/${String(r.id)}`}>View</Link>
+                  {r.pdfUrl && <a className="ck-button ck-button-secondary !py-1.5 text-xs" href={String(r.pdfUrl)} rel="noreferrer" target="_blank">PDF</a>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      );
+    }
+    if (tab === "posting") {
+      const unposted = records.filter((r) => !r.posted && !["DRAFT","VOID"].includes(String(r.status)));
+      return (
+        <section className="ck-card overflow-hidden">
+          <div className="border-b p-5">
+            <h3 className="font-semibold">Unposted invoices</h3>
+            <p className="mt-1 text-xs text-slate-500">{unposted.length} invoices need to be posted to the A/R ledger. Posting is automatic when an invoice is sent or marked paid.</p>
+          </div>
+          <DataTable module="invoices" organizationSlug={organizationSlug} records={unposted} />
+        </section>
+      );
+    }
+  }
+
+  if (module === "contacts") {
+    if (tab === "activity") {
+      return (
+        <div className="space-y-4">
+          <div className="ck-card p-6">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Contact activity</div>
+            <h3 className="mt-3 font-semibold">Activity timeline</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Logged calls, emails, meetings, and notes appear here per contact. Click any contact name below to open their full activity timeline.</p>
+          </div>
+          <section className="ck-card overflow-hidden">
+            <DataTable module="contacts" organizationSlug={organizationSlug} records={records} />
+          </section>
+        </div>
+      );
+    }
+    if (tab === "lists") {
+      const byLifecycle: Record<string, typeof records> = {};
+      for (const r of records) {
+        const lc = String(r.lifecycle ?? "Unknown");
+        (byLifecycle[lc] ??= []).push(r);
+      }
+      return (
+        <div className="space-y-4">
+          {Object.entries(byLifecycle).map(([lifecycle, recs]) => (
+            <section className="ck-card overflow-hidden" key={lifecycle}>
+              <div className="border-b p-5"><h3 className="font-semibold">{lifecycle.replaceAll("_", " ")} <span className="ml-2 text-sm font-normal text-slate-500">({recs.length})</span></h3></div>
+              <DataTable module="contacts" organizationSlug={organizationSlug} records={recs} />
+            </section>
+          ))}
+        </div>
+      );
+    }
+    if (tab === "duplicates") {
+      const emailMap: Record<string, typeof records> = {};
+      for (const r of records) {
+        if (r.email) (emailMap[String(r.email).toLowerCase()] ??= []).push(r);
+      }
+      const dupes = Object.values(emailMap).filter((group) => group.length > 1);
+      return (
+        <div className="space-y-4">
+          {dupes.length ? dupes.map((group, i) => (
+            <section className="ck-card overflow-hidden" key={i}>
+              <div className="border-b bg-amber-50 p-5"><h3 className="font-semibold text-amber-900">Duplicate email: {String(group[0].email)}</h3></div>
+              <DataTable module="contacts" organizationSlug={organizationSlug} records={group} />
+            </section>
+          )) : (
+            <div className="ck-card p-10 text-center text-sm text-slate-500">No email duplicates found across {records.length} contacts.</div>
+          )}
+        </div>
+      );
+    }
+  }
+
+  return null;
+}
+
 export function ModulePage({
   module,
   data,
@@ -655,7 +893,16 @@ export function ModulePage({
     "support",
     "bookings",
   ]);
-  const workbench = operationalModules.has(module) ? (
+  // Derive the active tab slug
+  const firstTabSlug = meta.tabs[0]
+    ? meta.tabs[0].toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+    : "";
+  const resolvedTab = activeTab ?? firstTabSlug;
+
+  // Tab-aware secondary views for key modules
+  const tabOverride = buildTabOverride(module, data, organizationSlug, resolvedTab, firstTabSlug);
+
+  const primaryWorkbench = operationalModules.has(module) ? (
     <OperationalWorkbench
       data={data}
       module={module}
@@ -704,6 +951,7 @@ export function ModulePage({
   ) : (
     <DataExplorer module={module} organizationSlug={organizationSlug} records={data.records ?? []} />
   );
+  const workbench = tabOverride ?? primaryWorkbench;
   return (
     <div
       className={embedded ? "" : "ck-module-page p-5 lg:p-7"}
