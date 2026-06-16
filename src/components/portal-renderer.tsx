@@ -4,6 +4,7 @@ import {
   PublicBookingForm,
   PublicContactForm,
 } from "@/components/public-endpoint-actions";
+import { buildInfo, buildVersionLabel } from "@/lib/build-info";
 
 type PortalBlock = {
   type: string;
@@ -427,7 +428,12 @@ export function PortalRenderer({
             {settings.showPoweredBy !== false && (
               <span>
                 <ShieldCheck size={14} />
-                Securely hosted by <Link href="/">ClearKey Connect</Link>
+                Securely hosted by <Link href="/">ClearKey Connect</Link>{" "}
+                <small
+                  title={`Ref ${buildInfo.ref}${buildInfo.deployment ? ` · ${buildInfo.deployment}` : ""}`}
+                >
+                  {buildVersionLabel()}
+                </small>
               </span>
             )}
           </div>

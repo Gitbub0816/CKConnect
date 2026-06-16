@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AppSidebar } from "@/components/app-sidebar";
 import { KiraAssistant } from "@/components/kira-assistant";
+import { buildInfo, buildVersionLabel } from "@/lib/build-info";
 import { getOrganizationContext } from "@/lib/organization-context";
 
 export async function AppShell({
@@ -74,7 +75,14 @@ export async function AppShell({
         </header>
         <main className="flex-1">{children}</main>
         <footer className="ck-app-footer flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3 text-[10px] lg:px-7">
-          <span>ClearKey Connect - Tenant {organization?.publicId}</span>
+          <span>
+            ClearKey Connect - Tenant {organization?.publicId} -{" "}
+            <span
+              title={`Ref ${buildInfo.ref}${buildInfo.deployment ? ` · ${buildInfo.deployment}` : ""}`}
+            >
+              {buildVersionLabel()}
+            </span>
+          </span>
           <span>
             <Link href="/legal/terms">Terms</Link> -{" "}
             <Link href="/legal/privacy">Privacy</Link> -{" "}
