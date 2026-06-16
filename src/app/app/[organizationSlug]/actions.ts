@@ -4563,7 +4563,7 @@ export async function updateWorkspaceRecord(formData: FormData) {
     entityId,
     before,
     after,
-    category: "DATA",
+    category: "BUSINESS",
   });
   revalidatePath(`/app/${input.organizationSlug}/${input.module}/${input.recordId}`);
   revalidatePath(`/app/${input.organizationSlug}/${input.module}`);
