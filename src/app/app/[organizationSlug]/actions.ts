@@ -4411,3 +4411,160 @@ export async function verifyDomainNow(formData: FormData) {
   });
   revalidatePath(`/app/${input.organizationSlug}/domains`);
 }
+
+const updateRecordSchema = z.object({
+  organizationSlug: z.string().min(1),
+  module: z.string().min(1),
+  recordId: z.string().min(1),
+  firstName: z.string().trim().max(100).optional().default(""),
+  lastName: z.string().trim().max(100).optional().default(""),
+  email: z.string().trim().max(255).optional().default(""),
+  phone: z.string().trim().max(50).optional().default(""),
+  mobile: z.string().trim().max(50).optional().default(""),
+  jobTitle: z.string().trim().max(150).optional().default(""),
+  company: z.string().trim().max(200).optional().default(""),
+  website: z.string().trim().max(500).optional().default(""),
+  industry: z.string().trim().max(100).optional().default(""),
+  name: z.string().trim().max(200).optional().default(""),
+  amount: z.coerce.number().min(0).optional(),
+  probability: z.coerce.number().min(0).max(100).optional(),
+  nextStep: z.string().trim().max(500).optional().default(""),
+  closeDate: z.string().optional().default(""),
+  status: z.string().trim().max(50).optional().default(""),
+  source: z.string().trim().max(100).optional().default(""),
+  rating: z.string().trim().max(50).optional().default(""),
+  estimatedValue: z.coerce.number().min(0).optional(),
+  score: z.coerce.number().min(0).max(100).optional(),
+  accountType: z.string().trim().max(50).optional().default(""),
+  annualRevenue: z.coerce.number().min(0).optional(),
+});
+
+export async function updateWorkspaceRecord(formData: FormData) {
+  const input = updateRecordSchema.parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    `${input.module}.write`,
+  );
+  if (!user) throw new Error("A signed-in user is required to update records");
+  const db = getDb();
+  let entityType: string;
+  let entityId: string;
+  let before: Record<string, unknown> = {};
+  let after: Record<string, unknown> = {};
+
+  switch (input.module) {
+    case "contacts": {
+      const existing = await db.contact.findFirstOrThrow({
+        where: { id: input.recordId, organizationId: organization.id },
+      });
+      before = existing as Record<string, unknown>;
+      const updated = await db.contact.update({
+        where: { id: input.recordId },
+        data: {
+          firstName: input.firstName || existing.firstName,
+          lastName: input.lastName || existing.lastName || null,
+          email: input.email || existing.email || null,
+          phone: input.phone || existing.phone || null,
+          mobile: input.mobile || existing.mobile || null,
+          jobTitle: input.jobTitle || existing.jobTitle || null,
+        },
+      });
+      after = updated as Record<string, unknown>;
+      entityType = "Contact";
+      entityId = input.recordId;
+      break;
+    }
+    case "leads": {
+      const existing = await db.lead.findFirstOrThrow({
+        where: { id: input.recordId, organizationId: organization.id },
+      });
+      before = existing as Record<string, unknown>;
+      const updated = await db.lead.update({
+        where: { id: input.recordId },
+        data: {
+          firstName: input.firstName || existing.firstName,
+          lastName: input.lastName || existing.lastName || null,
+          email: input.email || existing.email || null,
+          phone: input.phone || existing.phone || null,
+          company: input.company || existing.company || null,
+          source: input.source || existing.source || null,
+          rating: input.rating || existing.rating || null,
+          estimatedValue:
+            input.estimatedValue !== undefined
+              ? input.estimatedValue
+              : existing.estimatedValue ?? undefined,
+          score: input.score !== undefined ? input.score : existing.score,
+        },
+      });
+      after = updated as Record<string, unknown>;
+      entityType = "Lead";
+      entityId = input.recordId;
+      break;
+    }
+    case "deals": {
+      const existing = await db.deal.findFirstOrThrow({
+        where: { id: input.recordId, organizationId: organization.id },
+      });
+      before = existing as Record<string, unknown>;
+      const updated = await db.deal.update({
+        where: { id: input.recordId },
+        data: {
+          name: input.name || existing.name,
+          amount:
+            input.amount !== undefined ? input.amount : existing.amount,
+          probability:
+            input.probability !== undefined
+              ? input.probability
+              : existing.probability,
+          nextStep: input.nextStep || existing.nextStep || null,
+          expectedCloseDate: input.closeDate
+            ? new Date(input.closeDate)
+            : existing.expectedCloseDate,
+        },
+      });
+      after = updated as Record<string, unknown>;
+      entityType = "Deal";
+      entityId = input.recordId;
+      break;
+    }
+    case "accounts": {
+      const existing = await db.crmAccount.findFirstOrThrow({
+        where: { id: input.recordId, organizationId: organization.id },
+      });
+      before = existing as Record<string, unknown>;
+      const updated = await db.crmAccount.update({
+        where: { id: input.recordId },
+        data: {
+          name: input.name || existing.name,
+          website: input.website || existing.website || null,
+          phone: input.phone || existing.phone || null,
+          industry: input.industry || existing.industry || null,
+          accountType: input.accountType || existing.accountType,
+          annualRevenue:
+            input.annualRevenue !== undefined
+              ? input.annualRevenue
+              : existing.annualRevenue ?? undefined,
+        },
+      });
+      after = updated as Record<string, unknown>;
+      entityType = "CrmAccount";
+      entityId = input.recordId;
+      break;
+    }
+    default:
+      throw new Error(`Unsupported module for update: ${input.module}`);
+  }
+
+  await appendAuditEvent({
+    organizationId: organization.id,
+    actorUserId: user.id,
+    action: `${input.module}.record.updated`,
+    entityType,
+    entityId,
+    before,
+    after,
+    category: "DATA",
+  });
+  revalidatePath(`/app/${input.organizationSlug}/${input.module}/${input.recordId}`);
+  revalidatePath(`/app/${input.organizationSlug}/${input.module}`);
+}
