@@ -137,7 +137,7 @@ const sections: SidebarSection[] = [
     ],
   },
   {
-    label: "Finance",
+    label: "Accounting",
     items: [
       { slug: "invoices", label: "Invoices", icon: FileText, feature: "accounting" },
       { slug: "payments", label: "Payments", icon: CircleDollarSign, feature: "accounting" },

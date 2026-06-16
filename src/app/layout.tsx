@@ -12,10 +12,10 @@ export const metadata: Metadata = {
   description: "CRM, operations, payments, and double-entry accounting for growing businesses.",
   icons: {
     icon: [
-      { url: "/icon.png", type: "image/png" },
       { url: "/logo.png", type: "image/png" },
+      { url: "/icon.png", type: "image/png" },
     ],
-    shortcut: "/icon.png",
+    shortcut: "/logo.png",
     apple: "/logo.png",
   },
 };
@@ -25,10 +25,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const clerkKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
   return (
     <html lang="en" className="h-full">
       <body className="min-h-full antialiased">
-        {process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? (
+        {clerkKey ? (
           <ClerkProvider><Suspense><PostHogProvider>{children}</PostHogProvider></Suspense></ClerkProvider>
         ) : (
           <Suspense><PostHogProvider>{children}</PostHogProvider></Suspense>

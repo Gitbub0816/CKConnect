@@ -8,6 +8,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   useEffect(() => {
+    if (process.env.NEXT_PUBLIC_POSTHOG_ENABLED !== "true") return;
     const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
     if (!key || posthog.__loaded) return;
     posthog.init(key, {
@@ -21,6 +22,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
   useEffect(() => {
+    if (process.env.NEXT_PUBLIC_POSTHOG_ENABLED !== "true") return;
     if (!posthog.__loaded) return;
     const query = searchParams.toString();
     posthog.capture("$pageview", { $current_url: `${window.location.origin}${pathname}${query ? `?${query}` : ""}` });

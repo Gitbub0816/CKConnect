@@ -16,11 +16,21 @@ const requestSchema = z.object({
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const params = requestSchema.parse({
+  const parsed = requestSchema.safeParse({
     organizationSlug: url.searchParams.get("organizationSlug"),
     report: url.searchParams.get("report") ?? undefined,
     format: url.searchParams.get("format") ?? undefined,
   });
+  if (!parsed.success) {
+    return Response.json(
+      {
+        error: "Invalid accounting export request",
+        issues: parsed.error.flatten().fieldErrors,
+      },
+      { status: 400 },
+    );
+  }
+  const params = parsed.data;
   const { organization } = await requireOrganizationAccess(
     params.organizationSlug,
     "accounting.read",

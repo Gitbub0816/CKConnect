@@ -401,20 +401,20 @@ function AccountingWorkbench({
               review task so Kira or a human can map unclear rows.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <Link
+              <a
                 className="ck-button"
                 href={`${exportBase}&report=workbook&format=xlsx`}
               >
                 <Download size={14} />
                 Export close workbook
-              </Link>
-              <Link
+              </a>
+              <a
                 className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#d8cbb8] bg-white px-4 text-sm font-semibold transition hover:border-[#b08a2f] hover:bg-[#fbf7ed]"
                 href={`${exportBase}&report=import-template&format=xlsx`}
               >
                 <FileSpreadsheet size={14} />
                 Download import template
-              </Link>
+              </a>
             </div>
           </div>
           <form
@@ -446,7 +446,7 @@ function AccountingWorkbench({
         </div>
         <div className="grid gap-0 md:grid-cols-2 xl:grid-cols-5">
           {exportReports.map(([label, href, format]) => (
-            <Link
+            <a
               className="group flex min-h-24 flex-col justify-between border-b border-r border-[#eadfce] p-4 transition hover:bg-[#fbf7ed]"
               href={href}
               key={label}
@@ -458,7 +458,7 @@ function AccountingWorkbench({
                 <Download size={12} />
                 {format}
               </span>
-            </Link>
+            </a>
           ))}
         </div>
       </section>

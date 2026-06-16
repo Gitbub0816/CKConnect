@@ -427,11 +427,11 @@ export function AccountingAddendumWorkspace({
             ["Statements", "statements", "xlsx"],
             ["Import template", "import-template", "xlsx"],
           ].map(([label, report, format]) => (
-            <Link className="bg-white p-4 hover:bg-emerald-50" href={`${exportBase}&report=${report}&format=${format}`} key={label}>
+            <a className="bg-white p-4 hover:bg-emerald-50" href={`${exportBase}&report=${report}&format=${format}`} key={label}>
               <FileSpreadsheet className="text-emerald-600" size={18} />
               <div className="mt-3 text-sm font-semibold">{label}</div>
               <div className="mt-1 text-xs uppercase text-slate-500">{format}</div>
-            </Link>
+            </a>
           ))}
         </div>
       </section>
