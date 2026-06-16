@@ -534,17 +534,11 @@ export async function saveDashboardStudio(formData: FormData) {
       chartStyle: z.enum([
         "cards",
         "bars",
-        "bar",
         "spotlight",
         "compact",
         "trend",
         "donut",
         "table",
-        "line",
-        "area",
-        "pie",
-        "funnel",
-        "kpi",
       ]),
       accent: z.enum(["gold", "emerald", "slate", "rose"]),
       density: z.enum(["compact", "balanced", "roomy"]),
@@ -3802,7 +3796,6 @@ export async function saveWebsitePage(formData: FormData) {
       codeHtml: z.string().max(100_000).optional().default(""),
       codeCss: z.string().max(100_000).optional().default(""),
       codeJs: z.string().max(100_000).optional().default(""),
-      grapesJson: z.string().max(1_000_000).optional().default("{}"),
       publish: z
         .string()
         .optional()
@@ -3819,9 +3812,6 @@ export async function saveWebsitePage(formData: FormData) {
     .min(1)
     .max(50)
     .parse(JSON.parse(input.blocksJson));
-  const grapesProject = z
-    .record(z.string(), z.unknown())
-    .parse(JSON.parse(input.grapesJson || "{}"));
   const db = getDb();
   const website = await db.website.findFirstOrThrow({
     where: { id: input.websiteId, organizationId: organization.id },
@@ -3842,7 +3832,6 @@ export async function saveWebsitePage(formData: FormData) {
           css: input.codeCss,
           javascript: input.codeJs,
         },
-        grapesProject,
       } as Prisma.InputJsonValue,
       status: input.publish ? "PUBLISHED" : "DRAFT",
     },
@@ -3868,191 +3857,6 @@ export async function saveWebsitePage(formData: FormData) {
   });
   revalidatePath(`/app/${input.organizationSlug}/websites`);
   revalidatePath(`/site/${website.defaultHostname}`);
-}
-
-export async function createWebsite(formData: FormData) {
-  const input = z
-    .object({
-      organizationSlug: z.string().min(1),
-      template: z.string().trim().default("business"),
-      siteName: z.string().trim().max(120).default(""),
-    })
-    .parse(Object.fromEntries(formData));
-  const { organization, user } = await requireOrganizationAccess(
-    input.organizationSlug,
-    "websites.write",
-  );
-  if (!user) throw new Error("A signed-in user is required");
-  const db = getDb();
-  const siteName = input.siteName || (organization.name as string) || "My Website";
-  const templateBlocks: Record<string, Record<string, unknown>[]> = {
-    business: [
-      { type: "hero", title: `Welcome to ${siteName}`, body: "Describe your customer promise and the key benefit you deliver.", action: "Get started" },
-      { type: "services", title: "What we offer", body: "Our core services designed to help you succeed." },
-      { type: "testimonial", title: "Trusted by customers", body: "Real feedback from people who work with us." },
-      { type: "cta", title: "Ready to get started?", body: "Let's talk about how we can help your business grow.", action: "Book a call" },
-    ],
-    portfolio: [
-      { type: "hero", title: siteName, body: "Creative work for brands that want to stand out.", action: "See my work" },
-      { type: "content", title: "Selected projects", body: "A curated selection of recent client work." },
-      { type: "services", title: "What I do", body: "Design, strategy, and execution from concept to launch." },
-      { type: "cta", title: "Let's work together", body: "Tell me about your project and goals.", action: "Start a project" },
-    ],
-    healthcare: [
-      { type: "hero", title: `${siteName}`, body: "Compassionate care delivered by experienced professionals.", action: "Book appointment" },
-      { type: "services", title: "Our services", body: "Comprehensive health and wellness offerings for every stage of life." },
-      { type: "content", title: "About our practice", body: "Board-certified providers with a patient-first approach." },
-      { type: "booking", title: "Schedule a visit", body: "Choose a time that works for you." },
-      { type: "cta", title: "Questions? We're here.", body: "Reach out to our team any time.", action: "Contact us" },
-    ],
-    ecommerce: [
-      { type: "hero", title: siteName, body: "Premium products delivered to your door.", action: "Shop now" },
-      { type: "services", title: "Why shop with us", body: "Quality products, fast shipping, hassle-free returns." },
-      { type: "payment", title: "Secure checkout", body: "Multiple payment options accepted." },
-      { type: "testimonial", title: "Happy customers", body: "See what shoppers are saying about us." },
-      { type: "cta", title: "New arrivals weekly", body: "Join our list and be first to know.", action: "Subscribe" },
-    ],
-    minimal: [
-      { type: "hero", title: siteName, body: "Simple, clear, effective.", action: "Learn more" },
-      { type: "cta", title: "Get in touch", body: "We'd love to hear from you.", action: "Contact" },
-    ],
-  };
-  const blocks = templateBlocks[input.template] ?? templateBlocks.business;
-  const baseHostname = `${input.organizationSlug}.clearkey.co`;
-  const createRecord = async (hostname: string, slug: string) => {
-    return db.website.create({
-      data: {
-        organizationId: organization.id as string,
-        slug,
-        defaultHostname: hostname,
-        status: "DRAFT",
-        themeJson: {} as Prisma.InputJsonValue,
-        configJson: {} as Prisma.InputJsonValue,
-        pages: {
-          create: {
-            path: "/",
-            title: siteName,
-            seoJson: { title: siteName, description: "" } as Prisma.InputJsonValue,
-            contentJson: {
-              blocks,
-              code: { html: "", css: "", javascript: "" },
-            } as Prisma.InputJsonValue,
-            status: "DRAFT",
-            sortOrder: 0,
-          },
-        },
-      },
-    });
-  };
-  let website;
-  try {
-    website = await createRecord(baseHostname, "main");
-  } catch {
-    const rand = nanoid(6).toLowerCase();
-    website = await createRecord(`${input.organizationSlug}-${rand}.clearkey.co`, rand);
-  }
-  await appendAuditEvent({
-    organizationId: organization.id as string,
-    actorUserId: user.id,
-    action: "website.created",
-    entityType: "Website",
-    entityId: website.id,
-    after: { websiteId: website.id, template: input.template },
-    category: "BUSINESS",
-  });
-  revalidatePath(`/app/${input.organizationSlug}/websites`);
-}
-
-const websiteDataScopes = [
-  "business_profile.read",
-  "locations.read",
-  "services.read",
-  "inventory.read",
-  "inventory.write_reservations",
-  "pricing.read",
-  "booking.read",
-  "booking.write_requests",
-  "customers.write_leads",
-  "forms.write_submissions",
-  "chat.write_sessions",
-  "chat.read_business_hours",
-  "staff.read_public",
-  "reviews.read_public",
-  "payments.create_checkout",
-  "portal.create_login_link",
-] as const;
-
-export async function updateWebsiteDataGrant(formData: FormData) {
-  const raw = Object.fromEntries(formData);
-  const [scope, command] = String(raw.grantAction ?? "").split("|");
-  const input = z
-    .object({
-      organizationSlug: z.string().min(1),
-      websiteId: z.string().uuid(),
-      grantAction: z.string().min(1),
-      scope: z.enum(websiteDataScopes),
-      command: z.enum(["APPROVE", "REVOKE"]),
-    })
-    .parse({ ...raw, scope, command });
-  const { organization, user } = await requireOrganizationAccess(
-    input.organizationSlug,
-    "websites.publish",
-  );
-  if (!user) throw new Error("A signed-in user is required");
-  const website = await getDb().website.findFirstOrThrow({
-    where: { id: input.websiteId, organizationId: organization.id },
-  });
-  const link = await getDb().dataLink.upsert({
-    where: {
-      organizationId_sourceType_sourceId_targetType_targetId_relationship: {
-        organizationId: organization.id,
-        sourceType: "Website",
-        sourceId: website.id,
-        targetType: "WebsiteDataScope",
-        targetId: input.scope,
-        relationship: "approved_scope",
-      },
-    },
-    update: {
-      active: input.command === "APPROVE",
-      permissions: input.command === "APPROVE" ? [input.scope] : [],
-      metadataJson: {
-        approvedByUserId: user.id,
-        scope: input.scope,
-        status: input.command === "APPROVE" ? "active" : "revoked",
-        updatedAt: new Date().toISOString(),
-      },
-    },
-    create: {
-      organizationId: organization.id,
-      sourceType: "Website",
-      sourceId: website.id,
-      targetType: "WebsiteDataScope",
-      targetId: input.scope,
-      relationship: "approved_scope",
-      permissions: [input.scope],
-      metadataJson: {
-        approvedByUserId: user.id,
-        scope: input.scope,
-        status: "active",
-        updatedAt: new Date().toISOString(),
-      },
-    },
-  });
-  await appendAuditEvent({
-    organizationId: organization.id,
-    actorUserId: user.id,
-    action:
-      input.command === "APPROVE"
-        ? "website_data_scope.approved"
-        : "website_data_scope.revoked",
-    entityType: "DataLink",
-    entityId: link.id,
-    after: { websiteId: website.id, scope: input.scope, active: link.active },
-    category: "SECURITY",
-    retentionClass: "SECURITY_7Y",
-  });
-  revalidatePath(`/app/${input.organizationSlug}/websites`);
 }
 
 const linkableEntityTypes = [
@@ -4759,7 +4563,7 @@ export async function updateWorkspaceRecord(formData: FormData) {
     entityId,
     before,
     after,
-    category: "BUSINESS",
+    category: "DATA",
   });
   revalidatePath(`/app/${input.organizationSlug}/${input.module}/${input.recordId}`);
   revalidatePath(`/app/${input.organizationSlug}/${input.module}`);

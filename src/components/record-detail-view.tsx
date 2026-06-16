@@ -11,6 +11,7 @@ import {
   Headphones,
   Mail,
   MessageSquare,
+  Pencil,
   Phone,
   Sparkles,
   TrendingUp,
@@ -20,6 +21,7 @@ import {
   addEntityNote,
   changeDealStage,
   convertLead,
+  updateWorkspaceRecord,
 } from "@/app/app/[organizationSlug]/actions";
 import { formatCurrency } from "@/lib/utils";
 
@@ -195,6 +197,26 @@ function RelatedList({
   );
 }
 
+function EditCard({
+  title,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="ck-card overflow-hidden">
+      <div className="flex items-center gap-2 border-b p-5">
+        <Icon className="text-[#9b7420]" size={18} />
+        <h3 className="font-semibold">{title}</h3>
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
 // ── Contact detail ──────────────────────────────────────────────────────────
 
 type ContactDetail = {
@@ -307,6 +329,40 @@ function ContactDetailView({
 
       <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
         <div className="space-y-6">
+          <EditCard icon={Pencil} title="Edit contact">
+            <form action={updateWorkspaceRecord} className="grid gap-3 sm:grid-cols-2">
+              <input name="organizationSlug" type="hidden" value={organizationSlug} />
+              <input name="module" type="hidden" value="contacts" />
+              <input name="recordId" type="hidden" value={record.id} />
+              <label className="text-xs font-semibold text-slate-600">
+                First name
+                <input className="ck-input mt-1" defaultValue={record.firstName} name="firstName" />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Last name
+                <input className="ck-input mt-1" defaultValue={record.lastName ?? ""} name="lastName" />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Email
+                <input className="ck-input mt-1" defaultValue={record.email ?? ""} name="email" type="email" />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Phone
+                <input className="ck-input mt-1" defaultValue={record.phone ?? ""} name="phone" type="tel" />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Mobile
+                <input className="ck-input mt-1" defaultValue={record.mobile ?? ""} name="mobile" type="tel" />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Job title
+                <input className="ck-input mt-1" defaultValue={record.jobTitle ?? ""} name="jobTitle" />
+              </label>
+              <div className="col-span-full">
+                <button className="ck-button" type="submit">Save changes</button>
+              </div>
+            </form>
+          </EditCard>
           <NotesTimeline
             notes={record.notes}
             organizationSlug={organizationSlug}
@@ -463,8 +519,64 @@ function LeadDetailView({
             relatedType="Lead"
           />
         </div>
-        {record.status !== "CONVERTED" && (
-          <aside className="space-y-4">
+        <aside className="space-y-4">
+          <EditCard icon={Pencil} title="Edit lead">
+            <form action={updateWorkspaceRecord} className="grid gap-3 sm:grid-cols-2">
+              <input name="organizationSlug" type="hidden" value={organizationSlug} />
+              <input name="module" type="hidden" value="leads" />
+              <input name="recordId" type="hidden" value={record.id} />
+              <label className="text-xs font-semibold text-slate-600">
+                First name
+                <input className="ck-input mt-1" defaultValue={record.firstName} name="firstName" />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Last name
+                <input className="ck-input mt-1" defaultValue={record.lastName ?? ""} name="lastName" />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Email
+                <input className="ck-input mt-1" defaultValue={record.email ?? ""} name="email" type="email" />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Phone
+                <input className="ck-input mt-1" defaultValue={record.phone ?? ""} name="phone" type="tel" />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Company
+                <input className="ck-input mt-1" defaultValue={record.company ?? ""} name="company" />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Source
+                <select className="ck-input mt-1" defaultValue={record.source ?? ""} name="source">
+                  <option value="">Unknown</option>
+                  <option value="Manual">Manual</option>
+                  <option value="Website">Website</option>
+                  <option value="Referral">Referral</option>
+                  <option value="LinkedIn">LinkedIn</option>
+                  <option value="Cold Outreach">Cold Outreach</option>
+                  <option value="Event">Event</option>
+                  <option value="Partner">Partner</option>
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Rating
+                <select className="ck-input mt-1" defaultValue={record.rating ?? ""} name="rating">
+                  <option value="">Not set</option>
+                  <option value="HOT">Hot</option>
+                  <option value="WARM">Warm</option>
+                  <option value="COLD">Cold</option>
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Est. value ($)
+                <input className="ck-input mt-1" defaultValue={record.estimatedValue || ""} min="0" name="estimatedValue" step="0.01" type="number" />
+              </label>
+              <div className="col-span-full">
+                <button className="ck-button" type="submit">Save changes</button>
+              </div>
+            </form>
+          </EditCard>
+          {record.status !== "CONVERTED" && (
             <form
               action={convertLead}
               className="ck-card p-5"
@@ -491,8 +603,8 @@ function LeadDetailView({
                 Convert and continue <ArrowRight size={14} />
               </button>
             </form>
-          </aside>
-        )}
+          )}
+        </aside>
       </div>
     </div>
   );
@@ -668,6 +780,41 @@ function DealDetailView({
               Update stage
             </button>
           </form>
+          <EditCard icon={Pencil} title="Edit deal">
+            <form action={updateWorkspaceRecord} className="grid gap-3">
+              <input name="organizationSlug" type="hidden" value={organizationSlug} />
+              <input name="module" type="hidden" value="deals" />
+              <input name="recordId" type="hidden" value={record.id} />
+              <label className="text-xs font-semibold text-slate-600">
+                Deal name
+                <input className="ck-input mt-1" defaultValue={record.name} name="name" />
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-xs font-semibold text-slate-600">
+                  Amount ($)
+                  <input className="ck-input mt-1" defaultValue={record.amount} min="0" name="amount" step="0.01" type="number" />
+                </label>
+                <label className="text-xs font-semibold text-slate-600">
+                  Probability %
+                  <input className="ck-input mt-1" defaultValue={record.probability} max="100" min="0" name="probability" type="number" />
+                </label>
+              </div>
+              <label className="text-xs font-semibold text-slate-600">
+                Expected close date
+                <input
+                  className="ck-input mt-1"
+                  defaultValue={record.expectedCloseDate ? new Date(record.expectedCloseDate).toISOString().slice(0, 10) : ""}
+                  name="closeDate"
+                  type="date"
+                />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Next step
+                <input className="ck-input mt-1" defaultValue={record.nextStep ?? ""} name="nextStep" placeholder="Owner commitment" />
+              </label>
+              <button className="ck-button w-full" type="submit">Save changes</button>
+            </form>
+          </EditCard>
           {record.contact && (
             <div className="ck-card p-5">
               <div className="flex items-center gap-2 font-semibold">
@@ -794,6 +941,46 @@ function AccountDetailView({
 
       <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
         <div className="space-y-6">
+          <EditCard icon={Pencil} title="Edit account">
+            <form action={updateWorkspaceRecord} className="grid gap-3 sm:grid-cols-2">
+              <input name="organizationSlug" type="hidden" value={organizationSlug} />
+              <input name="module" type="hidden" value="accounts" />
+              <input name="recordId" type="hidden" value={record.id} />
+              <label className="col-span-full text-xs font-semibold text-slate-600">
+                Account name
+                <input className="ck-input mt-1" defaultValue={record.name} name="name" required />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Account type
+                <select className="ck-input mt-1" defaultValue={record.accountType} name="accountType">
+                  <option value="PROSPECT">Prospect</option>
+                  <option value="CUSTOMER">Customer</option>
+                  <option value="PARTNER">Partner</option>
+                  <option value="VENDOR">Vendor</option>
+                  <option value="CHURNED">Churned</option>
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Industry
+                <input className="ck-input mt-1" defaultValue={record.industry ?? ""} name="industry" placeholder="e.g. Technology" />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Phone
+                <input className="ck-input mt-1" defaultValue={record.phone ?? ""} name="phone" type="tel" />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Website
+                <input className="ck-input mt-1" defaultValue={record.website ?? ""} name="website" type="url" />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Annual revenue ($)
+                <input className="ck-input mt-1" defaultValue={record.annualRevenue || ""} min="0" name="annualRevenue" step="1" type="number" />
+              </label>
+              <div className="col-span-full">
+                <button className="ck-button" type="submit">Save changes</button>
+              </div>
+            </form>
+          </EditCard>
           <NotesTimeline
             notes={record.notes}
             organizationSlug={organizationSlug}
