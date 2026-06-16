@@ -61,7 +61,7 @@ export default async function WorkspaceModuleSectionPage({
           backHref={`/app/${organizationSlug}/${module}`}
           backLabel={backLabel}
           organizationSlug={organizationSlug}
-          record={record}
+          record={record as Parameters<typeof RecordDetailView>[0]["record"]}
         />
       </AppShell>
     );
