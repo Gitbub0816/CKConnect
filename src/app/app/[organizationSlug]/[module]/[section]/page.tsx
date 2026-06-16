@@ -55,8 +55,6 @@ export default async function WorkspaceModuleSectionPage({
       ]),
     ),
   );
-  if (!bundle[suiteSection.module]) notFound();
-
   if (module === "crm") {
     return (
       <AppShell active="crm" organizationSlug={organizationSlug}>
