@@ -231,11 +231,7 @@ export function AppSidebar({
     visibleSections.find((section) =>
       section.items.some((item) => item.slug === active),
     )?.label ?? "Overview";
-  const [openSections, setOpenSections] = useState<string[]>(() => {
-    if (typeof window === "undefined") return ["Overview"];
-    const stored = window.sessionStorage.getItem(openStorageKey);
-    return stored ? (JSON.parse(stored) as string[]) : ["Overview"];
-  });
+  const [openSections, setOpenSections] = useState<string[]>(["Overview"]);
   const visibleOpenSections = useMemo(() => {
     const next = new Set(openSections);
     next.add(activeSection);
@@ -244,10 +240,17 @@ export function AppSidebar({
 
   useEffect(() => {
     const restoreScroll = () => {
+      const stored = sessionStorage.getItem(openStorageKey);
+      if (stored) {
+        try {
+          setOpenSections(JSON.parse(stored) as string[]);
+        } catch {
+          sessionStorage.removeItem(openStorageKey);
+        }
+      }
       const saved = Number(sessionStorage.getItem(scrollStorageKey) ?? "0");
       if (navRef.current) navRef.current.scrollTop = saved;
     };
-    restoreScroll();
     const frame = window.requestAnimationFrame(restoreScroll);
     return () => window.cancelAnimationFrame(frame);
   }, [pathname]);

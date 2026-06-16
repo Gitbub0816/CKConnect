@@ -53,12 +53,17 @@ const modules = new Set([
   "compliance",
 ]);
 
-export default async function WorkspaceModulePage({
+export async function renderWorkspaceModulePage({
   params,
 }: {
-  params: Promise<{ organizationSlug: string; module: string }>;
+  params: Promise<{
+    organizationSlug: string;
+    module: string;
+    section?: string[];
+  }>;
 }) {
-  const { organizationSlug, module } = await params;
+  const { organizationSlug, module, section } = await params;
+  const activeSection = section?.[0] ?? "overview";
   if (!modules.has(module)) notFound();
   const { organization: configuration } = await requireOrganizationAccess(
     organizationSlug,
@@ -152,7 +157,7 @@ export default async function WorkspaceModulePage({
         />
       ) : (
         module === "crm" ? (
-          <CrmSuite activeSection="overview" organizationSlug={organizationSlug}>
+          <CrmSuite activeSection={activeSection} organizationSlug={organizationSlug}>
             <CrmAddendumWorkspace
               data={bundle!}
               organizationSlug={organizationSlug}
@@ -160,7 +165,7 @@ export default async function WorkspaceModulePage({
           </CrmSuite>
         ) : module === "accounting" ? (
           <AccountingSuite
-            activeSection="overview"
+            activeSection={activeSection}
             organizationSlug={organizationSlug}
           >
             <AccountingAddendumWorkspace
@@ -179,3 +184,5 @@ export default async function WorkspaceModulePage({
     </AppShell>
   );
 }
+
+export default renderWorkspaceModulePage;
