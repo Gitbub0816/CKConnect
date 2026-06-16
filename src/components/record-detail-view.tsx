@@ -4,7 +4,6 @@ import {
   ArrowRight,
   BadgeCheck,
   Building2,
-  CalendarDays,
   ChevronRight,
   CircleDollarSign,
   FileText,
@@ -21,6 +20,8 @@ import {
   addEntityNote,
   changeDealStage,
   convertLead,
+  recordManualPayment,
+  sendInvoice,
   updateWorkspaceRecord,
 } from "@/app/app/[organizationSlug]/actions";
 import { formatCurrency } from "@/lib/utils";
@@ -1174,6 +1175,72 @@ function InvoiceDetailView({
               },
             ]}
           />
+          {!["PAID", "VOID"].includes(record.status) && (
+            <>
+              {record.status === "DRAFT" && (
+                <EditCard icon={Mail} title="Send invoice">
+                  <form action={sendInvoice} className="grid gap-3">
+                    <input name="organizationSlug" type="hidden" value={organizationSlug} />
+                    <input name="entityId" type="hidden" value={record.id} />
+                    <p className="text-xs leading-5 text-slate-500">
+                      Sends the invoice to the customer and posts it to the A/R
+                      ledger. This action cannot be undone — the invoice will
+                      move from DRAFT to SENT.
+                    </p>
+                    <button className="ck-button" type="submit">
+                      <Mail size={14} />
+                      Send invoice
+                    </button>
+                  </form>
+                </EditCard>
+              )}
+              {record.balanceDue > 0 && (
+                <EditCard icon={BadgeCheck} title="Record payment">
+                  <form action={recordManualPayment} className="grid gap-3">
+                    <input name="organizationSlug" type="hidden" value={organizationSlug} />
+                    <input name="invoiceId" type="hidden" value={record.id} />
+                    <label className="text-xs font-semibold text-slate-600">
+                      Amount received ($)
+                      <input
+                        className="ck-input mt-1"
+                        defaultValue={record.balanceDue}
+                        max={record.balanceDue}
+                        min="0.01"
+                        name="amount"
+                        step="0.01"
+                        type="number"
+                      />
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">
+                      Payment method
+                      <select className="ck-input mt-1" name="method">
+                        <option value="ACH">ACH / Bank transfer</option>
+                        <option value="CHECK">Check</option>
+                        <option value="WIRE">Wire</option>
+                        <option value="CARD">Card</option>
+                        <option value="CASH">Cash</option>
+                        <option value="OTHER">Other</option>
+                      </select>
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">
+                      Reference / check #
+                      <input className="ck-input mt-1" name="reference" placeholder="Optional" />
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">
+                      Date received
+                      <input
+                        className="ck-input mt-1"
+                        defaultValue={new Date().toISOString().slice(0, 10)}
+                        name="receivedAt"
+                        type="date"
+                      />
+                    </label>
+                    <button className="ck-button" type="submit">Record payment</button>
+                  </form>
+                </EditCard>
+              )}
+            </>
+          )}
           <section className="ck-card overflow-hidden">
             <div className="flex items-center gap-2 border-b p-5">
               <BadgeCheck className="text-[#9b7420]" size={18} />
