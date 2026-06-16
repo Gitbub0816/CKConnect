@@ -736,7 +736,7 @@ function buildTabOverride(
                 </div>
                 <div className="flex gap-2">
                   <Link className="ck-button ck-button-secondary !py-1.5 text-xs" href={`/app/${organizationSlug}/invoices/${String(r.id)}`}>View</Link>
-                  {r.pdfUrl && <a className="ck-button ck-button-secondary !py-1.5 text-xs" href={String(r.pdfUrl)} rel="noreferrer" target="_blank">PDF</a>}
+                  {r.pdfUrl ? <a className="ck-button ck-button-secondary !py-1.5 text-xs" href={String(r.pdfUrl)} rel="noreferrer" target="_blank">PDF</a> : null}
                 </div>
               </div>
             ))}
