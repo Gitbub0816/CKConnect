@@ -552,11 +552,13 @@ export function ModulePage({
   data,
   organizationSlug,
   embedded = false,
+  activeTab,
 }: {
   module: string;
   data: ModuleData;
   organizationSlug: string;
   embedded?: boolean;
+  activeTab?: string;
 }) {
   const config = copy[module] ?? {
     title: module.replaceAll("-", " "),
@@ -714,11 +716,15 @@ export function ModulePage({
       </div>
       {!embedded && (
         <nav className="ck-module-tabs mt-4" aria-label={`${config.title} sections`}>
-          {meta.tabs.map((tab, index) => (
-            <a className={index === 0 ? "is-active" : ""} href="#" key={tab}>
-              {tab}
-            </a>
-          ))}
+          {meta.tabs.map((tab, index) => {
+            const slug = tab.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+            const isActive = activeTab ? activeTab === slug : index === 0;
+            return (
+              <a className={isActive ? "is-active" : ""} href={`?tab=${slug}`} key={tab}>
+                {tab}
+              </a>
+            );
+          })}
         </nav>
       )}
       {primaryWorkbenchModules.has(module) ? (
