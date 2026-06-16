@@ -26,6 +26,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import {
+  completeTask,
+  updateCaseWorkflow,
+} from "@/app/app/[organizationSlug]/actions";
 import { OperationalWorkbench } from "@/components/operational-workbench";
 import { FinanceWorkbench } from "@/components/finance-workbenches";
 import { ServiceWorkbench } from "@/components/service-workbenches";
@@ -611,7 +615,7 @@ function CrmContactsSection({ contacts, base }: { contacts: Row[]; base: string 
   );
 }
 
-function CrmCasesSection({ cases, base }: { cases: Row[]; base: string }) {
+function CrmCasesSection({ cases, base, organizationSlug }: { cases: Row[]; base: string; organizationSlug: string }) {
   const open = cases.filter((c) => !["RESOLVED", "CLOSED"].includes(text(c.status)));
   const critical = cases.filter((c) => text(c.severity) === "CRITICAL");
   return (
@@ -635,29 +639,47 @@ function CrmCasesSection({ cases, base }: { cases: Row[]; base: string }) {
           <Link className="ck-button ck-button-primary text-xs" href={`${base}/crm/cases`}>New case</Link>
         </SectionTitle>
         <div className="divide-y">
-          {cases.map((c) => (
-            <article className="grid gap-4 p-4 lg:grid-cols-[1fr_auto]" key={text(c.id)}>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <TonePill tone={text(c.severity) === "CRITICAL" ? "bad" : text(c.severity) === "HIGH" ? "warn" : "neutral"}>{text(c.severity)}</TonePill>
-                  <TonePill tone={["RESOLVED", "CLOSED"].includes(text(c.status)) ? "good" : "info"}>{text(c.status)}</TonePill>
+          {cases.map((c) => {
+            const isClosed = ["RESOLVED", "CLOSED"].includes(text(c.status));
+            return (
+              <article className="grid gap-4 p-4 lg:grid-cols-[1fr_280px]" key={text(c.id)}>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <TonePill tone={text(c.severity) === "CRITICAL" ? "bad" : text(c.severity) === "HIGH" ? "warn" : "neutral"}>{text(c.severity)}</TonePill>
+                    <TonePill tone={isClosed ? "good" : "info"}>{text(c.status)}</TonePill>
+                    <TonePill tone={text(c.priority) === "HIGH" ? "bad" : text(c.priority) === "MEDIUM" ? "warn" : "neutral"}>{text(c.priority)}</TonePill>
+                  </div>
+                  <h3 className="mt-2 text-sm font-semibold">{text(c.number)} · {text(c.subject)}</h3>
+                  <p className="mt-1 text-xs text-slate-500">{text(c.account)} · Assigned to {text(c.assignee, "Unassigned")}</p>
                 </div>
-                <h3 className="mt-2 text-sm font-semibold">{text(c.number)} · {text(c.subject)}</h3>
-                <p className="mt-1 text-xs text-slate-500">{text(c.account)} · Assigned to {text(c.assignee, "Unassigned")}</p>
-              </div>
-              <div className="text-right">
-                <div className="ck-section-label">Priority</div>
-                <TonePill tone={text(c.priority) === "HIGH" ? "bad" : text(c.priority) === "MEDIUM" ? "warn" : "neutral"}>{text(c.priority)}</TonePill>
-              </div>
-            </article>
-          ))}
+                {!isClosed && (
+                  <form action={updateCaseWorkflow} className="flex flex-col gap-2 rounded-lg bg-slate-50 p-3">
+                    <input name="organizationSlug" type="hidden" value={organizationSlug} />
+                    <input name="entityId" type="hidden" value={text(c.id)} />
+                    <select className="ck-input text-xs" name="status">
+                      <option value="OPEN">Open</option>
+                      <option value="IN_PROGRESS">In progress</option>
+                      <option value="PENDING_CUSTOMER">Pending customer</option>
+                      <option value="RESOLVED">Resolved</option>
+                      <option value="CLOSED">Closed</option>
+                    </select>
+                    <input className="ck-input text-xs" name="resolution" placeholder="Resolution note (required to close)" />
+                    <button className="ck-button !py-1.5 text-xs" type="submit">Update status</button>
+                  </form>
+                )}
+              </article>
+            );
+          })}
+          {!cases.length && (
+            <div className="p-8 text-center text-sm text-slate-400">No cases yet.</div>
+          )}
         </div>
       </section>
     </div>
   );
 }
 
-function CrmTasksSection({ tasks, base }: { tasks: Row[]; base: string }) {
+function CrmTasksSection({ tasks, base, organizationSlug }: { tasks: Row[]; base: string; organizationSlug: string }) {
   const pending = tasks.filter((t) => !["DONE", "CANCELLED"].includes(text(t.status)));
   const overdue = pending.filter((t) => text(t.dueDate) !== "—" && new Date(text(t.dueDate)) < new Date());
   return (
@@ -682,22 +704,36 @@ function CrmTasksSection({ tasks, base }: { tasks: Row[]; base: string }) {
         </SectionTitle>
         <div className="divide-y">
           {tasks.map((task) => {
-            const isOverdue = text(task.status) !== "DONE" && text(task.dueDate) !== "—" && new Date(text(task.dueDate)) < new Date();
+            const isDone = text(task.status) === "DONE";
+            const isOverdue = !isDone && text(task.dueDate) !== "—" && new Date(text(task.dueDate)) < new Date();
             return (
-              <article className="flex items-center justify-between gap-4 p-4" key={text(task.id)}>
+              <article className="grid gap-4 p-4 sm:grid-cols-[1fr_auto]" key={text(task.id)}>
                 <div className="flex items-start gap-3">
-                  <div className={`mt-0.5 size-4 rounded-full border-2 ${text(task.status) === "DONE" ? "border-emerald-500 bg-emerald-500" : "border-slate-300"}`} />
+                  <div className={`mt-0.5 size-4 shrink-0 rounded-full border-2 ${isDone ? "border-emerald-500 bg-emerald-500" : "border-slate-300"}`} />
                   <div>
                     <div className="text-sm font-semibold">{text(task.title)}</div>
                     <p className="mt-1 text-xs text-slate-500">
                       {text(task.relatedTo, "No relation")} · <span className={isOverdue ? "font-semibold text-red-600" : ""}>Due {text(task.dueDate)}</span>
                     </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <TonePill tone={text(task.priority) === "HIGH" ? "bad" : text(task.priority) === "MEDIUM" ? "warn" : "neutral"}>{text(task.priority)}</TonePill>
+                      {isOverdue && <TonePill tone="bad">Overdue</TonePill>}
+                    </div>
                   </div>
                 </div>
-                <TonePill tone={text(task.priority) === "HIGH" ? "bad" : text(task.priority) === "MEDIUM" ? "warn" : "neutral"}>{text(task.priority)}</TonePill>
+                {!isDone && (
+                  <form action={completeTask}>
+                    <input name="organizationSlug" type="hidden" value={organizationSlug} />
+                    <input name="entityId" type="hidden" value={text(task.id)} />
+                    <button className="ck-button ck-button-secondary !py-1.5 text-xs" type="submit">Mark done</button>
+                  </form>
+                )}
               </article>
             );
           })}
+          {!tasks.length && (
+            <div className="p-8 text-center text-sm text-slate-400">No tasks yet.</div>
+          )}
         </div>
       </section>
     </div>
@@ -826,8 +862,8 @@ function AccountingOverviewSection({
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <a className="ck-button ck-button-secondary !min-h-9" href={text(invoice.pdfUrl, "#")} target="_blank" rel="noreferrer">PDF</a>
-                    <Link className="ck-button ck-button-secondary !min-h-9" href={`${base}/invoices`}>Open workflow</Link>
+                    {text(invoice.pdfUrl) !== "—" && <a className="ck-button ck-button-secondary !min-h-9" href={text(invoice.pdfUrl, "#")} target="_blank" rel="noreferrer">PDF</a>}
+                    <Link className="ck-button ck-button-secondary !min-h-9" href={`${base}/invoices/${text(invoice.id)}`}>Open invoice</Link>
                   </div>
                 </div>
               </article>
