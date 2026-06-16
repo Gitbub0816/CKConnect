@@ -5,6 +5,7 @@ import {
 } from "@/components/accounting-suite";
 import {
   AccountingAddendumWorkspace,
+  CollaborationAddendumWorkspace,
   CrmAddendumWorkspace,
 } from "@/components/addendum-workspaces";
 import { AppShell } from "@/components/app-shell";
@@ -34,6 +35,20 @@ export default async function WorkspaceModuleSectionPage({
       ? "settings.manage"
       : `${suiteSection.module}.read`,
   );
+
+  // Collaboration has its own data source — skip the main bundle
+  if (module === "crm" && section === "collaboration") {
+    const collabData = await getModuleData(organizationSlug, "collaboration");
+    const channels = ((collabData?.records as Record<string, unknown>[] | undefined) ?? []);
+    const calendar = ((collabData?.calendar as Record<string, unknown>[] | undefined) ?? []);
+    return (
+      <AppShell active="crm" organizationSlug={organizationSlug}>
+        <CrmSuite activeSection="collaboration" organizationSlug={organizationSlug}>
+          <CollaborationAddendumWorkspace channels={channels} calendar={calendar} />
+        </CrmSuite>
+      </AppShell>
+    );
+  }
 
   const bundleModules =
     module === "crm"
@@ -78,6 +93,7 @@ export default async function WorkspaceModuleSectionPage({
         <AccountingAddendumWorkspace
           data={bundle}
           organizationSlug={organizationSlug}
+          section={suiteSection.slug}
         />
       </AccountingSuite>
     </AppShell>

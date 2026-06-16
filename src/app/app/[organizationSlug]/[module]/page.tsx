@@ -141,7 +141,7 @@ export async function renderWorkspaceModulePage({
     (!endpoint || !endpoint.theme || !endpoint.endpointPages[0])
   )
     notFound();
-  if (module !== "appearance" && !data) notFound();
+  if (module !== "appearance" && !bundle && !data) notFound();
 
   return (
     <AppShell active={module} organizationSlug={organizationSlug}>
