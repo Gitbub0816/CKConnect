@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  ArrowRight,
   BadgeCheck,
   Bell,
   Boxes,
@@ -49,7 +50,12 @@ function ContactsWorkbench({
             <div>
               {pill(contact.lifecycle)}
               <h3 className="mt-3 text-lg font-semibold">
-                {String(contact.name)}
+                <Link
+                  className="hover:text-[#8b6914] hover:underline"
+                  href={`/app/${organizationSlug}/contacts/${String(contact.id)}`}
+                >
+                  {String(contact.name)}
+                </Link>
               </h3>
               <p className="mt-1 text-sm text-slate-500">
                 {String(contact.title ?? "Contact")} at{" "}
@@ -75,6 +81,13 @@ function ContactsWorkbench({
                   <Phone size={15} />
                 </a>
               )}
+              <Link
+                aria-label={`View ${String(contact.name)} details`}
+                className="grid size-9 place-items-center rounded-lg border hover:bg-amber-50"
+                href={`/app/${organizationSlug}/contacts/${String(contact.id)}`}
+              >
+                <ArrowRight size={15} />
+              </Link>
             </div>
           </div>
           <dl className="mt-5 grid grid-cols-2 gap-3 rounded-lg bg-[#f8f5ef] p-4 text-xs">

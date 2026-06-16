@@ -58,7 +58,7 @@ function LeadWorkbench({ records, organizationSlug }: { records: RecordValue[]; 
             <StatusPill tone={Number(lead.score) >= 80 ? "danger" : "warning"}>{String(lead.priority)}</StatusPill>
             <span className="text-xs text-slate-500">{String(lead.source ?? "Unknown source")}</span>
           </div>
-          <h3 className="mt-3 text-lg font-semibold">{String(lead.name)}</h3>
+          <h3 className="mt-3 text-lg font-semibold"><Link className="hover:text-[#8b6914] hover:underline" href={`/app/${organizationSlug}/leads/${String(lead.id)}`}>{String(lead.name)}</Link></h3>
           <p className="mt-1 text-sm text-slate-500">{String(lead.company ?? "Individual prospect")} · {String(lead.email ?? lead.phone ?? "No contact method")}</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             <div className="rounded-lg bg-[#f8f5ef] p-3"><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Lead score</div><div className="mt-1 text-xl font-semibold">{Number(lead.score)}</div></div>
@@ -98,7 +98,7 @@ function DealWorkbench({ records, organizationSlug }: { records: RecordValue[]; 
               <StatusPill tone={deal.risk === "ON_TRACK" ? "success" : "danger"}>{String(deal.risk)}</StatusPill>
               <span className="text-xs text-slate-500">{String(deal.stage).replaceAll("_", " ")}</span>
             </div>
-            <h3 className="mt-3 text-lg font-semibold">{String(deal.name)}</h3>
+            <h3 className="mt-3 text-lg font-semibold"><Link className="hover:text-[#8b6914] hover:underline" href={`/app/${organizationSlug}/deals/${String(deal.id)}`}>{String(deal.name)}</Link></h3>
             <p className="mt-1 text-sm text-slate-500">{String(deal.account ?? "No account")} · {String(deal.contact ?? "No primary contact")}</p>
           </div>
           <div className="text-right"><div className="text-2xl font-semibold">{formatCurrency(Number(deal.amount))}</div><div className="mt-1 text-xs text-slate-500">{Number(deal.probability)}% weighted · {formatCurrency(Number(deal.amount) * Number(deal.probability) / 100)}</div></div>
@@ -137,7 +137,7 @@ function AccountWorkbench({ accounts, organizationSlug }: { accounts: RecordValu
         <div><div className="text-[10px] font-bold uppercase text-slate-500">Lifetime value</div><div className="mt-1 font-semibold">{formatCurrency(Number(account.lifetimeValue))}</div></div>
         <div><div className="text-[10px] font-bold uppercase text-slate-500">Open pipeline</div><div className="mt-1 font-semibold">{formatCurrency(Number(account.openPipeline))}</div></div>
         <div><div className="text-[10px] font-bold uppercase text-slate-500">Receivable</div><div className="mt-1 font-semibold">{formatCurrency(Number(account.receivable))}</div></div>
-        <div className="text-right text-xs font-semibold text-[#8b6914]">Open account 360 <ArrowRight className="inline transition group-open:rotate-90" size={14}/></div>
+        <div className="flex items-center justify-end gap-3"><Link className="ck-button ck-button-secondary !py-1.5 text-xs" href={`/app/${organizationSlug}/accounts/${String(account.id)}`} onClick={(e) => e.stopPropagation()}>Open 360 <ArrowRight size={13}/></Link><span className="text-xs font-semibold text-[#8b6914]">Expand <ArrowRight className="inline transition group-open:rotate-90" size={14}/></span></div>
       </summary>
       <div className="grid gap-px border-t bg-slate-200 xl:grid-cols-4">
         {[
@@ -167,7 +167,7 @@ function InvoiceWorkbench({ records, organizationSlug }: { records: RecordValue[
       <div className="grid gap-5 p-5 lg:grid-cols-[1fr_auto]">
         <div>
           <div className="flex flex-wrap items-center gap-2"><StatusPill tone={invoice.collectionState === "OVERDUE" ? "danger" : invoice.collectionState === "SETTLED" ? "success" : "warning"}>{String(invoice.collectionState)}</StatusPill>{invoice.posted ? <StatusPill tone="success">Posted to ledger</StatusPill> : <StatusPill>Unposted</StatusPill>}</div>
-          <h3 className="mt-3 text-lg font-semibold">{String(invoice.number)} · {String(invoice.customer ?? "Direct customer")}</h3>
+          <h3 className="mt-3 text-lg font-semibold"><Link className="hover:text-[#8b6914] hover:underline" href={`/app/${organizationSlug}/invoices/${String(invoice.id)}`}>{String(invoice.number)}</Link> · {String(invoice.customer ?? "Direct customer")}</h3>
           <p className="mt-1 text-sm text-slate-500">{String(invoice.contact ?? "No billing contact")} · due {invoice.dueDate ? new Date(String(invoice.dueDate)).toLocaleDateString() : "not set"}</p>
           <p className="mt-2 text-xs font-semibold uppercase tracking-[.12em] text-slate-400">Generated from {String(invoice.generationSource ?? "Manual or imported")}</p>
         </div>

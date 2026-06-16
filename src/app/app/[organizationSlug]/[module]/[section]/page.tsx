@@ -10,8 +10,17 @@ import {
 } from "@/components/addendum-workspaces";
 import { AppShell } from "@/components/app-shell";
 import { CrmSuite, getCrmSection } from "@/components/crm-suite";
+import { RecordDetailView } from "@/components/record-detail-view";
 import { requireOrganizationAccess } from "@/lib/authorization";
-import { getModuleData } from "@/lib/workspace-data";
+import { getModuleData, getRecordDetail } from "@/lib/workspace-data";
+
+const recordDetailModules = new Set([
+  "contacts",
+  "leads",
+  "deals",
+  "accounts",
+  "invoices",
+]);
 
 export default async function WorkspaceModuleSectionPage({
   params,
@@ -23,6 +32,41 @@ export default async function WorkspaceModuleSectionPage({
   }>;
 }) {
   const { organizationSlug, module, section } = await params;
+
+  // Record detail pages for CRM / finance modules
+  if (recordDetailModules.has(module)) {
+    const permMap: Record<string, string> = {
+      contacts: "accounts.read",
+      leads: "accounts.read",
+      deals: "accounts.read",
+      accounts: "accounts.read",
+      invoices: "invoices.read",
+    };
+    await requireOrganizationAccess(organizationSlug, permMap[module] ?? `${module}.read`);
+    const record = await getRecordDetail(organizationSlug, module, section);
+    if (!record) notFound();
+    const backLabel =
+      module === "contacts"
+        ? "Contacts"
+        : module === "leads"
+          ? "Leads"
+          : module === "deals"
+            ? "Deals"
+            : module === "accounts"
+              ? "Accounts"
+              : "Invoices";
+    return (
+      <AppShell active={module} organizationSlug={organizationSlug}>
+        <RecordDetailView
+          backHref={`/app/${organizationSlug}/${module}`}
+          backLabel={backLabel}
+          organizationSlug={organizationSlug}
+          record={record}
+        />
+      </AppShell>
+    );
+  }
+
   if (!["accounting", "crm"].includes(module)) notFound();
 
   const suiteSection =

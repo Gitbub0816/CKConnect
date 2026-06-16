@@ -436,7 +436,17 @@ function MetricGrid({ metrics = [] }: { metrics?: Metric[] }) {
   );
 }
 
-function DataTable({ records = [] }: { records?: Record<string, unknown>[] }) {
+const detailRouteModules = new Set(["contacts", "leads", "deals", "accounts", "invoices"]);
+
+function DataTable({
+  records = [],
+  module,
+  organizationSlug,
+}: {
+  records?: Record<string, unknown>[];
+  module?: string;
+  organizationSlug?: string;
+}) {
   const columns = records[0]
     ? Object.keys(records[0])
         .filter(
@@ -445,6 +455,8 @@ function DataTable({ records = [] }: { records?: Record<string, unknown>[] }) {
         )
         .slice(0, 8)
     : [];
+  const hasDetailRoute =
+    module && organizationSlug && detailRouteModules.has(module);
   return (
     <div className="overflow-x-auto">
       <table className="ck-data-table w-full min-w-[760px] border-collapse text-left text-sm">
@@ -458,27 +470,44 @@ function DataTable({ records = [] }: { records?: Record<string, unknown>[] }) {
           </tr>
         </thead>
         <tbody>
-          {records.map((record, row) => (
-            <tr
-              className="transition hover:bg-amber-50/45"
-              key={String(record.id ?? row)}
-            >
-              {columns.map((column, index) => (
-                <td
-                  className={moneyFields.has(column) ? "money border-b px-4 py-4" : "border-b px-4 py-4"}
-                  key={column}
-                >
-                  {index === 0 ? (
-                    <span className="font-semibold text-[#755714]">
-                      {display(record[column], column)}
-                    </span>
-                  ) : (
-                    display(record[column], column)
-                  )}
-                </td>
-              ))}
-            </tr>
-          ))}
+          {records.map((record, row) => {
+            const href =
+              hasDetailRoute && record.id
+                ? `/app/${organizationSlug}/${module}/${String(record.id)}`
+                : null;
+            return (
+              <tr
+                className="transition hover:bg-amber-50/45"
+                key={String(record.id ?? row)}
+              >
+                {columns.map((column, index) => (
+                  <td
+                    className={
+                      moneyFields.has(column)
+                        ? "money border-b px-4 py-4"
+                        : "border-b px-4 py-4"
+                    }
+                    key={column}
+                  >
+                    {index === 0 && href ? (
+                      <Link
+                        className="font-semibold text-[#755714] hover:underline"
+                        href={href}
+                      >
+                        {display(record[column], column)}
+                      </Link>
+                    ) : index === 0 ? (
+                      <span className="font-semibold text-[#755714]">
+                        {display(record[column], column)}
+                      </span>
+                    ) : (
+                      display(record[column], column)
+                    )}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
       {!records.length && (
@@ -673,7 +702,7 @@ export function ModulePage({
   ) : module === "compliance" ? (
     <ComplianceWorkbench data={data} organizationSlug={organizationSlug} />
   ) : (
-    <DataExplorer module={module} records={data.records ?? []} />
+    <DataExplorer module={module} organizationSlug={organizationSlug} records={data.records ?? []} />
   );
   return (
     <div
