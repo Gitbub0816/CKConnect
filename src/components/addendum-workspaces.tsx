@@ -26,10 +26,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
-import {
-  completeTask,
-  updateCaseWorkflow,
-} from "@/app/app/[organizationSlug]/actions";
 import { OperationalWorkbench } from "@/components/operational-workbench";
 import { FinanceWorkbench } from "@/components/finance-workbenches";
 import { ServiceWorkbench } from "@/components/service-workbenches";
@@ -286,7 +282,7 @@ function CrmOverviewSection({
                   {stageDeals.slice(0, 4).map((deal) => {
                     const stale = text(deal.risk, "") !== "ON_TRACK" && !stage.startsWith("CLOSED");
                     return (
-                      <Link className={`block rounded-xl border bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${stale ? "border-l-4 border-l-amber-400" : ""}`} href={`${base}/deals/${text(deal.id)}`} key={text(deal.id)}>
+                      <Link className={`block rounded-xl border bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${stale ? "border-l-4 border-l-amber-400" : ""}`} href={`${base}/crm/deals`} key={text(deal.id)}>
                         <div className="text-sm font-semibold">{text(deal.name)}</div>
                         <div className="mt-1 text-xs text-slate-500">{text(deal.account)} · {num(deal.probability)}%</div>
                         <div className="data-metric mt-3 font-semibold">{formatCurrency(num(deal.amount))}</div>
@@ -313,7 +309,7 @@ function CrmOverviewSection({
               const ad = (account.deals as Row[] | undefined) ?? [];
               const ai = (account.invoices as Row[] | undefined) ?? [];
               return (
-                <article className="grid gap-4 p-5 lg:grid-cols-[1fr_210px_210px_auto]" key={text(account.id)}>
+                <article className="grid gap-4 p-5 lg:grid-cols-[1fr_210px_210px]" key={text(account.id)}>
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <TonePill tone={num(account.health) >= 85 ? "good" : "warn"}>{num(account.health)} health</TonePill>
@@ -335,9 +331,6 @@ function CrmOverviewSection({
                       {ai.slice(0, 2).map((inv) => `${text(inv.number)} ${formatCurrency(num(inv.balance))}`).join(" · ") || "No invoices"}
                     </div>
                   </div>
-                  <Link className="flex items-center gap-1 self-center text-xs font-semibold text-sky-700 hover:underline" href={`${base}/accounts/${text(account.id)}`}>
-                    Open 360 <ArrowRight size={13} />
-                  </Link>
                 </article>
               );
             })}
@@ -359,7 +352,7 @@ function CrmOverviewSection({
         <SectionTitle eyebrow="Lead conversion and outreach" title="Qualification queue with natural next actions" />
         <div className="grid gap-px bg-slate-200 md:grid-cols-2 xl:grid-cols-4">
           {leads.slice(0, 8).map((lead) => (
-            <Link className="bg-white p-4 hover:bg-sky-50" href={`${base}/leads/${text(lead.id)}`} key={text(lead.id)}>
+            <Link className="bg-white p-4 hover:bg-sky-50" href={`${base}/crm/leads`} key={text(lead.id)}>
               <div className="flex items-center justify-between gap-2">
                 <TonePill tone={num(lead.score) >= 80 ? "bad" : num(lead.score) >= 60 ? "warn" : "neutral"}>{text(lead.priority)}</TonePill>
                 <span className="data-metric text-lg font-semibold">{num(lead.score)}</span>
@@ -400,7 +393,7 @@ function CrmLeadsSection({ leads, base }: { leads: Row[]; base: string }) {
         </SectionTitle>
         <div className="grid gap-px bg-slate-200 md:grid-cols-2 xl:grid-cols-3">
           {unconverted.map((lead) => (
-            <Link className="block bg-white p-4 hover:bg-sky-50" href={`${base}/leads/${text(lead.id)}`} key={text(lead.id)}>
+            <Link className="block bg-white p-4 hover:bg-sky-50" href={`${base}/crm/leads`} key={text(lead.id)}>
               <div className="flex items-center justify-between gap-2">
                 <TonePill tone={num(lead.score) >= 80 ? "bad" : num(lead.score) >= 60 ? "warn" : "neutral"}>{text(lead.priority)}</TonePill>
                 <span className="data-metric text-lg font-semibold">{num(lead.score)}</span>
@@ -457,7 +450,7 @@ function CrmDealsSection({ deals, base }: { deals: Row[]; base: string }) {
                   {sd.slice(0, 6).map((deal) => {
                     const stale = text(deal.risk, "") !== "ON_TRACK" && !stage.startsWith("CLOSED");
                     return (
-                      <Link className={`block rounded-xl border bg-white p-3 shadow-sm transition hover:-translate-y-0.5 ${stale ? "border-l-4 border-l-amber-400" : ""}`} href={`${base}/deals/${text(deal.id)}`} key={text(deal.id)}>
+                      <Link className={`block rounded-xl border bg-white p-3 shadow-sm transition hover:-translate-y-0.5 ${stale ? "border-l-4 border-l-amber-400" : ""}`} href={`${base}/crm/deals`} key={text(deal.id)}>
                         <div className="text-sm font-semibold">{text(deal.name)}</div>
                         <div className="mt-1 text-xs text-slate-500">{text(deal.account)} · {num(deal.probability)}%</div>
                         <div className="data-metric mt-3 font-semibold">{formatCurrency(num(deal.amount))}</div>
@@ -477,7 +470,7 @@ function CrmDealsSection({ deals, base }: { deals: Row[]; base: string }) {
           <SectionTitle eyebrow="Attention required" title="At-risk deals needing next step or updated close date" />
           <div className="divide-y">
             {atRisk.map((deal) => (
-              <Link className="flex items-center justify-between gap-4 p-4 hover:bg-amber-50" href={`${base}/deals/${text(deal.id)}`} key={text(deal.id)}>
+              <article className="flex items-center justify-between gap-4 p-4" key={text(deal.id)}>
                 <div>
                   <div className="flex gap-2">
                     <TonePill tone="warn">{text(deal.risk).replaceAll("_", " ")}</TonePill>
@@ -486,14 +479,11 @@ function CrmDealsSection({ deals, base }: { deals: Row[]; base: string }) {
                   <h3 className="mt-2 text-sm font-semibold">{text(deal.name)}</h3>
                   <p className="text-xs text-slate-500">{text(deal.account)}</p>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <div className="ck-section-label">Amount</div>
-                    <div className="data-metric mt-1 font-semibold">{formatCurrency(num(deal.amount))}</div>
-                  </div>
-                  <ArrowRight className="text-slate-400" size={16} />
+                <div className="text-right">
+                  <div className="ck-section-label">Amount</div>
+                  <div className="data-metric mt-1 font-semibold">{formatCurrency(num(deal.amount))}</div>
                 </div>
-              </Link>
+              </article>
             ))}
           </div>
         </section>
@@ -529,15 +519,13 @@ function CrmAccountsSection({ accounts, base }: { accounts: Row[]; base: string 
             const ad = (account.deals as Row[] | undefined) ?? [];
             const ai = (account.invoices as Row[] | undefined) ?? [];
             return (
-              <article className="grid gap-4 p-5 lg:grid-cols-[1fr_200px_200px_auto]" key={text(account.id)}>
+              <article className="grid gap-4 p-5 lg:grid-cols-[1fr_200px_200px]" key={text(account.id)}>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <TonePill tone={num(account.health) >= 85 ? "good" : num(account.health) >= 70 ? "warn" : "bad"}>{num(account.health)} health</TonePill>
                     <span className="text-xs text-slate-500">{text(account.industry, "Uncategorized")}</span>
                   </div>
-                  <h3 className="mt-2 text-lg font-semibold">
-                    <Link className="hover:text-[#8b6914] hover:underline" href={`${base}/accounts/${text(account.id)}`}>{text(account.name)}</Link>
-                  </h3>
+                  <h3 className="mt-2 text-lg font-semibold">{text(account.name)}</h3>
                   <p className="mt-1 text-xs text-slate-500">{ac.slice(0, 2).map((c) => text(c.name)).join(", ") || "No contacts"} · {ad.length} opportunities</p>
                 </div>
                 <div className="rounded-xl bg-slate-50 p-3">
@@ -550,9 +538,6 @@ function CrmAccountsSection({ accounts, base }: { accounts: Row[]; base: string 
                     {ai.slice(0, 2).map((inv) => `${text(inv.number)} ${formatCurrency(num(inv.balance))}`).join(" · ") || "No invoices"}
                   </div>
                 </div>
-                <Link className="flex items-center self-center text-[#8b6914] hover:underline" href={`${base}/accounts/${text(account.id)}`}>
-                  <ArrowRight size={16} />
-                </Link>
               </article>
             );
           })}
@@ -585,7 +570,7 @@ function CrmContactsSection({ contacts, base }: { contacts: Row[]; base: string 
         </SectionTitle>
         <div className="grid gap-px bg-slate-200 md:grid-cols-2 xl:grid-cols-3">
           {contacts.map((contact) => (
-            <Link className="block bg-white p-4 hover:bg-sky-50" href={`${base}/contacts/${text(contact.id)}`} key={text(contact.id)}>
+            <Link className="block bg-white p-4 hover:bg-sky-50" href={`${base}/crm/contacts`} key={text(contact.id)}>
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="text-sm font-semibold">{text(contact.name)}</div>
@@ -615,7 +600,7 @@ function CrmContactsSection({ contacts, base }: { contacts: Row[]; base: string 
   );
 }
 
-function CrmCasesSection({ cases, base, organizationSlug }: { cases: Row[]; base: string; organizationSlug: string }) {
+function CrmCasesSection({ cases, base }: { cases: Row[]; base: string }) {
   const open = cases.filter((c) => !["RESOLVED", "CLOSED"].includes(text(c.status)));
   const critical = cases.filter((c) => text(c.severity) === "CRITICAL");
   return (
@@ -639,47 +624,29 @@ function CrmCasesSection({ cases, base, organizationSlug }: { cases: Row[]; base
           <Link className="ck-button ck-button-primary text-xs" href={`${base}/crm/cases`}>New case</Link>
         </SectionTitle>
         <div className="divide-y">
-          {cases.map((c) => {
-            const isClosed = ["RESOLVED", "CLOSED"].includes(text(c.status));
-            return (
-              <article className="grid gap-4 p-4 lg:grid-cols-[1fr_280px]" key={text(c.id)}>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <TonePill tone={text(c.severity) === "CRITICAL" ? "bad" : text(c.severity) === "HIGH" ? "warn" : "neutral"}>{text(c.severity)}</TonePill>
-                    <TonePill tone={isClosed ? "good" : "info"}>{text(c.status)}</TonePill>
-                    <TonePill tone={text(c.priority) === "HIGH" ? "bad" : text(c.priority) === "MEDIUM" ? "warn" : "neutral"}>{text(c.priority)}</TonePill>
-                  </div>
-                  <h3 className="mt-2 text-sm font-semibold">{text(c.number)} · {text(c.subject)}</h3>
-                  <p className="mt-1 text-xs text-slate-500">{text(c.account)} · Assigned to {text(c.assignee, "Unassigned")}</p>
+          {cases.map((c) => (
+            <article className="grid gap-4 p-4 lg:grid-cols-[1fr_auto]" key={text(c.id)}>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <TonePill tone={text(c.severity) === "CRITICAL" ? "bad" : text(c.severity) === "HIGH" ? "warn" : "neutral"}>{text(c.severity)}</TonePill>
+                  <TonePill tone={["RESOLVED", "CLOSED"].includes(text(c.status)) ? "good" : "info"}>{text(c.status)}</TonePill>
                 </div>
-                {!isClosed && (
-                  <form action={updateCaseWorkflow} className="flex flex-col gap-2 rounded-lg bg-slate-50 p-3">
-                    <input name="organizationSlug" type="hidden" value={organizationSlug} />
-                    <input name="entityId" type="hidden" value={text(c.id)} />
-                    <select className="ck-input text-xs" name="status">
-                      <option value="OPEN">Open</option>
-                      <option value="IN_PROGRESS">In progress</option>
-                      <option value="PENDING_CUSTOMER">Pending customer</option>
-                      <option value="RESOLVED">Resolved</option>
-                      <option value="CLOSED">Closed</option>
-                    </select>
-                    <input className="ck-input text-xs" name="resolution" placeholder="Resolution note (required to close)" />
-                    <button className="ck-button !py-1.5 text-xs" type="submit">Update status</button>
-                  </form>
-                )}
-              </article>
-            );
-          })}
-          {!cases.length && (
-            <div className="p-8 text-center text-sm text-slate-400">No cases yet.</div>
-          )}
+                <h3 className="mt-2 text-sm font-semibold">{text(c.number)} · {text(c.subject)}</h3>
+                <p className="mt-1 text-xs text-slate-500">{text(c.account)} · Assigned to {text(c.assignee, "Unassigned")}</p>
+              </div>
+              <div className="text-right">
+                <div className="ck-section-label">Priority</div>
+                <TonePill tone={text(c.priority) === "HIGH" ? "bad" : text(c.priority) === "MEDIUM" ? "warn" : "neutral"}>{text(c.priority)}</TonePill>
+              </div>
+            </article>
+          ))}
         </div>
       </section>
     </div>
   );
 }
 
-function CrmTasksSection({ tasks, base, organizationSlug }: { tasks: Row[]; base: string; organizationSlug: string }) {
+function CrmTasksSection({ tasks, base }: { tasks: Row[]; base: string }) {
   const pending = tasks.filter((t) => !["DONE", "CANCELLED"].includes(text(t.status)));
   const overdue = pending.filter((t) => text(t.dueDate) !== "—" && new Date(text(t.dueDate)) < new Date());
   return (
@@ -704,36 +671,22 @@ function CrmTasksSection({ tasks, base, organizationSlug }: { tasks: Row[]; base
         </SectionTitle>
         <div className="divide-y">
           {tasks.map((task) => {
-            const isDone = text(task.status) === "DONE";
-            const isOverdue = !isDone && text(task.dueDate) !== "—" && new Date(text(task.dueDate)) < new Date();
+            const isOverdue = text(task.status) !== "DONE" && text(task.dueDate) !== "—" && new Date(text(task.dueDate)) < new Date();
             return (
-              <article className="grid gap-4 p-4 sm:grid-cols-[1fr_auto]" key={text(task.id)}>
+              <article className="flex items-center justify-between gap-4 p-4" key={text(task.id)}>
                 <div className="flex items-start gap-3">
-                  <div className={`mt-0.5 size-4 shrink-0 rounded-full border-2 ${isDone ? "border-emerald-500 bg-emerald-500" : "border-slate-300"}`} />
+                  <div className={`mt-0.5 size-4 rounded-full border-2 ${text(task.status) === "DONE" ? "border-emerald-500 bg-emerald-500" : "border-slate-300"}`} />
                   <div>
                     <div className="text-sm font-semibold">{text(task.title)}</div>
                     <p className="mt-1 text-xs text-slate-500">
                       {text(task.relatedTo, "No relation")} · <span className={isOverdue ? "font-semibold text-red-600" : ""}>Due {text(task.dueDate)}</span>
                     </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <TonePill tone={text(task.priority) === "HIGH" ? "bad" : text(task.priority) === "MEDIUM" ? "warn" : "neutral"}>{text(task.priority)}</TonePill>
-                      {isOverdue && <TonePill tone="bad">Overdue</TonePill>}
-                    </div>
                   </div>
                 </div>
-                {!isDone && (
-                  <form action={completeTask}>
-                    <input name="organizationSlug" type="hidden" value={organizationSlug} />
-                    <input name="entityId" type="hidden" value={text(task.id)} />
-                    <button className="ck-button ck-button-secondary !py-1.5 text-xs" type="submit">Mark done</button>
-                  </form>
-                )}
+                <TonePill tone={text(task.priority) === "HIGH" ? "bad" : text(task.priority) === "MEDIUM" ? "warn" : "neutral"}>{text(task.priority)}</TonePill>
               </article>
             );
           })}
-          {!tasks.length && (
-            <div className="p-8 text-center text-sm text-slate-400">No tasks yet.</div>
-          )}
         </div>
       </section>
     </div>
@@ -862,8 +815,8 @@ function AccountingOverviewSection({
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {text(invoice.pdfUrl) !== "—" && <a className="ck-button ck-button-secondary !min-h-9" href={text(invoice.pdfUrl, "#")} target="_blank" rel="noreferrer">PDF</a>}
-                    <Link className="ck-button ck-button-secondary !min-h-9" href={`${base}/invoices/${text(invoice.id)}`}>Open invoice</Link>
+                    <a className="ck-button ck-button-secondary !min-h-9" href={text(invoice.pdfUrl, "#")} target="_blank" rel="noreferrer">PDF</a>
+                    <Link className="ck-button ck-button-secondary !min-h-9" href={`${base}/invoices`}>Open workflow</Link>
                   </div>
                 </div>
               </article>
