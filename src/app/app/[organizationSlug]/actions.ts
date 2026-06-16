@@ -9,11 +9,11 @@ import { requireOrganizationAccess } from "@/lib/authorization";
 import { getDb } from "@/lib/db";
 import { appendAuditEvent } from "@/lib/logging/audit";
 import { CloudflareDnsProvider } from "@/lib/integrations/dns-provider";
-import { publishSiteManifest } from "@/lib/integrations/cloudflare-edge";
 import { provisionZohoMailbox } from "@/lib/integrations/zoho-mail";
 import { getStripe } from "@/lib/integrations/stripe";
 import { appUrl } from "@/lib/integrations/stripe-workflows";
 import { importAccountingWorkbook } from "@/lib/accounting-import";
+import { publishWebsite } from "@/lib/website-publishing";
 
 const escapeHtml = (value: string) =>
   value
@@ -3819,37 +3819,30 @@ export async function saveWebsitePage(formData: FormData) {
   const before = await db.websitePage.findFirstOrThrow({
     where: { id: input.pageId, websiteId: website.id },
   });
-  const page = await db.$transaction(async (tx) => {
-    const result = await tx.websitePage.update({
-      where: { id: before.id },
-      data: {
-        title: input.title,
-        path: input.path,
-        seoJson: { title: input.seoTitle, description: input.seoDescription },
-        contentJson: {
-          blocks,
-          code: {
-            html: input.codeHtml,
-            css: input.codeCss,
-            javascript: input.codeJs,
-          },
-        } as Prisma.InputJsonValue,
-        status: input.publish ? "PUBLISHED" : "DRAFT",
-      },
-    });
-    if (input.publish)
-      await tx.website.update({
-        where: { id: website.id },
-        data: { status: "PUBLISHED", publishedAt: new Date() },
-      });
-    return result;
+  const page = await db.websitePage.update({
+    where: { id: before.id },
+    data: {
+      title: input.title,
+      path: input.path,
+      seoJson: { title: input.seoTitle, description: input.seoDescription },
+      contentJson: {
+        blocks,
+        code: {
+          html: input.codeHtml,
+          css: input.codeCss,
+          javascript: input.codeJs,
+        },
+      } as Prisma.InputJsonValue,
+      status: input.publish ? "PUBLISHED" : "DRAFT",
+    },
   });
-  const edgeMirror = input.publish
-    ? await publishSiteManifest({
+  const publication = input.publish
+    ? await publishWebsite({
+      actorUserId: user.id,
+      db,
       organizationId: organization.id,
+      organizationSlug: input.organizationSlug,
       websiteId: website.id,
-      hostname: website.defaultHostname,
-      publishedAt: new Date().toISOString(),
     })
     : null;
   await appendAuditEvent({
@@ -3859,7 +3852,7 @@ export async function saveWebsitePage(formData: FormData) {
     entityType: "WebsitePage",
     entityId: page.id,
     before,
-    after: { page, edgeMirror },
+    after: { page, publication },
     category: "BUSINESS",
   });
   revalidatePath(`/app/${input.organizationSlug}/websites`);

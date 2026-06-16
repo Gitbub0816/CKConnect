@@ -186,7 +186,6 @@ const sections: SidebarSection[] = [
       { slug: "billing", label: "Plans & billing", icon: CircleDollarSign },
       { slug: "audit", label: "Audit log", icon: ShieldCheck },
       { slug: "compliance", label: "Compliance", icon: FileCheck2 },
-      { slug: "admin", label: "Platform admin", icon: ShieldCheck },
       { slug: "settings", label: "Settings", icon: Settings },
     ],
   },

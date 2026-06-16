@@ -57,12 +57,12 @@ function Block({
               <ArrowRight size={16} />
             </a>
             {block.secondaryAction && (
-              <Link
+              <a
                 className="portal-button portal-button-secondary"
-                href={`/c/${organizationSlug}/login`}
+                href="#contact"
               >
                 {block.secondaryAction}
-              </Link>
+              </a>
             )}
           </div>
         </div>
@@ -133,13 +133,13 @@ function Block({
           <h2>{block.title}</h2>
           <p>{block.body}</p>
         </div>
-        <Link
+        <a
           className="portal-button portal-button-light"
-          href={`/c/${organizationSlug}/login`}
+          href="#contact"
         >
           {block.action ?? "Pay an invoice"}
           <ArrowRight size={16} />
-        </Link>
+        </a>
       </section>
     );
   if (block.type === "booking")
@@ -178,13 +178,13 @@ function Block({
           <h2>{block.title}</h2>
         </div>
         <p>{block.body}</p>
-        <Link
+        <a
           className="portal-button mt-8"
-          href={`/c/${organizationSlug}/login`}
+          href="#contact"
         >
           {block.action ?? "Open portal"}
           <ShieldCheck size={16} />
-        </Link>
+        </a>
       </section>
     );
   if (block.type === "stats")
@@ -279,9 +279,7 @@ function Block({
           {block.items?.map((item) => (
             <Link
               href={
-                item.action === "booking"
-                  ? "#booking"
-                  : `/c/${organizationSlug}/login`
+                item.action === "booking" ? "#booking" : "#contact"
               }
               key={item.label}
             >
@@ -379,11 +377,12 @@ export function PortalRenderer({
   return (
     <main
       className={`portal-root portal-buttons-${settings.buttonStyle ?? "solid"} ${settings.darkMode ? "portal-dark" : ""}`}
+      id="top"
       style={style}
     >
       <div className="portal-shell">
         <nav className="portal-nav">
-          <Link className="portal-brand" href={`/p/${organization.slug}`}>
+          <a className="portal-brand" href="#top">
             {theme?.logoUrl ? (
               // Customer logos can be hosted on arbitrary verified domains.
               // eslint-disable-next-line @next/next/no-img-element
@@ -395,7 +394,7 @@ export function PortalRenderer({
               <strong>{organization.name}</strong>
               <small>Client services</small>
             </div>
-          </Link>
+          </a>
           <div
             className={`portal-links portal-links-${settings.navigationAlignment ?? "center"}`}
           >
@@ -405,7 +404,7 @@ export function PortalRenderer({
               </a>
             ))}
           </div>
-          {settings.showClientPortal !== false && (
+          {settings.showClientPortal === true && (
             <Link
               className="portal-button portal-button-small"
               href={`/c/${organization.slug}/login`}

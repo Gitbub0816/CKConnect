@@ -70,6 +70,12 @@ export function WebsiteStudio({
   automations: Automation[];
 }) {
   const content = (page.content as Value | undefined) ?? {};
+  const websiteConfig = (website.config as Value | undefined) ?? {};
+  const deployment = (websiteConfig.lastDeployment as Value | undefined) ?? {};
+  const publication = (websiteConfig.publication as Value | undefined) ?? {};
+  const edgeMirror = (publication.edgeMirror as Value | undefined) ?? {};
+  const edgeMirrored = edgeMirror.mirrored === true;
+  const liveUrl = `https://${String(website.hostname)}`;
   const initialBlocks = (content.blocks as SiteBlock[] | undefined) ?? [
     {
       type: "hero",
@@ -307,6 +313,42 @@ export function WebsiteStudio({
             <strong className="text-white">{String(website.hostname)}</strong>
             <br />
             Custom code runs in a sandboxed frame without same-origin access.
+          </div>
+          <div className="mt-3 rounded-lg border bg-white p-4 text-xs leading-5 text-slate-600">
+            <div className="flex items-center justify-between gap-3">
+              <strong className="text-slate-900">Publication state</strong>
+              <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">
+                {String(website.status)}
+              </span>
+            </div>
+            <dl className="mt-3 grid gap-2">
+              <div className="flex justify-between gap-3">
+                <dt>Last publish</dt>
+                <dd className="text-right font-semibold text-slate-900">
+                  {String(deployment.createdAt ?? website.publishedAt ?? "Not published")}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Pages deployed</dt>
+                <dd className="font-semibold text-slate-900">
+                  {String(deployment.pageCount ?? 0)}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Edge mirror</dt>
+                <dd className="font-semibold text-slate-900">
+                  {edgeMirrored ? "Synced" : "Database live"}
+                </dd>
+              </div>
+            </dl>
+            <a
+              className="mt-3 inline-flex text-xs font-semibold text-amber-800"
+              href={liveUrl}
+              rel="noreferrer"
+              target="_blank"
+            >
+              Open live site
+            </a>
           </div>
         </section>
 
