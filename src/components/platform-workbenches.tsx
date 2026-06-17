@@ -36,6 +36,7 @@ type Data = {
   permissionCatalog?: string[];
   assets?: Value[];
   automations?: Value[];
+  dataGrants?: Value[];
   entities?: Value[];
   catalog?: Value[];
   links?: Value[];
@@ -655,6 +656,7 @@ function WebsiteWorkbench({
     <WebsiteStudio
       assets={(data.assets ?? []) as never[]}
       automations={(data.automations ?? []) as never[]}
+      dataGrants={(data.dataGrants ?? []) as never[]}
       organizationSlug={organizationSlug}
       page={page}
       website={website}

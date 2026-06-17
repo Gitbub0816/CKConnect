@@ -329,7 +329,7 @@ export async function getModuleData(slug: string, module: string) {
       };
     }
     case "websites": {
-      const [records, assets, automations] = await Promise.all([
+      const [records, assets, automations, dataGrants] = await Promise.all([
         db.website.findMany({
           where: { organizationId },
           include: { pages: true },
@@ -348,6 +348,15 @@ export async function getModuleData(slug: string, module: string) {
           where: { organizationId },
           orderBy: { updatedAt: "desc" },
           take: 30,
+        }),
+        db.dataLink.findMany({
+          where: {
+            organizationId,
+            sourceType: "Website",
+            targetType: "WebsiteDataScope",
+            relationship: "approved_scope",
+          },
+          orderBy: { updatedAt: "desc" },
         }),
       ]);
       return {
@@ -383,6 +392,15 @@ export async function getModuleData(slug: string, module: string) {
           name: automation.name,
           trigger: automation.triggerType,
           active: automation.active,
+        })),
+        dataGrants: dataGrants.map((grant) => ({
+          id: grant.id,
+          websiteId: grant.sourceId,
+          scope: grant.targetId,
+          active: grant.active,
+          permissions: grant.permissions,
+          metadata: grant.metadataJson,
+          updatedAt: iso(grant.updatedAt),
         })),
         metrics: [
           { label: "Websites", value: records.length },

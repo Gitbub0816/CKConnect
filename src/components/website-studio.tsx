@@ -1,21 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Bot,
   Braces,
-  GripVertical,
   ImagePlus,
   LayoutTemplate,
   LoaderCircle,
   Play,
-  Plus,
   Send,
   Sparkles,
-  Trash2,
   Workflow,
 } from "lucide-react";
-import { saveWebsitePage } from "@/app/app/[organizationSlug]/actions";
+import {
+  saveWebsitePage,
+  updateWebsiteDataGrant,
+} from "@/app/app/[organizationSlug]/actions";
+import { GrapesJsSiteEditor } from "@/components/grapesjs-site-editor";
 import { MarkdownMessage } from "@/components/markdown-message";
 
 type SiteBlock = {
@@ -41,20 +42,35 @@ type Automation = {
   trigger: string;
   active: boolean;
 };
+type DataGrant = {
+  id: string;
+  websiteId: string;
+  scope: string;
+  active: boolean;
+  updatedAt?: string;
+  metadata?: Value;
+};
 type Message = { role: "user" | "assistant"; content: string };
 type Value = Record<string, unknown>;
 
-const blockOptions = [
-  "hero",
-  "content",
-  "services",
-  "testimonial",
-  "cta",
-  "payment",
-  "booking",
-  "form",
-  "portal",
-];
+const siteScopes = [
+  ["business_profile.read", "Business profile", "Read public business name, contact details, brand basics, and overview copy."],
+  ["locations.read", "Locations", "Display public business locations, service areas, and maps."],
+  ["services.read", "Services", "Display tenant-approved service names and public descriptions."],
+  ["inventory.read", "Inventory", "Display public product or inventory availability fields."],
+  ["inventory.write_reservations", "Inventory reservations", "Create temporary product reservations from website checkout or quote flows."],
+  ["pricing.read", "Pricing", "Display public prices selected for website use."],
+  ["booking.read", "Booking availability", "Read public booking availability windows without exposing private calendars."],
+  ["booking.write_requests", "Booking requests", "Create booking or appointment requests from public forms."],
+  ["customers.write_leads", "Lead capture", "Create CRM leads or contacts from public website forms."],
+  ["forms.write_submissions", "Form submissions", "Store validated public form submissions in the tenant inbox."],
+  ["chat.write_sessions", "Website chat", "Open customer chat or handoff sessions without exposing private history."],
+  ["chat.read_business_hours", "Chat availability", "Read public handoff and business-hour availability for website chat."],
+  ["staff.read_public", "Public staff", "Display selected public staff profiles only."],
+  ["reviews.read_public", "Reviews", "Display approved testimonials or review snippets."],
+  ["payments.create_checkout", "Checkout links", "Create secure payment or checkout links server-side."],
+  ["portal.create_login_link", "Portal login links", "Create customer-safe portal access links."],
+] as const;
 
 export function WebsiteStudio({
   organizationSlug,
@@ -62,12 +78,14 @@ export function WebsiteStudio({
   page,
   assets,
   automations,
+  dataGrants,
 }: {
   organizationSlug: string;
   website: Value;
   page: Value;
   assets: Asset[];
   automations: Automation[];
+  dataGrants: DataGrant[];
 }) {
   const content = (page.content as Value | undefined) ?? {};
   const websiteConfig = (website.config as Value | undefined) ?? {};
@@ -89,6 +107,8 @@ export function WebsiteStudio({
     css: "",
     javascript: "",
   };
+  const initialGrapesProject =
+    (content.grapesProject as Value | undefined) ?? {};
   const [blocks, setBlocks] = useState(() =>
     initialBlocks.map((block, index) => ({
       ...block,
@@ -96,10 +116,10 @@ export function WebsiteStudio({
     })),
   );
   const [code, setCode] = useState(initialCode);
+  const [grapesProject, setGrapesProject] = useState(initialGrapesProject);
   const [tab, setTab] = useState<
-    "design" | "code" | "assets" | "ai" | "automations"
-  >("design");
-  const [dragged, setDragged] = useState<number | null>(null);
+    "builder" | "code" | "assets" | "permissions" | "ai" | "automations"
+  >("builder");
   const [assetList, setAssetList] = useState(assets);
   const [uploadStatus, setUploadStatus] = useState("");
   const [messages, setMessages] = useState<Message[]>([
@@ -123,24 +143,26 @@ export function WebsiteStudio({
       `<!doctype html><html><head><meta name="viewport" content="width=device-width"><style>html,body{margin:0;min-height:100%;font-family:system-ui}${code.css}</style></head><body>${code.html}<script>${code.javascript}<\/script></body></html>`,
     [code],
   );
-
-  const update = (index: number, key: keyof SiteBlock, value: string) =>
-    setBlocks((current) =>
-      current.map((block, position) =>
-        position === index ? { ...block, [key]: value } : block,
+  const grantedScopes = useMemo(
+    () =>
+      new Set(
+        dataGrants
+          .filter((grant) => grant.websiteId === website.id && grant.active)
+          .map((grant) => grant.scope),
       ),
-    );
-
-  const dropAt = (target: number) => {
-    if (dragged === null || dragged === target) return;
-    setBlocks((current) => {
-      const next = [...current];
-      const [moving] = next.splice(dragged, 1);
-      next.splice(target, 0, moving);
-      return next;
-    });
-    setDragged(null);
-  };
+    [dataGrants, website.id],
+  );
+  const handleGrapesChange = useCallback(
+    (value: { css: string; html: string; project: Value }) => {
+      setCode((current) => ({
+        ...current,
+        css: value.css,
+        html: value.html,
+      }));
+      setGrapesProject(value.project);
+    },
+    [],
+  );
 
   async function uploadAsset(file: File) {
     if (!file?.size) return;
@@ -253,6 +275,7 @@ export function WebsiteStudio({
       <input name="codeHtml" type="hidden" value={code.html} />
       <input name="codeCss" type="hidden" value={code.css} />
       <input name="codeJs" type="hidden" value={code.javascript} />
+      <input name="grapesJson" type="hidden" value={JSON.stringify(grapesProject)} />
       <div className="grid gap-4 2xl:grid-cols-[320px_1fr]">
         <section className="ck-card h-fit p-5">
           <div className="flex items-center gap-2 font-semibold">
@@ -356,9 +379,10 @@ export function WebsiteStudio({
           <div className="flex flex-wrap gap-2 rounded-xl border bg-white p-2">
             {(
               [
-                ["design", LayoutTemplate, "Visual canvas"],
+                ["builder", LayoutTemplate, "Builder"],
                 ["code", Braces, "Code canvas"],
                 ["assets", ImagePlus, "Files & assets"],
+                ["permissions", Workflow, "Data permissions"],
                 ["ai", Bot, "Kira sandbox"],
                 ["automations", Workflow, "AI automations"],
               ] as const
@@ -375,116 +399,99 @@ export function WebsiteStudio({
             ))}
           </div>
 
-          {tab === "design" && (
-            <div className="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
-              <div className="ck-card p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="ck-eyebrow">Drag and drop</div>
-                    <h3 className="mt-2 font-semibold">Page structure</h3>
-                  </div>
-                  <button
-                    className="ck-button ck-button-secondary"
-                    onClick={() =>
-                      setBlocks((current) => [
-                        ...current,
-                        {
-                          _id: crypto.randomUUID(),
-                          type: "content",
-                          title: "New section",
-                          body: "Write the section content.",
-                          action: "Learn more",
-                        },
-                      ])
-                    }
-                    type="button"
-                  >
-                    <Plus size={14} />
-                    Add section
-                  </button>
+          {tab === "builder" && (
+            <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
+              <section className="ck-card overflow-hidden">
+                <div className="border-b p-5">
+                  <div className="ck-eyebrow">Native GrapesJS editor</div>
+                  <h3 className="mt-2 font-semibold">Site builder workspace</h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Drag ClearKey blocks into the page. Blocks that use tenant
+                    data require explicit approved scopes before publication can
+                    safely serve dynamic data.
+                  </p>
                 </div>
-                <div className="mt-5 space-y-3">
-                  {blocks.map((block, index) => (
-                    <article
-                      className="rounded-lg border bg-slate-50 p-4"
-                      draggable
-                      key={block._id}
-                      onDragEnd={() => setDragged(null)}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDragStart={() => setDragged(index)}
-                      onDrop={() => dropAt(index)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <GripVertical
-                          className="cursor-grab text-slate-400"
-                          size={18}
-                        />
-                        <select
-                          className="ck-input !w-auto"
-                          onChange={(event) =>
-                            update(index, "type", event.target.value)
-                          }
-                          value={block.type}
-                        >
-                          {blockOptions.map((type) => (
-                            <option key={type} value={type}>
-                              {type}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          aria-label="Remove section"
-                          className="ml-auto text-red-600"
-                          onClick={() =>
-                            setBlocks((current) =>
-                              current.filter(
-                                (_, position) => position !== index,
-                              ),
-                            )
-                          }
-                          type="button"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                      <input
-                        className="ck-input mt-3"
-                        onChange={(event) =>
-                          update(index, "title", event.target.value)
-                        }
-                        value={block.title}
-                      />
-                      <textarea
-                        className="ck-input mt-3 min-h-20 py-3"
-                        onChange={(event) =>
-                          update(index, "body", event.target.value)
-                        }
-                        value={block.body}
-                      />
-                      <div className="mt-3 grid grid-cols-2 gap-3">
-                        <input
-                          className="ck-input"
-                          onChange={(event) =>
-                            update(index, "action", event.target.value)
-                          }
-                          placeholder="Button label"
-                          value={block.action ?? ""}
-                        />
-                        <input
-                          className="ck-input"
-                          onChange={(event) =>
-                            update(index, "imageUrl", event.target.value)
-                          }
-                          placeholder="Asset or image URL"
-                          value={block.imageUrl ?? ""}
-                        />
-                      </div>
-                    </article>
+                <GrapesJsSiteEditor
+                  initialCss={code.css}
+                  initialHtml={code.html}
+                  initialProject={grapesProject}
+                  onChange={handleGrapesChange}
+                />
+              </section>
+              <section className="ck-card h-fit p-5">
+                <div className="ck-eyebrow">Requested data access</div>
+                <h3 className="mt-2 font-semibold">Grant scopes deliberately</h3>
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  Tenant websites never receive automatic CRM, booking,
+                  inventory, pricing, payment, or portal access. Use the
+                  Permissions tool to approve only the scopes this site needs.
+                </p>
+                <div className="mt-4 space-y-2">
+                  {siteScopes.slice(0, 6).map(([scope, label]) => (
+                    <div className="flex items-center justify-between rounded-lg border p-3 text-xs" key={scope}>
+                      <span>{label}</span>
+                      <span className={grantedScopes.has(scope) ? "font-bold text-emerald-700" : "text-slate-400"}>
+                        {grantedScopes.has(scope) ? "Approved" : "Not granted"}
+                      </span>
+                    </div>
                   ))}
                 </div>
-              </div>
-              <VisualPreview blocks={blocks} />
+              </section>
             </div>
+          )}
+
+          {tab === "permissions" && (
+            <section className="ck-card overflow-hidden">
+              <div className="border-b p-5">
+                <div className="ck-eyebrow">OAuth-style website grants</div>
+                <h3 className="mt-2 font-semibold">Website data permissions</h3>
+                <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
+                  This site can only use tenant data that an authorized user
+                  explicitly approves. Grants are scoped, tenant-bound,
+                  revocable, and audited.
+                </p>
+              </div>
+              <div className="divide-y">
+                {siteScopes.map(([scope, label, detail]) => {
+                  const active = grantedScopes.has(scope);
+                  return (
+                    <div className="grid gap-4 p-5 lg:grid-cols-[1fr_auto] lg:items-center" key={scope}>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <strong>{label}</strong>
+                          <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                            {active ? "APPROVED" : "NOT GRANTED"}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">{detail}</p>
+                        <p className="mt-1 font-mono text-[10px] text-slate-400">{scope}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          className="ck-button ck-button-secondary"
+                          formAction={updateWebsiteDataGrant}
+                          name="grantAction"
+                          type="submit"
+                          value={`${scope}|APPROVE`}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          className="ck-button ck-button-secondary"
+                          disabled={!active}
+                          formAction={updateWebsiteDataGrant}
+                          name="grantAction"
+                          type="submit"
+                          value={`${scope}|REVOKE`}
+                        >
+                          Revoke
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
           )}
 
           {tab === "code" && (
@@ -697,47 +704,6 @@ function CodeField({
         value={value}
       />
     </label>
-  );
-}
-
-function VisualPreview({ blocks }: { blocks: SiteBlock[] }) {
-  return (
-    <div className="ck-card h-fit overflow-hidden">
-      <div className="border-b p-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-        Responsive visual preview
-      </div>
-      <div className="bg-slate-100 p-5">
-        <div className="mx-auto overflow-hidden rounded-xl bg-white shadow-xl">
-          {blocks.map((block, index) => (
-            <section
-              className={`${block.type === "hero" ? "bg-slate-900 px-10 py-20 text-white" : "border-t px-10 py-12"}`}
-              key={index}
-            >
-              {block.imageUrl && (
-                <div
-                  aria-label=""
-                  className="mb-5 h-48 w-full rounded-lg bg-cover bg-center"
-                  role="img"
-                  style={{ backgroundImage: `url("${block.imageUrl}")` }}
-                />
-              )}
-              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500">
-                {block.type}
-              </span>
-              <h2 className="mt-3 text-3xl font-semibold">{block.title}</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 opacity-70">
-                {block.body}
-              </p>
-              {block.action && (
-                <span className="mt-5 rounded bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950">
-                  {block.action}
-                </span>
-              )}
-            </section>
-          ))}
-        </div>
-      </div>
-    </div>
   );
 }
 

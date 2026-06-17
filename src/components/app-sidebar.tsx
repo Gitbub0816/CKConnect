@@ -237,14 +237,16 @@ export function AppSidebar({
   }, [expandedItems, activeItemParent]);
 
   useEffect(() => {
-    try {
-      const c = localStorage.getItem(collapsedKey);
-      if (c !== null) setIsCollapsed(JSON.parse(c) as boolean);
-      const s = localStorage.getItem(openSectionsKey);
-      if (s) setOpenSections(JSON.parse(s) as string[]);
-      const e = localStorage.getItem(expandedItemsKey);
-      if (e) setExpandedItems(JSON.parse(e) as string[]);
-    } catch {}
+    queueMicrotask(() => {
+      try {
+        const c = localStorage.getItem(collapsedKey);
+        if (c !== null) setIsCollapsed(JSON.parse(c) as boolean);
+        const s = localStorage.getItem(openSectionsKey);
+        if (s) setOpenSections(JSON.parse(s) as string[]);
+        const e = localStorage.getItem(expandedItemsKey);
+        if (e) setExpandedItems(JSON.parse(e) as string[]);
+      } catch {}
+    });
   }, []);
 
   useEffect(() => {
