@@ -6,6 +6,13 @@ import { getDb } from "@/lib/db";
 export const getOrganizationContext = cache((slug: string) =>
   getDb().organization.findUnique({
     where: { slug },
-    include: { theme: true, moduleConfiguration: true },
+    include: {
+      integrations: {
+        where: { provider: "SLACK" },
+        take: 1,
+      },
+      moduleConfiguration: true,
+      theme: true,
+    },
   }),
 );

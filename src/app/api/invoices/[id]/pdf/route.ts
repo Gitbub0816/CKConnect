@@ -1,5 +1,7 @@
 import { requireOrganizationAccess } from "@/lib/authorization";
 import { getDb } from "@/lib/db";
+import { getIntegrationConfigStatus } from "@/lib/integrations/config";
+import { putR2Object } from "@/lib/integrations/r2";
 import { renderInvoicePdf } from "@/lib/invoices/pdf";
 
 function amount(value: unknown) {
@@ -32,7 +34,7 @@ export async function GET(
   const contactName = invoice.contact
     ? `${invoice.contact.firstName} ${invoice.contact.lastName ?? ""}`.trim()
     : null;
-  const body = renderInvoicePdf({
+  const body = await renderInvoicePdf({
     invoiceNumber: invoice.invoiceNumber,
     organizationName: invoice.organization.legalName ?? invoice.organization.name,
     customerName: invoice.account?.name ?? contactName ?? "Direct customer",
@@ -55,8 +57,46 @@ export async function GET(
       total: amount(item.lineTotal),
     })),
   });
+  const pdfBuffer = Buffer.from(body);
 
-  return new Response(body, {
+  if (getIntegrationConfigStatus().cloudflareR2) {
+    const objectKey = `${organization.id}/generated/invoices/${invoice.id}/${invoice.invoiceNumber}.pdf`;
+    await putR2Object({
+      body: pdfBuffer,
+      contentType: "application/pdf",
+      key: objectKey,
+    });
+    await getDb().storedFile.upsert({
+      where: {
+        organizationId_objectKey: {
+          organizationId: organization.id,
+          objectKey,
+        },
+      },
+      update: {
+        contentType: "application/pdf",
+        fileName: `${invoice.invoiceNumber}.pdf`,
+        relatedType: "INVOICE_PDF",
+        relatedId: invoice.id,
+        sizeBytes: BigInt(pdfBuffer.byteLength),
+        status: "READY",
+      },
+      create: {
+        organizationId: organization.id,
+        objectKey,
+        contentType: "application/pdf",
+        fileName: `${invoice.invoiceNumber}.pdf`,
+        relatedType: "INVOICE_PDF",
+        relatedId: invoice.id,
+        retentionClass: "FINANCIAL_7Y",
+        scanStatus: "SYSTEM_GENERATED",
+        sizeBytes: BigInt(pdfBuffer.byteLength),
+        status: "READY",
+      },
+    });
+  }
+
+  return new Response(pdfBuffer, {
     headers: {
       "content-type": "application/pdf",
       "content-disposition": `inline; filename="${invoice.invoiceNumber}.pdf"`,

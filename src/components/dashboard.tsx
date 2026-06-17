@@ -1,79 +1,181 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
+import type { EChartsOption } from "echarts";
 import {
   ArrowRight,
   BarChart3,
-  CalendarClock,
   CircleAlert,
   CircleDollarSign,
-  FileWarning,
+  FileDown,
+  FileText,
   Landmark,
   LayoutDashboard,
+  LineChart,
   Plus,
   Sparkles,
 } from "lucide-react";
 import { saveDashboardStudio } from "@/app/app/[organizationSlug]/actions";
+import { EChartsPanel } from "@/components/charts/echarts-panel";
 import { formatCurrency } from "@/lib/utils";
 
-type DashboardData = NonNullable<Awaited<ReturnType<typeof import("@/lib/workspace-data").getWorkspaceDashboard>>>;
+type DashboardData = NonNullable<
+  Awaited<ReturnType<typeof import("@/lib/workspace-data").getWorkspaceDashboard>>
+>;
+
+type StatKey =
+  | "cash"
+  | "pipeline"
+  | "outstanding"
+  | "collected"
+  | "exceptions"
+  | "receivables"
+  | "payroll"
+  | "newLeads"
+  | "overdueTasks"
+  | "bankReview"
+  | "automationFailures";
+
+type StatDefinition = {
+  label: string;
+  value: number;
+  note: string;
+  href: string;
+  format?: "currency" | "number";
+};
+
+const chartStyles = [
+  ["line", "Line"],
+  ["bar", "Bar"],
+  ["area", "Area"],
+  ["pie", "Pie"],
+  ["funnel", "Funnel"],
+  ["kpi", "KPI strip"],
+] as const;
+
+function valueLabel(stat: StatDefinition) {
+  return stat.format === "number"
+    ? stat.value.toLocaleString()
+    : formatCurrency(stat.value);
+}
+
+function chartOption(
+  title: string,
+  style: string,
+  rows: Array<{ name: string; value: number }>,
+): EChartsOption {
+  const normalizedStyle =
+    style === "bars" || style === "spotlight" ? "bar" :
+    style === "trend" ? "line" :
+    style === "donut" ? "pie" :
+    ["line", "bar", "area", "pie", "funnel"].includes(style) ? style :
+    "bar";
+  const textColor = "#111827";
+  const axis = {
+    axisLine: { lineStyle: { color: "#d7dce5" } },
+    axisLabel: { color: "#667085" },
+    splitLine: { lineStyle: { color: "#edf1f7" } },
+  };
+  if (normalizedStyle === "pie") {
+    return {
+      color: ["#5b5fcf", "#16a34a", "#f59e0b", "#0ea5e9", "#ef4444"],
+      tooltip: { trigger: "item" },
+      series: [
+        {
+          type: "pie",
+          radius: ["48%", "72%"],
+          label: { color: textColor, formatter: "{b}" },
+          data: rows,
+        },
+      ],
+    };
+  }
+  if (normalizedStyle === "funnel") {
+    return {
+      color: ["#5b5fcf", "#0ea5e9", "#16a34a", "#f59e0b"],
+      tooltip: { trigger: "item" },
+      series: [
+        {
+          type: "funnel",
+          left: "6%",
+          top: 12,
+          bottom: 12,
+          width: "88%",
+          label: { color: textColor },
+          data: rows,
+        },
+      ],
+    };
+  }
+  return {
+    color: ["#5b5fcf"],
+    grid: { top: 24, right: 18, bottom: 34, left: 56 },
+    tooltip: { trigger: "axis" },
+    xAxis: { type: "category", data: rows.map((row) => row.name), ...axis },
+    yAxis: { type: "value", ...axis },
+    series: [
+      {
+        name: title,
+        type: normalizedStyle === "bar" ? "bar" : "line",
+        smooth: true,
+        areaStyle: normalizedStyle === "area" ? {} : undefined,
+        data: rows.map((row) => row.value),
+      },
+    ],
+  };
+}
 
 export function Dashboard({ data }: { data: DashboardData }) {
   const base = `/app/${data.organization.slug}`;
-  const statMap = {
+  const statMap: Record<StatKey, StatDefinition> = {
     cash: {
       label: "Cash position",
       value: data.stats.cash,
       note: "Connected and manual accounts",
-      icon: Landmark,
       href: `${base}/banking`,
     },
     pipeline: {
       label: "Open pipeline",
       value: data.stats.pipeline,
       note: `${data.openDeals.length} highest-value opportunities`,
-      icon: Sparkles,
       href: `${base}/deals`,
     },
     outstanding: {
       label: "Outstanding",
       value: data.stats.outstanding,
       note: `${data.invoices.filter((invoice) => invoice.balance > 0).length} invoices with balance`,
-      icon: FileWarning,
       href: `${base}/invoices`,
     },
     collected: {
       label: "Collected",
       value: data.stats.collected,
       note: "Across current invoices",
-      icon: CircleDollarSign,
       href: `${base}/payments`,
     },
     exceptions: {
       label: "Open exceptions",
       value: data.attention.reduce((sum, item) => sum + item.count, 0),
       note: "Operational decisions waiting",
-      icon: CircleAlert,
       href: `${base}/tasks`,
+      format: "number",
     },
     receivables: {
       label: "Receivables",
       value: data.invoices.reduce((sum, invoice) => sum + invoice.balance, 0),
       note: `${data.invoices.length} recent invoice records`,
-      icon: BarChart3,
       href: `${base}/invoices`,
     },
     payroll: {
       label: "Payroll readiness",
       value: data.payroll?.employerCost ?? 0,
-      note: data.payroll ? data.payroll.status.replaceAll("_", " ") : "No payroll run",
-      icon: CalendarClock,
+      note: data.payroll
+        ? data.payroll.status.replaceAll("_", " ")
+        : "No payroll run",
       href: `${base}/payroll`,
     },
     newLeads: {
       label: "New leads",
       value: data.stats.newLeads,
       note: "Unqualified demand waiting",
-      icon: Sparkles,
       href: `${base}/leads`,
       format: "number",
     },
@@ -83,7 +185,6 @@ export function Dashboard({ data }: { data: DashboardData }) {
         data.attention.find((item) => item.key === "overdue-tasks")?.count ??
         0,
       note: "Commitments past due",
-      icon: CircleAlert,
       href: `${base}/tasks`,
       format: "number",
     },
@@ -93,7 +194,6 @@ export function Dashboard({ data }: { data: DashboardData }) {
         data.attention.find((item) => item.key === "unmatched-banking")
           ?.count ?? 0,
       note: "Transactions needing match",
-      icon: Landmark,
       href: `${base}/banking`,
       format: "number",
     },
@@ -103,52 +203,45 @@ export function Dashboard({ data }: { data: DashboardData }) {
         data.attention.find((item) => item.key === "automation-failures")
           ?.count ?? 0,
       note: "Failed in the last 7 days",
-      icon: FileWarning,
       href: `${base}/automations`,
       format: "number",
     },
   };
-  const stats = [
-    statMap.cash,
-    statMap.pipeline,
-    statMap.outstanding,
-    statMap.collected,
-  ];
+  const signalKeys: StatKey[] = ["cash", "pipeline", "outstanding", "collected"];
   const savedDashboards = (data.dashboards ?? []) as Array<{
     id: string;
     name: string;
     shared: boolean;
     isDefault: boolean;
     config: {
-      widgets?: string[];
+      widgets?: StatKey[];
       chartStyle?: string;
-      accent?: string;
-      density?: string;
-      columns?: number;
       dateRange?: string;
       comparison?: string;
       refreshMinutes?: number;
       goalMetric?: string;
       goalTarget?: number;
       showInsights?: boolean;
-      showActivity?: boolean;
     };
   }>;
-  const accentStyles: Record<string, string> = {
-    gold: "border-amber-200 bg-amber-50/40 text-amber-900",
-    emerald: "border-emerald-200 bg-emerald-50/50 text-emerald-900",
-    slate: "border-slate-200 bg-slate-50 text-slate-900",
-    rose: "border-rose-200 bg-rose-50/50 text-rose-900",
-  };
+  const primaryRows = signalKeys.map((key) => ({
+    name: statMap[key].label,
+    value: statMap[key].value,
+  }));
+  const pipelineRows = data.openDeals.map((deal) => ({
+    name: deal.name,
+    value: deal.amount,
+  }));
+
   return (
     <div
-      className="ck-module-page p-5 lg:p-7"
+      className="ck-module-page px-5 py-5 lg:px-7"
       style={
         { "--module-tint": "#5B5FCF" } as CSSProperties &
           Record<"--module-tint", string>
       }
     >
-      <div className="ck-module-header mb-5 flex flex-wrap items-end justify-between gap-4">
+      <div className="ck-module-header flex flex-wrap items-end justify-between gap-4 border-b pb-5">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="ck-module-pill">Command</span>
@@ -158,7 +251,7 @@ export function Dashboard({ data }: { data: DashboardData }) {
             Business command center
           </h1>
           <p className="mt-1 text-sm text-[var(--ck-ink-secondary)]">
-            Live operational, customer, and financial signals from one tenant record.
+            Operational, CRM, and accounting signals with drill-down paths to the source records.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -169,351 +262,389 @@ export function Dashboard({ data }: { data: DashboardData }) {
             </summary>
             <form
               action={saveDashboardStudio}
-              className="absolute right-0 z-20 mt-2 max-h-[82vh] w-[min(920px,calc(100vw-40px))] overflow-y-auto rounded-xl border bg-white p-5 text-left shadow-2xl"
+              className="absolute right-0 z-20 mt-2 w-[min(1080px,calc(100vw-40px))] overflow-hidden rounded-2xl border bg-white text-left shadow-2xl"
             >
               <input
                 name="organizationSlug"
                 type="hidden"
                 value={data.organization.slug}
               />
-              <div className="flex items-center gap-2 font-semibold">
-                <LayoutDashboard className="text-[#9b7420]" size={18} />
-                Dashboard studio
-              </div>
-              <div className="mt-4 grid gap-5 lg:grid-cols-[1fr_320px]">
-                <div className="grid gap-4 md:grid-cols-2">
-                <label className="text-xs font-semibold text-slate-600">
-                  Dashboard name
-                  <input
-                    className="ck-input mt-2"
-                    name="name"
-                    placeholder="Owner scorecard"
-                    required
-                  />
-                </label>
-                <label className="text-xs font-semibold text-slate-600">
-                  Visual style
-                  <select className="ck-input mt-2" name="chartStyle">
-                    <option value="cards">KPI cards</option>
-                    <option value="bars">Horizontal bars</option>
-                    <option value="spotlight">Spotlight tiles</option>
-                    <option value="compact">Compact list</option>
-                    <option value="trend">Trend strips</option>
-                    <option value="donut">Goal rings</option>
-                    <option value="table">Executive table</option>
-                  </select>
-                </label>
-                <label className="text-xs font-semibold text-slate-600">
-                  Accent
-                  <select className="ck-input mt-2" name="accent">
-                    <option value="gold">Gold</option>
-                    <option value="emerald">Emerald</option>
-                    <option value="slate">Slate</option>
-                    <option value="rose">Rose</option>
-                  </select>
-                </label>
-                <label className="text-xs font-semibold text-slate-600">
-                  Density
-                  <select className="ck-input mt-2" name="density">
-                    <option value="balanced">Balanced</option>
-                    <option value="compact">Compact</option>
-                    <option value="roomy">Roomy</option>
-                  </select>
-                </label>
-                <label className="text-xs font-semibold text-slate-600">
-                  Columns
-                  <select className="ck-input mt-2" name="columns">
-                    <option value="2">2 columns</option>
-                    <option value="3">3 columns</option>
-                    <option value="4">4 columns</option>
-                    <option value="1">1 column</option>
-                  </select>
-                </label>
-                <label className="text-xs font-semibold text-slate-600">
-                  Date range
-                  <select className="ck-input mt-2" name="dateRange">
-                    <option value="30d">Last 30 days</option>
-                    <option value="today">Today</option>
-                    <option value="7d">Last 7 days</option>
-                    <option value="quarter">This quarter</option>
-                    <option value="year">This year</option>
-                  </select>
-                </label>
-                <label className="text-xs font-semibold text-slate-600">
-                  Compare against
-                  <select className="ck-input mt-2" name="comparison">
-                    <option value="prior_period">Prior period</option>
-                    <option value="target">Target</option>
-                    <option value="none">No comparison</option>
-                  </select>
-                </label>
-                <label className="text-xs font-semibold text-slate-600">
-                  Refresh cadence
-                  <select className="ck-input mt-2" name="refreshMinutes">
-                    <option value="0">Manual refresh</option>
-                    <option value="15">Every 15 minutes</option>
-                    <option value="60">Hourly</option>
-                    <option value="240">Every 4 hours</option>
-                    <option value="1440">Daily</option>
-                  </select>
-                </label>
-                <label className="text-xs font-semibold text-slate-600">
-                  Goal metric
-                  <select className="ck-input mt-2" name="goalMetric">
-                    <option value="">No goal</option>
-                    {Object.entries(statMap).map(([key, item]) => (
-                      <option key={key} value={key}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-xs font-semibold text-slate-600">
-                  Goal target
-                  <input
-                    className="ck-input mt-2"
-                    min="0"
-                    name="goalTarget"
-                    type="number"
-                  />
-                </label>
-                <div className="grid gap-2 text-xs font-semibold text-slate-600">
-                  <label className="flex items-center gap-2">
-                    <input name="isDefault" type="checkbox" /> Make default
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input name="shared" type="checkbox" /> Share with team
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input defaultChecked name="showInsights" type="checkbox" /> Show insights
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input name="showActivity" type="checkbox" /> Include activity feed
-                  </label>
-                </div>
-                </div>
-                <div className="rounded-xl border bg-slate-950 p-4 text-white">
-                  <div className="text-xs font-semibold uppercase tracking-[.14em] text-amber-300">
-                    Studio preview
+              <div className="grid max-h-[84vh] overflow-y-auto lg:grid-cols-[300px_1fr_300px]">
+                <aside className="border-r bg-slate-950 p-5 text-white">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <LayoutDashboard size={18} />
+                    Dashboard studio
                   </div>
-                  <div className="mt-4 grid gap-3">
-                    <div className="rounded-lg bg-white/10 p-3">
-                      <div className="text-xs text-white/60">Cash position</div>
-                      <div className="mt-1 text-2xl font-semibold">
-                        {formatCurrency(data.stats.cash)}
-                      </div>
-                    </div>
-                    <div className="rounded-lg bg-white/10 p-3">
-                      <div className="text-xs text-white/60">Open pipeline</div>
-                      <div className="mt-2 h-2 rounded-full bg-white/15">
-                        <div className="h-2 w-3/4 rounded-full bg-amber-300" />
-                      </div>
-                    </div>
-                    <div className="rounded-lg bg-white/10 p-3 text-xs leading-5 text-white/75">
-                      Saved dashboards become reusable, shareable scorecards
-                      with linked widgets that open the source module.
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <fieldset className="mt-4 grid gap-2 sm:grid-cols-2">
-                <legend className="mb-2 text-xs font-semibold text-slate-600">
-                  KPIs and sections
-                </legend>
-                {Object.entries(statMap).map(([key, item]) => (
-                  <label
-                    className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
-                    key={key}
-                  >
+                  <label className="mt-5 block text-xs font-semibold text-white/70">
+                    Dashboard name
                     <input
-                      defaultChecked={[
-                        "cash",
-                        "pipeline",
-                        "outstanding",
-                        "exceptions",
-                      ].includes(key)}
-                      name="widgets"
-                      type="checkbox"
-                      value={key}
+                      className="ck-input mt-2 bg-white text-slate-950"
+                      name="name"
+                      placeholder="Owner scorecard"
+                      required
                     />
-                    {item.label}
                   </label>
-                ))}
-              </fieldset>
-              <button className="ck-button mt-4 w-full" type="submit">
-                Save dashboard
-              </button>
+                  <label className="mt-4 block text-xs font-semibold text-white/70">
+                    Date range
+                    <select className="ck-input mt-2 bg-white text-slate-950" name="dateRange">
+                      <option value="30d">Last 30 days</option>
+                      <option value="today">Today</option>
+                      <option value="7d">Last 7 days</option>
+                      <option value="quarter">This quarter</option>
+                      <option value="year">This year</option>
+                    </select>
+                  </label>
+                  <label className="mt-4 block text-xs font-semibold text-white/70">
+                    Compare against
+                    <select className="ck-input mt-2 bg-white text-slate-950" name="comparison">
+                      <option value="prior_period">Prior period</option>
+                      <option value="target">Target</option>
+                      <option value="none">No comparison</option>
+                    </select>
+                  </label>
+                  <label className="mt-4 block text-xs font-semibold text-white/70">
+                    Refresh cadence
+                    <select className="ck-input mt-2 bg-white text-slate-950" name="refreshMinutes">
+                      <option value="0">Manual refresh</option>
+                      <option value="15">Every 15 minutes</option>
+                      <option value="60">Hourly</option>
+                      <option value="240">Every 4 hours</option>
+                      <option value="1440">Daily</option>
+                    </select>
+                  </label>
+                  <div className="mt-5 space-y-2 text-xs font-semibold text-white/80">
+                    <label className="flex items-center gap-2">
+                      <input name="isDefault" type="checkbox" /> Make default
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input defaultChecked name="shared" type="checkbox" /> Share with team
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input defaultChecked name="showInsights" type="checkbox" /> Show insights
+                    </label>
+                  </div>
+                </aside>
+                <section className="p-5">
+                  <div className="flex items-center justify-between gap-3 border-b pb-3">
+                    <div>
+                      <div className="ck-section-label">Apache ECharts</div>
+                      <h2 className="font-semibold">Visualization type</h2>
+                    </div>
+                    <select className="ck-input max-w-52" name="chartStyle">
+                      {chartStyles.map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="mt-4">
+                    <EChartsPanel
+                      option={chartOption("Command signals", "bar", primaryRows)}
+                    />
+                  </div>
+                  <div className="mt-5 overflow-hidden rounded-xl border">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 text-left text-xs uppercase tracking-[.12em] text-slate-500">
+                        <tr>
+                          <th className="px-4 py-3">Metric</th>
+                          <th className="px-4 py-3">Value</th>
+                          <th className="px-4 py-3">Include</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {Object.entries(statMap).map(([key, stat]) => (
+                          <tr key={key}>
+                            <td className="px-4 py-3">
+                              <div className="font-medium">{stat.label}</div>
+                              <div className="text-xs text-slate-500">{stat.note}</div>
+                            </td>
+                            <td className="px-4 py-3 font-semibold">{valueLabel(stat)}</td>
+                            <td className="px-4 py-3">
+                              <input
+                                defaultChecked={signalKeys.includes(key as StatKey)}
+                                name="widgets"
+                                type="checkbox"
+                                value={key}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+                <aside className="border-l bg-slate-50 p-5">
+                  <div className="ck-section-label">Goal layer</div>
+                  <label className="mt-4 block text-xs font-semibold text-slate-600">
+                    Goal metric
+                    <select className="ck-input mt-2" name="goalMetric">
+                      <option value="">No goal</option>
+                      {Object.entries(statMap).map(([key, item]) => (
+                        <option key={key} value={key}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="mt-4 block text-xs font-semibold text-slate-600">
+                    Goal target
+                    <input className="ck-input mt-2" min="0" name="goalTarget" type="number" />
+                  </label>
+                  <input name="accent" type="hidden" value="slate" />
+                  <input name="density" type="hidden" value="balanced" />
+                  <input name="columns" type="hidden" value="3" />
+                  <input name="showActivity" type="hidden" value="on" />
+                  <div className="mt-6 border-t pt-5 text-xs leading-5 text-slate-600">
+                    Dashboards store the selected dataset contract, chart type,
+                    refresh cadence, and source links. Widgets open the module
+                    that owns the data instead of becoming dead decorative blocks.
+                  </div>
+                  <button className="ck-button mt-5 w-full" type="submit">
+                    Save dashboard
+                  </button>
+                </aside>
+              </div>
             </form>
           </details>
-          <Link className="ck-button ck-button-secondary !min-h-11" href={`${base}/invoices`}>Create invoice</Link>
+          <Link className="ck-button ck-button-secondary !min-h-11" href={`${base}/invoices`}>
+            <FileText size={16} />
+            Create invoice
+          </Link>
         </div>
       </div>
-      <nav className="ck-module-tabs mb-6" aria-label="Dashboard sections">
+
+      <nav className="ck-module-tabs mt-4" aria-label="Dashboard sections">
         <a className="is-active" href="#signals">Signals</a>
-        <a href="#saved-dashboards">Dashboards</a>
+        <a href="#studio">Studio</a>
         <a href="#pipeline">Pipeline</a>
         <a href="#queue">Queue</a>
       </nav>
-      <div className="ck-metric-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4" id="signals">
-        {stats.map(({ label, value, note, icon: Icon }, index) => <article className="ck-card ck-metric-card relative overflow-hidden p-5" key={label}><div className="absolute inset-y-0 left-0 w-1 bg-[var(--module-tint)]" style={{ opacity: .35 + index * .14 }} /><div className="flex items-start justify-between"><div><div className="ck-section-label">{label}</div><div className="data-metric mt-2 text-2xl font-semibold">{formatCurrency(value)}</div><div className="mt-2 text-xs text-slate-500">{note}</div></div><Icon className="text-[var(--module-tint)]" size={19} /></div></article>)}
-      </div>
-      {savedDashboards.length > 0 && (
-        <section className="mt-4 grid gap-4 xl:grid-cols-2" id="saved-dashboards">
-          {savedDashboards.map((dashboard) => {
-            const widgetKeys = dashboard.config?.widgets?.length
-              ? dashboard.config.widgets
-              : ["cash", "pipeline", "outstanding"];
-            const style = dashboard.config?.chartStyle ?? "cards";
-            const accent = dashboard.config?.accent ?? "gold";
-            const density = dashboard.config?.density ?? "balanced";
-            const columns = Number(dashboard.config?.columns ?? 2);
-            const cardPadding =
-              density === "compact"
-                ? "p-3"
-                : density === "roomy"
-                  ? "p-5"
-                  : "p-4";
-            const gridColumns =
-              columns === 1
-                ? ""
-                : columns === 3
-                  ? "sm:grid-cols-2 2xl:grid-cols-3"
-                  : columns === 4
-                    ? "sm:grid-cols-2 2xl:grid-cols-4"
-                    : "sm:grid-cols-2";
-            return (
-              <article className="ck-card overflow-hidden" key={dashboard.id}>
-                <div className="flex items-center justify-between border-b p-5">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="font-semibold">{dashboard.name}</h2>
-                      {dashboard.isDefault && (
-                        <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">
-                          Default
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {style.replaceAll("_", " ")} layout
-                      {dashboard.shared ? " · shared" : " · personal"}
-                    </p>
-                  </div>
-                  <LayoutDashboard className="text-[#9b7420]" size={18} />
-                </div>
-                <div
-                  className={`grid gap-3 p-4 ${
-                    style === "compact" || style === "table" ? "" : gridColumns
-                  }`}
-                >
-                  {widgetKeys.map((key) => {
-                    const item = statMap[key as keyof typeof statMap];
-                    if (!item) return null;
-                    const Icon = item.icon;
-                    const numericValue = Number(item.value);
-                    const percent =
-                      ["bars", "trend", "donut"].includes(style)
-                        ? Math.min(100, Math.max(8, numericValue / 800))
-                        : 0;
-                    return (
-                      <Link
-                        className={`rounded-lg border ${cardPadding} ${accentStyles[accent] ?? accentStyles.gold}`}
-                        href={item.href}
-                        key={key}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <div className="text-[10px] font-bold uppercase tracking-[.12em] opacity-70">
-                              {item.label}
-                            </div>
-                            <div className="mt-2 text-xl font-semibold">
-                              {"format" in item && item.format === "number"
-                                ? numericValue.toLocaleString()
-                                : formatCurrency(numericValue)}
-                            </div>
-                          </div>
-                          <Icon size={18} />
-                        </div>
-                        <p className="mt-2 text-xs opacity-70">{item.note}</p>
-                        {style === "bars" && (
-                          <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/70">
-                            <div
-                              className="h-full rounded-full bg-current"
-                              style={{ width: `${percent}%` }}
-                            />
-                          </div>
-                        )}
-                        {style === "trend" && (
-                          <div className="mt-4 flex h-10 items-end gap-1">
-                            {[38, 54, 42, 68, 58, 79, percent].map(
-                              (height, point) => (
-                                <span
-                                  className="flex-1 rounded-t bg-current opacity-70"
-                                  key={point}
-                                  style={{ height: `${height}%` }}
-                                />
-                              ),
-                            )}
-                          </div>
-                        )}
-                        {style === "donut" && (
-                          <div
-                            className="mt-4 grid size-16 place-items-center rounded-full"
-                            style={{
-                              background: `conic-gradient(currentColor ${percent}%, rgba(255,255,255,.65) 0)`,
-                            }}
-                          >
-                            <span className="grid size-11 place-items-center rounded-full bg-white text-[11px] font-bold">
-                              {Math.round(percent)}%
-                            </span>
-                          </div>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
-                {dashboard.config?.showInsights && (
-                  <div className="border-t bg-slate-50 p-4 text-xs leading-5 text-slate-600">
-                    Watching {widgetKeys.length} widgets, comparing against{" "}
-                    {dashboard.config.comparison?.replaceAll("_", " ") ??
-                      "prior period"}
-                    {dashboard.config.refreshMinutes
-                      ? `, refreshing every ${dashboard.config.refreshMinutes} minutes.`
-                      : ", refreshing manually."}
-                  </div>
-                )}
-              </article>
-            );
-          })}
-        </section>
-      )}
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
-        <section className="ck-card overflow-hidden">
-          <div className="flex items-center justify-between border-b p-5"><div><h2 className="font-semibold">Pipeline movement</h2><p className="text-xs text-slate-500">Weighted opportunities requiring the next action.</p></div><Link className="text-xs font-semibold text-[#8b6914]" href={`${base}/deals`}>Full pipeline <ArrowRight className="inline" size={13}/></Link></div>
-          <div className="divide-y">{data.openDeals.map((deal) => <div className="grid grid-cols-[1fr_auto] gap-4 p-5" key={deal.id}><div><div className="font-medium">{deal.name}</div><div className="mt-1 text-xs text-slate-500">{deal.account} · {deal.stage.replaceAll("_", " ")}</div><div className="mt-3 h-1.5 overflow-hidden rounded bg-slate-100"><div className="h-full bg-[#c9a033]" style={{ width: `${deal.probability}%` }}/></div></div><div className="text-right"><div className="font-semibold">{formatCurrency(deal.amount)}</div><div className="mt-1 text-xs text-slate-500">{deal.probability}%</div></div></div>)}</div>
-        </section>
-        <section className="ck-card overflow-hidden">
-          <div className="border-b p-5"><h2 className="font-semibold">Work needing attention</h2><p className="text-xs text-slate-500">Prioritized by due date and urgency.</p></div>
-          <div className="divide-y">{data.tasks.map((task) => <div className="flex gap-3 p-4" key={task.id}><div className="grid size-9 shrink-0 place-items-center rounded-lg bg-amber-50 text-amber-700"><CalendarClock size={16}/></div><div><div className="text-sm font-medium">{task.title}</div><div className="mt-1 text-xs text-slate-500">{task.priority} · {task.dueAt ? new Date(task.dueAt).toLocaleDateString() : "No due date"}</div></div></div>)}</div>
-        </section>
-      </div>
-      <section className="ck-card mt-4 overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
-          <div><div className="ck-eyebrow">Operating queue</div><h2 className="mt-2 font-semibold">Exceptions requiring a decision</h2><p className="mt-1 text-xs text-slate-500">Cross-module work is prioritized here so revenue and accounting do not stall between departments.</p></div>
-          <div className="rounded-full bg-[#f8f5ef] px-3 py-1.5 text-xs font-semibold">{data.attention.reduce((sum, item) => sum + item.count, 0)} open exceptions</div>
+
+      <section className="mt-5 grid gap-5 xl:grid-cols-[1.35fr_.65fr]" id="signals">
+        <div className="rounded-2xl border bg-white p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
+            <div>
+              <div className="ck-section-label">Executive signal</div>
+              <h2 className="text-lg font-semibold">Operating performance</h2>
+            </div>
+            <LineChart className="text-[var(--module-tint)]" size={20} />
+          </div>
+          <EChartsPanel option={chartOption("Operating performance", "area", primaryRows)} />
         </div>
-        <div className="grid gap-px bg-slate-200 md:grid-cols-2 xl:grid-cols-5">
-          {data.attention.map((item) => <Link className="group bg-white p-5 transition hover:bg-amber-50" href={`${base}/${item.module}`} key={item.key}>
-            <div className="flex items-start justify-between"><CircleAlert className={item.count ? "text-amber-700" : "text-emerald-700"} size={18}/><span className="text-2xl font-semibold">{item.count}</span></div>
-            <h3 className="mt-5 text-sm font-semibold">{item.label}</h3>
-            <p className="mt-2 min-h-12 text-xs leading-5 text-slate-500">{item.description}</p>
-            <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-[#8b6914]">Open workbench <ArrowRight className="transition group-hover:translate-x-1" size={13}/></span>
-          </Link>)}
+        <div className="rounded-2xl border bg-white">
+          <div className="border-b p-4">
+            <div className="ck-section-label">KPI register</div>
+          </div>
+          <div className="divide-y">
+            {signalKeys.map((key) => {
+              const stat = statMap[key];
+              return (
+                <Link
+                  className="grid grid-cols-[1fr_auto] gap-4 px-4 py-3 transition hover:bg-slate-50"
+                  href={stat.href}
+                  key={key}
+                >
+                  <span>
+                    <span className="block text-sm font-semibold">{stat.label}</span>
+                    <span className="text-xs text-slate-500">{stat.note}</span>
+                  </span>
+                  <span className="font-semibold">{valueLabel(stat)}</span>
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </section>
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr]">
-        <section className="ck-card overflow-hidden"><div className="border-b p-5"><h2 className="font-semibold">Receivables</h2></div><div className="divide-y">{data.invoices.slice(0,5).map((invoice) => <div className="flex items-center justify-between p-4" key={invoice.id}><div><div className="text-sm font-medium">{invoice.number} · {invoice.customer}</div><div className="mt-1 text-xs text-slate-500">{invoice.status.replaceAll("_"," ")} · due {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : "—"}</div></div><div className="font-semibold">{formatCurrency(invoice.balance)}</div></div>)}</div></section>
-        <section className="ck-card p-5"><h2 className="font-semibold">Payroll readiness</h2>{data.payroll ? <><div className="mt-5 grid grid-cols-2 gap-3"><div className="rounded-lg bg-[#f8f5ef] p-4"><div className="text-xs text-slate-500">Gross payroll</div><div className="mt-2 text-xl font-semibold">{formatCurrency(data.payroll.grossPay)}</div></div><div className="rounded-lg bg-[#f8f5ef] p-4"><div className="text-xs text-slate-500">Employer cost</div><div className="mt-2 text-xl font-semibold">{formatCurrency(data.payroll.employerCost)}</div></div></div><div className="mt-4 flex items-center justify-between text-sm"><span>Status: <strong>{data.payroll.status.replaceAll("_"," ")}</strong></span><Link className="font-semibold text-[#8b6914]" href={`${base}/payroll`}>Review payroll</Link></div></> : <p className="mt-4 text-sm text-slate-500">Connect Check or Finch to initialize payroll.</p>}</section>
-      </div>
+
+      <section className="mt-5 grid gap-5 xl:grid-cols-[1fr_1fr]" id="studio">
+        {savedDashboards.map((dashboard) => {
+          const widgetKeys = dashboard.config?.widgets?.length
+            ? dashboard.config.widgets
+            : (["cash", "pipeline", "outstanding"] satisfies StatKey[]);
+          const rows = widgetKeys
+            .map((key) => statMap[key])
+            .filter(Boolean)
+            .map((stat) => ({ name: stat.label, value: stat.value }));
+          const style = dashboard.config?.chartStyle ?? "bar";
+          return (
+            <article className="rounded-2xl border bg-white p-5" key={dashboard.id}>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <LayoutDashboard className="text-[var(--module-tint)]" size={18} />
+                    <h2 className="font-semibold">{dashboard.name}</h2>
+                    {dashboard.isDefault && (
+                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">
+                        Default
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {style} chart - {dashboard.shared ? "shared" : "personal"} -{" "}
+                    {dashboard.config?.dateRange ?? "30d"}
+                  </p>
+                </div>
+                <Link className="text-xs font-semibold text-[#5b5fcf]" href={`${base}/reports`}>
+                  Open report builder <ArrowRight className="inline" size={13} />
+                </Link>
+              </div>
+              {style === "kpi" ? (
+                <div className="mt-4 overflow-hidden rounded-xl border">
+                  <table className="w-full text-sm">
+                    <tbody className="divide-y">
+                      {rows.map((row) => (
+                        <tr key={row.name}>
+                          <td className="px-4 py-3">{row.name}</td>
+                          <td className="px-4 py-3 text-right font-semibold">
+                            {formatCurrency(row.value)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <EChartsPanel option={chartOption(dashboard.name, style, rows)} />
+              )}
+            </article>
+          );
+        })}
+        {savedDashboards.length === 0 && (
+          <div className="rounded-2xl border border-dashed bg-white p-8">
+            <div className="ck-section-label">Studio</div>
+            <h2 className="mt-2 text-lg font-semibold">No saved dashboards yet</h2>
+            <p className="mt-2 max-w-2xl text-sm text-slate-600">
+              Create one dashboard to persist an ECharts visualization contract,
+              selected metrics, comparison rules, and drill-through behavior.
+            </p>
+          </div>
+        )}
+      </section>
+
+      <section className="mt-5 grid gap-5 xl:grid-cols-[1.2fr_.8fr]" id="pipeline">
+        <div className="rounded-2xl border bg-white p-5">
+          <div className="flex items-center justify-between border-b pb-4">
+            <div>
+              <div className="ck-section-label">Pipeline</div>
+              <h2 className="font-semibold">Opportunity value</h2>
+            </div>
+            <Sparkles className="text-[var(--module-tint)]" size={19} />
+          </div>
+          <EChartsPanel option={chartOption("Pipeline", "bar", pipelineRows)} />
+        </div>
+        <div className="overflow-hidden rounded-2xl border bg-white">
+          <div className="flex items-center justify-between border-b p-4">
+            <h2 className="font-semibold">Work needing attention</h2>
+            <CircleAlert size={18} />
+          </div>
+          <div className="divide-y">
+            {data.tasks.map((task) => (
+              <Link
+                className="grid grid-cols-[1fr_auto] gap-3 px-4 py-3 text-sm hover:bg-slate-50"
+                href={`${base}/tasks`}
+                key={task.id}
+              >
+                <span>
+                  <span className="block font-medium">{task.title}</span>
+                  <span className="text-xs text-slate-500">{task.priority}</span>
+                </span>
+                <span className="text-xs text-slate-500">
+                  {task.dueAt ? new Date(task.dueAt).toLocaleDateString() : "No due date"}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="mt-5 overflow-hidden rounded-2xl border bg-white" id="queue">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
+          <div>
+            <div className="ck-section-label">Operating queue</div>
+            <h2 className="mt-1 font-semibold">Exceptions requiring a decision</h2>
+          </div>
+          <span className="text-sm font-semibold">
+            {data.attention.reduce((sum, item) => sum + item.count, 0)} open
+          </span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase tracking-[.12em] text-slate-500">
+              <tr>
+                <th className="px-5 py-3">Exception</th>
+                <th className="px-5 py-3">Count</th>
+                <th className="px-5 py-3">Severity</th>
+                <th className="px-5 py-3">Source</th>
+                <th className="px-5 py-3">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {data.attention.map((item) => (
+                <tr key={item.key}>
+                  <td className="px-5 py-4">
+                    <div className="font-medium">{item.label}</div>
+                    <div className="text-xs text-slate-500">{item.description}</div>
+                  </td>
+                  <td className="px-5 py-4 text-lg font-semibold">{item.count}</td>
+                  <td className="px-5 py-4 capitalize">{item.severity}</td>
+                  <td className="px-5 py-4">{item.module}</td>
+                  <td className="px-5 py-4">
+                    <Link className="font-semibold text-[#5b5fcf]" href={`${base}/${item.module}`}>
+                      Open <ArrowRight className="inline" size={13} />
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr]">
+        <div className="overflow-hidden rounded-2xl border bg-white">
+          <div className="flex items-center justify-between border-b p-5">
+            <h2 className="font-semibold">Receivables</h2>
+            <CircleDollarSign size={18} />
+          </div>
+          <div className="divide-y">
+            {data.invoices.slice(0, 5).map((invoice) => (
+              <Link
+                className="grid grid-cols-[1fr_auto] gap-4 p-4 hover:bg-slate-50"
+                href={`${base}/invoices/${invoice.id}`}
+                key={invoice.id}
+              >
+                <span>
+                  <span className="block text-sm font-medium">
+                    {invoice.number} - {invoice.customer}
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    {invoice.status.replaceAll("_", " ")} - due{" "}
+                    {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : "No due date"}
+                  </span>
+                </span>
+                <span className="font-semibold">{formatCurrency(invoice.balance)}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-2xl border bg-white p-5">
+          <div className="flex items-center justify-between border-b pb-4">
+            <h2 className="font-semibold">Exports</h2>
+            <FileDown size={18} />
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Link className="ck-button ck-button-secondary justify-center" href={`${base}/reports`}>
+              <BarChart3 size={16} />
+              Report center
+            </Link>
+            <Link className="ck-button ck-button-secondary justify-center" href={`${base}/accounting/reconciliation`}>
+              <Landmark size={16} />
+              Excel bridge
+            </Link>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

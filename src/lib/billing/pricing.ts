@@ -1,112 +1,171 @@
 import "server-only";
 
-import { z } from "zod";
 import { getDb } from "@/lib/db";
 
-const tierSchema = z.object({
-  minUsers: z.number().int(),
-  maxUsers: z.number().int().nullable(),
-  baseCents: z.number().int().optional(),
-  includedUsers: z.number().int().optional(),
-  extraUserCents: z.number().int().optional(),
-  customQuoteRequired: z.boolean().optional(),
-});
+const CORE_PLATFORM_CENTS = 9_900;
+const INCLUDED_USERS = 5;
+const EXTRA_USER_CENTS = 1_000;
 
-const pricingSchema = z.object({
-  tiers: z.object({
-    starter: tierSchema,
-    growth: tierSchema,
-    enterprise: tierSchema,
-  }),
-  modules: z.object({
-    starter: z.record(z.string(), z.number().int()),
-    growth: z.record(z.string(), z.number().int()),
-  }),
-  email: z.object({ managedMailboxCents: z.number().int() }),
-});
+const ADD_ONS = {
+  payrollProvider: {
+    label: "Payroll & HR Sync",
+    unitAmountCents: 12_900,
+  },
+  quickbooks: {
+    label: "QuickBooks Integration",
+    unitAmountCents: 4_900,
+  },
+  bankFeed: {
+    label: "Bank Feed Integration",
+    unitAmountCents: 2_900,
+  },
+  sms: {
+    label: "SMS Messaging base",
+    unitAmountCents: 1_000,
+  },
+  customDomain: {
+    label: "Custom Domain Hosting",
+    unitAmountCents: 900,
+  },
+  aiExpansion: {
+    label: "AI Expansion Pack",
+    unitAmountCents: 2_900,
+  },
+} as const;
 
-const moduleLabels: Record<string, string> = {
-  accounting: "Accounting",
-  workforce: "Workforce",
-  scheduling: "Scheduling",
-  timeClock: "Time clock",
-  marketing: "Marketing",
-  payroll: "Payroll integration",
-  advancedAi: "Advanced AI",
-  advancedAnalytics: "Advanced analytics",
-  premiumTemplates: "Premium website templates",
-  managedDomain: "Managed DNS and domain",
+export type PricingLine = {
+  key: string;
+  label: string;
+  quantity: number;
+  unitAmountCents: number;
+  amountCents: number;
 };
 
-export type PricingLine = { key: string; label: string; quantity: number; unitAmountCents: number; amountCents: number };
+function line(
+  key: string,
+  label: string,
+  quantity: number,
+  unitAmountCents: number,
+): PricingLine | null {
+  if (quantity <= 0) return null;
+  return {
+    key,
+    label,
+    quantity,
+    unitAmountCents,
+    amountCents: quantity * unitAmountCents,
+  };
+}
 
 export async function calculateOrganizationPrice(organizationId: string) {
   const db = getDb();
-  const organization = await db.organization.findUniqueOrThrow({
-    where: { id: organizationId },
-    include: { moduleConfiguration: true, usage: true },
-  });
-  const pricingRecord = await db.pricingConfig.findFirst({ where: { active: true }, orderBy: { updatedAt: "desc" } });
-  if (!pricingRecord) throw new Error("Active pricing configuration is missing");
-  const pricing = pricingSchema.parse(pricingRecord.config);
+  const [organization, pricingRecord] = await Promise.all([
+    db.organization.findUniqueOrThrow({
+      where: { id: organizationId },
+      include: {
+        bankAccounts: true,
+        domains: true,
+        integrations: true,
+        moduleConfiguration: true,
+        payrollConnection: true,
+        usage: true,
+      },
+    }),
+    db.pricingConfig.findFirst({
+      where: { active: true },
+      orderBy: { updatedAt: "desc" },
+    }),
+  ]);
+  const pricingVersion =
+    pricingRecord?.pricingVersion ?? organization.pricingVersion ?? "2026-core";
   const seats = Math.max(1, organization.usage?.licensedUsers ?? 1);
-  const tier = seats >= 100 ? "enterprise" : seats >= 50 ? "growth" : "starter";
 
-  if (organization.pricingOverrideEnabled && organization.pricingOverrideAmountCents !== null) {
+  if (
+    organization.pricingOverrideEnabled &&
+    organization.pricingOverrideAmountCents !== null
+  ) {
     return {
-      pricingVersion: pricingRecord.pricingVersion,
-      tier,
+      pricingVersion,
+      tier: "core",
       licensedUsers: seats,
       manualQuoteRequired: false,
       override: true,
-      lines: [{ key: "pricingOverride", label: "Contracted platform subscription", quantity: 1, unitAmountCents: organization.pricingOverrideAmountCents, amountCents: organization.pricingOverrideAmountCents }],
+      lines: [
+        {
+          key: "pricingOverride",
+          label: "Contracted Connect subscription",
+          quantity: 1,
+          unitAmountCents: organization.pricingOverrideAmountCents,
+          amountCents: organization.pricingOverrideAmountCents,
+        },
+      ],
       totalCents: organization.pricingOverrideAmountCents,
     };
   }
 
-  if (tier === "enterprise") {
-    return { pricingVersion: pricingRecord.pricingVersion, tier, licensedUsers: seats, manualQuoteRequired: true, override: false, lines: [] as PricingLine[], totalCents: 0 };
-  }
-
-  const tierConfig = pricing.tiers[tier];
-  const baseCents = tierConfig.baseCents ?? 0;
-  const includedUsers = tierConfig.includedUsers ?? 0;
-  const additionalSeats = Math.max(0, seats - includedUsers);
-  const lines: PricingLine[] = [
-    { key: "core", label: `Core platform (${includedUsers} licensed users included)`, quantity: 1, unitAmountCents: baseCents, amountCents: baseCents },
-  ];
-  if (additionalSeats) {
-    const unitAmountCents = tierConfig.extraUserCents ?? 0;
-    lines.push({ key: "licensedUsers", label: "Additional licensed users", quantity: additionalSeats, unitAmountCents, amountCents: additionalSeats * unitAmountCents });
-  }
-
-  const modules = organization.moduleConfiguration;
-  const modulePrices = pricing.modules[tier];
-  if (modules) {
-    for (const [key, unitAmountCents] of Object.entries(modulePrices)) {
-      if (modules[key as keyof typeof modules] === true) {
-        lines.push({ key, label: moduleLabels[key] ?? key, quantity: 1, unitAmountCents, amountCents: unitAmountCents });
-      }
-    }
-  }
-  const mailboxCount = organization.usage?.mailboxCount ?? 0;
-  if (modules?.managedEmail && mailboxCount > 0) {
-    lines.push({
-      key: "managedEmail",
-      label: "Managed business mailboxes",
-      quantity: mailboxCount,
-      unitAmountCents: pricing.email.managedMailboxCents,
-      amountCents: mailboxCount * pricing.email.managedMailboxCents,
-    });
-  }
+  const additionalSeats = Math.max(0, seats - INCLUDED_USERS);
+  const connectedBankFeeds = organization.bankAccounts.filter(
+    (account) => account.connectionStatus !== "MANUAL",
+  ).length;
+  const customDomains = organization.domains.filter(
+    (domain) => domain.kind === "CUSTOM",
+  ).length;
+  const hasQuickBooks = organization.integrations.some(
+    (integration) =>
+      integration.provider === "QUICKBOOKS" &&
+      ["ACTIVE", "CONNECTING", "REAUTH_REQUIRED"].includes(integration.status),
+  );
+  const hasSms =
+    organization.moduleConfiguration?.marketing === true ||
+    organization.integrations.some((integration) => integration.provider === "SMS");
+  const lines = [
+    line(
+      "core",
+      `Connect Platform (${INCLUDED_USERS} internal users included)`,
+      1,
+      CORE_PLATFORM_CENTS,
+    ),
+    line("licensedUsers", "Additional internal users", additionalSeats, EXTRA_USER_CENTS),
+    line(
+      "payrollProvider",
+      ADD_ONS.payrollProvider.label,
+      organization.payrollConnection ? 1 : 0,
+      ADD_ONS.payrollProvider.unitAmountCents,
+    ),
+    line(
+      "quickbooks",
+      ADD_ONS.quickbooks.label,
+      hasQuickBooks ? 1 : 0,
+      ADD_ONS.quickbooks.unitAmountCents,
+    ),
+    line(
+      "bankFeed",
+      ADD_ONS.bankFeed.label,
+      connectedBankFeeds,
+      ADD_ONS.bankFeed.unitAmountCents,
+    ),
+    line("sms", ADD_ONS.sms.label, hasSms ? 1 : 0, ADD_ONS.sms.unitAmountCents),
+    line(
+      "customDomain",
+      ADD_ONS.customDomain.label,
+      customDomains,
+      ADD_ONS.customDomain.unitAmountCents,
+    ),
+    line(
+      "aiExpansion",
+      ADD_ONS.aiExpansion.label,
+      organization.moduleConfiguration?.advancedAi ? 1 : 0,
+      ADD_ONS.aiExpansion.unitAmountCents,
+    ),
+  ].filter((item): item is PricingLine => Boolean(item));
 
   return {
-    pricingVersion: pricingRecord.pricingVersion,
-    tier,
+    pricingVersion,
+    tier: "core",
     licensedUsers: seats,
     manualQuoteRequired: false,
     override: false,
     lines,
-    totalCents: lines.reduce((sum, line) => sum + line.amountCents, 0),
+    totalCents: lines.reduce((sum, item) => sum + item.amountCents, 0),
   };
 }

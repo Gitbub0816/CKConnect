@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { CSSProperties } from "react";
+import type { ComponentType } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
@@ -24,7 +25,6 @@ import {
   Settings,
   Sparkles,
   Workflow,
-  type LucideIcon,
 } from "lucide-react";
 
 type SidebarChild = { label: string; slug: string };
@@ -33,7 +33,7 @@ type SidebarItem = {
   children?: SidebarChild[];
   childrenNested?: boolean;
   feature?: string;
-  icon: LucideIcon;
+  icon: ComponentType<{ className?: string; size?: number }>;
   label: string;
   slug: string;
 };
@@ -113,7 +113,7 @@ const sections: SidebarSection[] = [
     ],
   },
   {
-    label: "Finance",
+    label: "Accounting",
     items: [
       { slug: "invoices", label: "Invoices", icon: FileText, feature: "accounting" },
       { slug: "payments", label: "Payments", icon: CircleDollarSign, feature: "accounting" },
@@ -184,6 +184,28 @@ const collapsedKey = "ckconnect.sidebar.collapsed";
 
 const defaultSections = sections.map((s) => s.label);
 
+function SlackLogo({ className, size = 16 }: { className?: string; size?: number }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      height={size}
+      viewBox="0 0 24 24"
+      width={size}
+    >
+      <path d="M9.3 2.5a2.1 2.1 0 0 0 0 4.2h2.1V4.6a2.1 2.1 0 0 0-2.1-2.1Z" fill="#36C5F0" />
+      <path d="M12.6 2.5a2.1 2.1 0 0 1 2.1 2.1v5.3a2.1 2.1 0 1 1-4.2 0V4.6a2.1 2.1 0 0 1 2.1-2.1Z" fill="#2EB67D" />
+      <path d="M21.5 9.3a2.1 2.1 0 0 0-4.2 0v2.1h2.1a2.1 2.1 0 0 0 2.1-2.1Z" fill="#2EB67D" />
+      <path d="M21.5 12.6a2.1 2.1 0 0 1-2.1 2.1h-5.3a2.1 2.1 0 1 1 0-4.2h5.3a2.1 2.1 0 0 1 2.1 2.1Z" fill="#ECB22E" />
+      <path d="M14.7 21.5a2.1 2.1 0 0 0 0-4.2h-2.1v2.1a2.1 2.1 0 0 0 2.1 2.1Z" fill="#ECB22E" />
+      <path d="M11.4 21.5a2.1 2.1 0 0 1-2.1-2.1v-5.3a2.1 2.1 0 1 1 4.2 0v5.3a2.1 2.1 0 0 1-2.1 2.1Z" fill="#E01E5A" />
+      <path d="M2.5 14.7a2.1 2.1 0 0 0 4.2 0v-2.1H4.6a2.1 2.1 0 0 0-2.1 2.1Z" fill="#E01E5A" />
+      <path d="M2.5 11.4a2.1 2.1 0 0 1 2.1-2.1h5.3a2.1 2.1 0 1 1 0 4.2H4.6a2.1 2.1 0 0 1-2.1-2.1Z" fill="#36C5F0" />
+    </svg>
+  );
+}
+
 export function AppSidebar({
   active,
   base,
@@ -191,6 +213,7 @@ export function AppSidebar({
   logoUrl,
   navigationStyle,
   organizationSlug,
+  slackConnected,
   title,
 }: {
   active: string;
@@ -199,6 +222,7 @@ export function AppSidebar({
   logoUrl?: string | null;
   navigationStyle?: string | null;
   organizationSlug: string;
+  slackConnected?: boolean;
   title: string;
 }) {
   const pathname = usePathname();
@@ -216,10 +240,14 @@ export function AppSidebar({
           ...section,
           items: section.items.filter(
             (item) => !item.feature || enabled?.[item.feature] !== false,
+          ).map((item) =>
+            slackConnected && item.slug === "collaboration"
+              ? { ...item, icon: SlackLogo, label: "Slack" }
+              : item,
           ),
         }))
         .filter((section) => section.items.length),
-    [enabled],
+    [enabled, slackConnected],
   );
 
   const activeItemParent = useMemo(() => {

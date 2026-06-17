@@ -41,3 +41,16 @@ export function signR2Download(key: string, fileName: string) {
     ResponseContentDisposition: `attachment; filename="${fileName.replaceAll('"', "")}"`,
   }), { expiresIn: 300 });
 }
+
+export async function putR2Object(input: {
+  body: Buffer | Uint8Array;
+  contentType: string;
+  key: string;
+}) {
+  await getR2().send(new PutObjectCommand({
+    Body: input.body,
+    Bucket: bucket(),
+    ContentType: input.contentType,
+    Key: input.key,
+  }));
+}

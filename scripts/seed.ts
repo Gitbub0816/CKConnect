@@ -345,36 +345,38 @@ async function seedOrganization(spec: (typeof organizations)[number], ownerId: s
 async function main() {
   await db.pricingConfig.updateMany({ data: { active: false } });
   await db.pricingConfig.upsert({
-    where: { pricingVersion: "2026-v1" },
+    where: { pricingVersion: "2026-core" },
     update: {
       active: true,
       config: {
-        tiers: {
-          starter: { minUsers: 1, maxUsers: 49, baseCents: 7900, includedUsers: 5, extraUserCents: 800 },
-          growth: { minUsers: 50, maxUsers: 99, baseCents: 49900, includedUsers: 50, extraUserCents: 700 },
-          enterprise: { minUsers: 100, maxUsers: null, customQuoteRequired: true },
+        corePlatformCents: 9900,
+        includedUsers: 5,
+        extraUserCents: 1000,
+        addOns: {
+          payrollProviderCents: 12900,
+          quickbooksCents: 4900,
+          bankFeedCents: 2900,
+          smsBaseCents: 1000,
+          customDomainCents: 900,
+          aiExpansionCents: 2900,
         },
-        modules: {
-          starter: { accounting: 3900, workforce: 2900, scheduling: 1900, timeClock: 900, marketing: 2900, payroll: 2900, advancedAi: 2900, advancedAnalytics: 2900, premiumTemplates: 900, managedDomain: 200 },
-          growth: { accounting: 9900, workforce: 7900, scheduling: 4900, timeClock: 2900, marketing: 7900, payroll: 7900, advancedAi: 7900, advancedAnalytics: 7900, premiumTemplates: 1900, managedDomain: 200 },
-        },
-        email: { managedMailboxCents: 400 },
       },
     },
     create: {
-      pricingVersion: "2026-v1",
+      pricingVersion: "2026-core",
       active: true,
       config: {
-        tiers: {
-          starter: { minUsers: 1, maxUsers: 49, baseCents: 7900, includedUsers: 5, extraUserCents: 800 },
-          growth: { minUsers: 50, maxUsers: 99, baseCents: 49900, includedUsers: 50, extraUserCents: 700 },
-          enterprise: { minUsers: 100, maxUsers: null, customQuoteRequired: true },
+        corePlatformCents: 9900,
+        includedUsers: 5,
+        extraUserCents: 1000,
+        addOns: {
+          payrollProviderCents: 12900,
+          quickbooksCents: 4900,
+          bankFeedCents: 2900,
+          smsBaseCents: 1000,
+          customDomainCents: 900,
+          aiExpansionCents: 2900,
         },
-        modules: {
-          starter: { accounting: 3900, workforce: 2900, scheduling: 1900, timeClock: 900, marketing: 2900, payroll: 2900, advancedAi: 2900, advancedAnalytics: 2900, premiumTemplates: 900, managedDomain: 200 },
-          growth: { accounting: 9900, workforce: 7900, scheduling: 4900, timeClock: 2900, marketing: 7900, payroll: 7900, advancedAi: 7900, advancedAnalytics: 7900, premiumTemplates: 1900, managedDomain: 200 },
-        },
-        email: { managedMailboxCents: 400 },
       },
     },
   });

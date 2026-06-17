@@ -19,6 +19,7 @@ export function getIntegrationConfigStatus() {
       "QUICKBOOKS_CLIENT_SECRET",
       "QUICKBOOKS_REDIRECT_URI",
     ) || configured("INTUIT_CLIENT_ID", "INTUIT_CLIENT_SECRET", "INTUIT_REDIRECT_URI"),
+    slack: configured("SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET", "SLACK_SIGNING_SECRET"),
     stripe: configured("STRIPE_SECRET_KEY"),
     zoho: configured("ZOHO_CLIENT_ID", "ZOHO_CLIENT_SECRET", "ZOHO_REDIRECT_URI"),
   };

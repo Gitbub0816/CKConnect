@@ -16,7 +16,125 @@ import {
 } from "@/app/app/[organizationSlug]/actions";
 
 type Value = Record<string, unknown>;
-type Data = { records?: Value[]; calendar?: Value[]; transactions?: Value[] };
+type Data = {
+  integration?: Value | null;
+  records?: Value[];
+  calendar?: Value[];
+  transactions?: Value[];
+};
+
+function SlackLogo({ className = "", size = 20 }: { className?: string; size?: number }) {
+  return (
+    <svg aria-hidden="true" className={className} height={size} viewBox="0 0 24 24" width={size}>
+      <path d="M9.3 2.5a2.1 2.1 0 0 0 0 4.2h2.1V4.6a2.1 2.1 0 0 0-2.1-2.1Z" fill="#36C5F0" />
+      <path d="M12.6 2.5a2.1 2.1 0 0 1 2.1 2.1v5.3a2.1 2.1 0 1 1-4.2 0V4.6a2.1 2.1 0 0 1 2.1-2.1Z" fill="#2EB67D" />
+      <path d="M21.5 9.3a2.1 2.1 0 0 0-4.2 0v2.1h2.1a2.1 2.1 0 0 0 2.1-2.1Z" fill="#2EB67D" />
+      <path d="M21.5 12.6a2.1 2.1 0 0 1-2.1 2.1h-5.3a2.1 2.1 0 1 1 0-4.2h5.3a2.1 2.1 0 0 1 2.1 2.1Z" fill="#ECB22E" />
+      <path d="M14.7 21.5a2.1 2.1 0 0 0 0-4.2h-2.1v2.1a2.1 2.1 0 0 0 2.1 2.1Z" fill="#ECB22E" />
+      <path d="M11.4 21.5a2.1 2.1 0 0 1-2.1-2.1v-5.3a2.1 2.1 0 1 1 4.2 0v5.3a2.1 2.1 0 0 1-2.1 2.1Z" fill="#E01E5A" />
+      <path d="M2.5 14.7a2.1 2.1 0 0 0 4.2 0v-2.1H4.6a2.1 2.1 0 0 0-2.1 2.1Z" fill="#E01E5A" />
+      <path d="M2.5 11.4a2.1 2.1 0 0 1 2.1-2.1h5.3a2.1 2.1 0 1 1 0 4.2H4.6a2.1 2.1 0 0 1-2.1-2.1Z" fill="#36C5F0" />
+    </svg>
+  );
+}
+
+function SlackCollaboration({
+  data,
+  organizationSlug,
+}: {
+  data: Data;
+  organizationSlug: string;
+}) {
+  const channels = data.records ?? [];
+  const activeChannel = channels[0];
+  return (
+    <div className="min-h-[calc(100vh-12rem)] overflow-hidden rounded-2xl border bg-white shadow-sm">
+      <div className="flex h-full min-h-[calc(100vh-12rem)]">
+        <aside className="w-64 shrink-0 bg-[#3f0e40] text-white">
+          <div className="border-b border-white/10 p-4">
+            <div className="flex items-center gap-2 text-lg font-semibold">
+              <SlackLogo size={22} />
+              Slack
+            </div>
+            <p className="mt-1 text-xs text-white/60">
+              Connected to ClearKey tenant sync
+            </p>
+          </div>
+          <div className="p-3">
+            <div className="px-2 py-2 text-xs font-bold uppercase tracking-[.12em] text-white/50">
+              Channels
+            </div>
+            {channels.map((channel) => (
+              <a
+                className="block rounded-md px-3 py-2 text-sm text-white/80 transition hover:bg-white/10 hover:text-white"
+                href={`#slack-${String(channel.id)}`}
+                key={String(channel.id)}
+              >
+                # {String(channel.name)}
+              </a>
+            ))}
+          </div>
+        </aside>
+        <section className="flex min-w-0 flex-1 flex-col">
+          <header className="flex items-center justify-between border-b px-5 py-4">
+            <div>
+              <h2 className="font-semibold"># {String(activeChannel?.name ?? "general")}</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Slack renders full screen when connected; ClearKey channels stay linked to customers, meetings, and records.
+              </p>
+            </div>
+            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+              {String(data.integration?.status ?? "ACTIVE")}
+            </span>
+          </header>
+          <div className="min-h-0 flex-1 overflow-y-auto bg-white">
+            {channels.map((channel) => (
+              <article id={`slack-${String(channel.id)}`} key={String(channel.id)}>
+                <div className="border-b bg-slate-50 px-5 py-3">
+                  <div className="font-semibold"># {String(channel.name)}</div>
+                  <div className="text-xs text-slate-500">
+                    {String(channel.description ?? "Synchronized Slack channel")}
+                  </div>
+                </div>
+                <div className="divide-y">
+                  {((channel.messages as Value[]) ?? []).map((message) => (
+                    <div className="grid grid-cols-[42px_1fr] gap-3 px-5 py-4" key={String(message.id)}>
+                      <div className="grid size-10 place-items-center rounded-lg bg-[#3f0e40] text-xs font-bold text-white">
+                        {String(message.author ?? "U").slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="flex items-baseline gap-2">
+                          <strong className="text-sm">{String(message.author)}</strong>
+                          <span className="text-xs text-slate-400">
+                            {new Date(String(message.createdAt)).toLocaleString()}
+                          </span>
+                        </div>
+                        <p className="mt-1 whitespace-pre-wrap text-sm leading-6">
+                          {String(message.body)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+          {activeChannel && (
+            <form action={sendCollaborationMessage} className="flex gap-3 border-t p-4">
+              <input name="organizationSlug" type="hidden" value={organizationSlug} />
+              <input name="channelId" type="hidden" value={String(activeChannel.id)} />
+              <textarea className="ck-input min-h-12 flex-1 py-3" name="body" placeholder={`Message #${String(activeChannel.name)}...`} required />
+              <button className="ck-button self-end" type="submit">
+                <Send size={14} />
+                Send
+              </button>
+            </form>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
 
 function Collaboration({
   data,
@@ -25,6 +143,9 @@ function Collaboration({
   data: Data;
   organizationSlug: string;
 }) {
+  if (data.integration?.provider === "SLACK" && data.integration.connected) {
+    return <SlackCollaboration data={data} organizationSlug={organizationSlug} />;
+  }
   return (
     <div className="grid gap-4 2xl:grid-cols-[300px_1fr_320px]">
       <aside className="space-y-4">

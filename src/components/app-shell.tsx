@@ -20,6 +20,11 @@ export async function AppShell({
     string,
     unknown
   > | null;
+  const slackConnected = Boolean(
+    organization?.integrations?.some((integration) =>
+      ["ACTIVE", "CONNECTING", "REAUTH_REQUIRED"].includes(integration.status),
+    ),
+  );
   const shellStyle = {
     "--console-primary": theme?.consolePrimaryColor ?? "#5B5FCF",
     "--console-sidebar": theme?.consoleSidebarColor ?? "#15171E",
@@ -51,6 +56,7 @@ export async function AppShell({
         logoUrl={theme?.consoleLogoUrl}
         navigationStyle={theme?.consoleNavigationStyle}
         organizationSlug={organizationSlug}
+        slackConnected={slackConnected}
         title={theme?.consoleTitle ?? organization?.name ?? "ClearKey Connect"}
       />
       <div className="flex min-w-0 flex-1 flex-col lg:h-screen lg:overflow-y-auto">

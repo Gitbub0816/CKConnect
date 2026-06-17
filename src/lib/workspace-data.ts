@@ -2582,7 +2582,7 @@ export async function getModuleData(slug: string, module: string) {
       };
     }
     case "collaboration": {
-      const [channels, calendar] = await Promise.all([
+      const [channels, calendar, slackIntegration] = await Promise.all([
         db.collaborationChannel.findMany({
           where: { organizationId, archivedAt: null },
           include: {
@@ -2600,9 +2600,29 @@ export async function getModuleData(slug: string, module: string) {
           orderBy: { startsAt: "asc" },
           take: 8,
         }),
+        db.integration.findUnique({
+          where: {
+            organizationId_provider: {
+              organizationId,
+              provider: "SLACK",
+            },
+          },
+        }),
       ]);
       return {
         kind: "collaboration",
+        integration: slackIntegration
+          ? {
+              provider: "SLACK",
+              status: slackIntegration.status,
+              connected: ["ACTIVE", "CONNECTING", "REAUTH_REQUIRED"].includes(
+                slackIntegration.status,
+              ),
+              lastSyncAt: iso(slackIntegration.lastSyncAt),
+              lastError: slackIntegration.lastError,
+              settings: slackIntegration.settings,
+            }
+          : null,
         records: channels.map((channel) => ({
           id: channel.id,
           publicId: channel.publicId,
