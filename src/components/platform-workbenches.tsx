@@ -22,7 +22,7 @@ import {
   verifyDomainNow,
 } from "@/app/app/[organizationSlug]/actions";
 import { formatCurrency } from "@/lib/utils";
-import { WebsiteStudio } from "@/components/website-studio";
+import { SdkEmbed } from "@/components/sdk-embed";
 
 type Value = Record<string, unknown>;
 type Data = {
@@ -36,8 +36,6 @@ type Data = {
   permissionCatalog?: string[];
   assets?: Value[];
   automations?: Value[];
-  dataGrants?: Value[];
-  integrationStatus?: Value;
   entities?: Value[];
   catalog?: Value[];
   links?: Value[];
@@ -653,16 +651,21 @@ function WebsiteWorkbench({
         </div>
       </div>
     );
+  const builderUrl =
+    process.env.NEXT_PUBLIC_BUILDER_API_URL ?? "https://builder-api.cksites.dev";
   return (
-    <WebsiteStudio
-      assets={(data.assets ?? []) as never[]}
-      automations={(data.automations ?? []) as never[]}
-      dataGrants={(data.dataGrants ?? []) as never[]}
-      integrationStatus={(data.integrationStatus ?? {}) as never}
-      organizationSlug={organizationSlug}
-      page={page}
-      website={website}
-    />
+    <div style={{ height: "calc(100vh - 8.5rem)" }}>
+      <SdkEmbed
+        apiUrl={builderUrl}
+        extraParams={{
+          websiteId: String(website.id),
+          hostname: String(website.hostname),
+          siteSlug: String(website.name),
+        }}
+        organizationSlug={organizationSlug}
+        title="Website Builder"
+      />
+    </div>
   );
 }
 
