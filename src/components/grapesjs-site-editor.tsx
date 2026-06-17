@@ -7,50 +7,141 @@ import grapesjs, { type Editor } from "grapesjs";
 
 type GrapesProject = Record<string, unknown>;
 
-const clearKeyBlocks = [
+export type ClearKeySiteBlockDefinition = {
+  type: string;
+  label: string;
+  category: string;
+  requiredScopes: string[];
+  description: string;
+  defaultSettings: Record<string, string | boolean>;
+  fallback: string;
+};
+
+export const clearKeySiteBlocks: ClearKeySiteBlockDefinition[] = [
   {
-    id: "ck-lead-form",
+    type: "ck-lead-form",
     label: "Lead capture",
     category: "ClearKey",
-    content:
-      '<section data-ck-block="lead-capture" data-ck-scopes="customers.write_leads forms.write_submissions" class="ck-site-block"><h2>Request a quote</h2><p>Tell us what you need and our team will follow up.</p><form><input placeholder="Name"/><input placeholder="Email"/><textarea placeholder="How can we help?"></textarea><button type="submit">Send request</button></form></section>',
+    requiredScopes: ["customers.write_leads", "forms.write_submissions"],
+    description: "Creates CRM leads and form-inbox submissions.",
+    defaultSettings: { title: "Request a quote", submitLabel: "Send request" },
+    fallback: "Lead capture requires approved CRM lead and form submission scopes.",
   },
   {
-    id: "ck-booking",
+    type: "ck-booking",
     label: "Booking request",
     category: "ClearKey",
-    content:
-      '<section data-ck-block="booking" data-ck-scopes="booking.write_requests services.read" class="ck-site-block"><h2>Book an appointment</h2><p>Let customers request time with your team.</p><a href="#contact">Request a time</a></section>',
+    requiredScopes: ["booking.read", "booking.write_requests", "services.read"],
+    description: "Reads public availability and creates booking requests.",
+    defaultSettings: { title: "Book an appointment", duration: "60" },
+    fallback: "Booking is unavailable until booking scopes are approved.",
   },
   {
-    id: "ck-services",
+    type: "ck-services",
     label: "Services list",
     category: "ClearKey",
-    content:
-      '<section data-ck-block="services" data-ck-scopes="services.read pricing.read" class="ck-site-block"><h2>Services</h2><div><article><h3>Featured service</h3><p>Describe a public-safe service from your catalog.</p></article></div></section>',
+    requiredScopes: ["services.read", "pricing.read"],
+    description: "Displays approved service catalog records and prices.",
+    defaultSettings: { title: "Services", source: "public-services" },
+    fallback: "Approve service and pricing scopes to render live services.",
   },
   {
-    id: "ck-inventory",
+    type: "ck-inventory",
     label: "Inventory list",
     category: "ClearKey",
-    content:
-      '<section data-ck-block="inventory" data-ck-scopes="inventory.read pricing.read" class="ck-site-block"><h2>Available products</h2><p>Display public-safe inventory fields only.</p></section>',
+    requiredScopes: ["inventory.read", "pricing.read"],
+    description: "Displays selected public inventory with stock-safe fields.",
+    defaultSettings: { title: "Available products", showQuantity: false },
+    fallback: "Approve inventory and pricing scopes to render live products.",
   },
   {
-    id: "ck-payment",
+    type: "ck-payment",
     label: "Payment button",
     category: "ClearKey",
-    content:
-      '<section data-ck-block="payment" data-ck-scopes="payments.create_checkout" class="ck-site-block"><h2>Pay securely</h2><p>Send customers into a protected checkout flow.</p><a href="#contact">Request payment link</a></section>',
+    requiredScopes: ["payments.create_checkout"],
+    description: "Creates server-side checkout links for selected invoices or offers.",
+    defaultSettings: { title: "Pay securely", buttonLabel: "Continue to checkout" },
+    fallback: "Checkout is unavailable until payment scope is approved.",
   },
   {
-    id: "ck-portal",
+    type: "ck-portal",
     label: "Portal login",
     category: "ClearKey",
-    content:
-      '<section data-ck-block="portal" data-ck-scopes="portal.create_login_link" class="ck-site-block"><h2>Customer portal</h2><p>Create a customer-safe portal login link.</p><a href="#contact">Request portal access</a></section>',
+    requiredScopes: ["portal.create_login_link"],
+    description: "Creates customer-safe portal login links.",
+    defaultSettings: { title: "Customer portal", buttonLabel: "Open portal" },
+    fallback: "Portal login is unavailable until portal link scope is approved.",
+  },
+  {
+    type: "ck-chat",
+    label: "Chat widget",
+    category: "ClearKey",
+    requiredScopes: ["chat.write_sessions", "chat.read_business_hours"],
+    description: "Starts website chat sessions and respects handoff availability.",
+    defaultSettings: { title: "Chat with us", handoff: true },
+    fallback: "Chat is unavailable until website chat scopes are approved.",
+  },
+  {
+    type: "ck-staff",
+    label: "Staff/team",
+    category: "ClearKey",
+    requiredScopes: ["staff.read_public"],
+    description: "Displays selected public team profiles.",
+    defaultSettings: { title: "Meet the team" },
+    fallback: "Approve public staff scope to render team profiles.",
+  },
+  {
+    type: "ck-gallery",
+    label: "Gallery",
+    category: "ClearKey",
+    requiredScopes: [],
+    description: "Displays uploaded site assets from the tenant asset library.",
+    defaultSettings: { title: "Gallery" },
+    fallback: "Upload assets to use this block.",
+  },
+  {
+    type: "ck-business-hours",
+    label: "Business hours",
+    category: "ClearKey",
+    requiredScopes: ["business_profile.read"],
+    description: "Displays public business profile and hours.",
+    defaultSettings: { title: "Hours" },
+    fallback: "Approve business profile scope to render hours.",
+  },
+  {
+    type: "ck-location",
+    label: "Location/map",
+    category: "ClearKey",
+    requiredScopes: ["locations.read"],
+    description: "Displays public location and service-area records.",
+    defaultSettings: { title: "Find us" },
+    fallback: "Approve location scope to render map data.",
   },
 ];
+
+function componentFor(block: ClearKeySiteBlockDefinition) {
+  const scopes = block.requiredScopes.join(" ");
+  return {
+    attributes: {
+      "data-ck-block": block.type,
+      "data-ck-fallback": block.fallback,
+      "data-ck-scopes": scopes,
+      "data-ck-settings": JSON.stringify(block.defaultSettings),
+    },
+    components: [
+      { tagName: "span", content: "ClearKey dynamic block" },
+      { tagName: "h2", content: block.label },
+      { tagName: "p", content: block.description },
+      {
+        attributes: { "data-ck-preview": "fallback" },
+        tagName: "div",
+        content: block.fallback,
+      },
+    ],
+    tagName: "section",
+    type: block.type,
+  };
+}
 
 export function GrapesJsSiteEditor({
   initialCss,
@@ -74,7 +165,7 @@ export function GrapesJsSiteEditor({
     if (!containerRef.current || editorRef.current) return;
     const editor = grapesjs.init({
       assetManager: {
-        upload: false,
+        custom: true,
       },
       blockManager: {
         appendTo: ".ck-grapes-blocks",
@@ -114,10 +205,38 @@ export function GrapesJsSiteEditor({
       .ck-site-block p { max-width: 680px; line-height: 1.7; color: #4b5563; }
     `);
 
-    clearKeyBlocks.forEach((block) => {
-      editor.BlockManager.add(block.id, {
+    clearKeySiteBlocks.forEach((block) => {
+      editor.DomComponents.addType(block.type, {
+        model: {
+          defaults: {
+            attributes: {
+              "data-ck-block": block.type,
+              "data-ck-scopes": block.requiredScopes.join(" "),
+              "data-ck-settings": JSON.stringify(block.defaultSettings),
+            },
+            droppable: false,
+            editable: false,
+            traits: [
+              {
+                label: "Title",
+                name: "title",
+                type: "text",
+              },
+              {
+                label: "Data source",
+                name: "dataSource",
+                type: "text",
+              },
+            ],
+          },
+        },
+      });
+      editor.BlockManager.add(block.type, {
+        attributes: {
+          title: `${block.label}: ${block.requiredScopes.length ? block.requiredScopes.join(", ") : "No data scope required"}`,
+        },
         category: block.category,
-        content: block.content,
+        content: componentFor(block),
         label: block.label,
       });
     });

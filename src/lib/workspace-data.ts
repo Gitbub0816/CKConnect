@@ -3,6 +3,7 @@ import "server-only";
 import { calculateOrganizationPrice } from "@/lib/billing/pricing";
 import { createCustomerWorkspaceToken } from "@/lib/customer-workspace-token";
 import { getDb } from "@/lib/db";
+import { getIntegrationConfigStatus } from "@/lib/integrations/config";
 
 const money = (value: unknown) => Number(value ?? 0);
 const iso = (value: Date | null | undefined) => value?.toISOString() ?? null;
@@ -329,7 +330,8 @@ export async function getModuleData(slug: string, module: string) {
       };
     }
     case "websites": {
-      const [records, assets, automations, dataGrants] = await Promise.all([
+      const integrationConfig = getIntegrationConfigStatus();
+      const [records, assets, automations, dataGrants, integrations] = await Promise.all([
         db.website.findMany({
           where: { organizationId },
           include: { pages: true },
@@ -358,9 +360,60 @@ export async function getModuleData(slug: string, module: string) {
           },
           orderBy: { updatedAt: "desc" },
         }),
+        db.integration.findMany({
+          where: {
+            organizationId,
+            provider: {
+              in: ["QUICKBOOKS", "PLAID", "ZOHO_MAIL", "STRIPE", "GRAPESJS"],
+            },
+          },
+          orderBy: { updatedAt: "desc" },
+        }),
       ]);
+      const integrationRecords = Object.fromEntries(
+        integrations.map((integration) => [
+          integration.provider.toLowerCase(),
+          {
+            id: integration.id,
+            status: integration.status,
+            lastSyncAt: iso(integration.lastSyncAt),
+            lastError: integration.lastError,
+          },
+        ]),
+      );
       return {
         kind: "websites",
+        integrationStatus: {
+          cloudflareR2: {
+            configured: integrationConfig.cloudflareR2,
+            status: integrationConfig.cloudflareR2 ? "CONFIGURED" : "MISSING_ENV",
+          },
+          grapesjs: {
+            configured: integrationConfig.grapesjs,
+            status: integrationConfig.grapesjs ? "CONFIGURED" : "MISSING_ENV",
+            connection: integrationRecords.grapesjs ?? null,
+          },
+          plaid: {
+            configured: integrationConfig.plaid,
+            status: integrationConfig.plaid ? "READY_TO_CONNECT" : "MISSING_ENV",
+            connection: integrationRecords.plaid ?? null,
+          },
+          quickbooks: {
+            configured: integrationConfig.quickbooks,
+            status: integrationConfig.quickbooks ? "READY_TO_CONNECT" : "MISSING_ENV",
+            connection: integrationRecords.quickbooks ?? null,
+          },
+          stripe: {
+            configured: integrationConfig.stripe,
+            status: integrationConfig.stripe ? "CONFIGURED" : "MISSING_ENV",
+            connection: integrationRecords.stripe ?? null,
+          },
+          zoho: {
+            configured: integrationConfig.zoho,
+            status: integrationConfig.zoho ? "READY_TO_CONNECT" : "MISSING_ENV",
+            connection: integrationRecords.zoho_mail ?? null,
+          },
+        },
         websites: records.map((website) => ({
           id: website.id,
           name: website.slug,

@@ -37,6 +37,7 @@ type Data = {
   assets?: Value[];
   automations?: Value[];
   dataGrants?: Value[];
+  integrationStatus?: Value;
   entities?: Value[];
   catalog?: Value[];
   links?: Value[];
@@ -657,6 +658,7 @@ function WebsiteWorkbench({
       assets={(data.assets ?? []) as never[]}
       automations={(data.automations ?? []) as never[]}
       dataGrants={(data.dataGrants ?? []) as never[]}
+      integrationStatus={(data.integrationStatus ?? {}) as never}
       organizationSlug={organizationSlug}
       page={page}
       website={website}
