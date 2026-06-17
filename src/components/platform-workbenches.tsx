@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import {
   createDataLink,
+  createWebsite,
   saveReportQuery,
   updateMembershipAccess,
   updateStoragePolicy,
@@ -553,6 +554,44 @@ function SettingsWorkbench({
   );
 }
 
+const websiteTemplates = [
+  {
+    id: "business",
+    label: "Professional Services",
+    description: "Hero, services, testimonials, and CTA. Great for agencies, consultants, and service businesses.",
+    blocks: ["Hero", "Services", "Testimonials", "CTA"],
+    accent: "#4f46e5",
+  },
+  {
+    id: "portfolio",
+    label: "Portfolio",
+    description: "Showcase work, skills, and a project inquiry form. Perfect for creatives and freelancers.",
+    blocks: ["Hero", "Projects", "Services", "CTA"],
+    accent: "#0ea5e9",
+  },
+  {
+    id: "healthcare",
+    label: "Healthcare & Wellness",
+    description: "Service listings, provider bio, and online booking. Built for medical and wellness practices.",
+    blocks: ["Hero", "Services", "About", "Booking"],
+    accent: "#10b981",
+  },
+  {
+    id: "ecommerce",
+    label: "Shop & Commerce",
+    description: "Product highlights, trust signals, and payment integration. For product-based businesses.",
+    blocks: ["Hero", "Products", "Payments", "Reviews"],
+    accent: "#f59e0b",
+  },
+  {
+    id: "minimal",
+    label: "Minimal",
+    description: "A clean landing page with just a headline and call to action. Start simple, add later.",
+    blocks: ["Hero", "CTA"],
+    accent: "#64748b",
+  },
+];
+
 function WebsiteWorkbench({
   data,
   organizationSlug,
@@ -564,8 +603,52 @@ function WebsiteWorkbench({
   const page = (website?.pages as Value[] | undefined)?.[0];
   if (!website || !page)
     return (
-      <div className="ck-card p-10 text-center text-sm text-slate-500">
-        Create a website to open the visual page builder.
+      <div>
+        <div className="mb-6 text-center">
+          <div className="inline-flex size-14 items-center justify-center rounded-2xl bg-[#f0e6ff] mb-4">
+            <LayoutTemplate className="text-[#7c3aed]" size={26} />
+          </div>
+          <h2 className="text-xl font-semibold">Build your website</h2>
+          <p className="mt-1 text-sm text-slate-500">Choose a template to launch your site in minutes, or start from scratch.</p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {websiteTemplates.map((template) => (
+            <form action={createWebsite} key={template.id}>
+              <input type="hidden" name="organizationSlug" value={organizationSlug} />
+              <input type="hidden" name="template" value={template.id} />
+              <button
+                className="group w-full rounded-xl border-2 border-slate-200 bg-white p-5 text-left transition hover:border-[var(--t-accent)] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[var(--t-accent)]"
+                style={{ "--t-accent": template.accent } as React.CSSProperties}
+                type="submit"
+              >
+                <div
+                  className="mb-4 flex h-28 items-end rounded-lg p-3"
+                  style={{ background: `color-mix(in srgb, ${template.accent} 10%, white)` }}
+                >
+                  <div className="flex flex-wrap gap-1.5">
+                    {template.blocks.map((block) => (
+                      <span
+                        className="rounded px-2 py-1 text-[10px] font-semibold"
+                        key={block}
+                        style={{ background: template.accent, color: "white" }}
+                      >
+                        {block}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="font-semibold text-slate-900">{template.label}</div>
+                <p className="mt-1 text-xs leading-5 text-slate-500">{template.description}</p>
+                <div
+                  className="mt-4 text-xs font-semibold"
+                  style={{ color: template.accent }}
+                >
+                  Use this template →
+                </div>
+              </button>
+            </form>
+          ))}
+        </div>
       </div>
     );
   return (
