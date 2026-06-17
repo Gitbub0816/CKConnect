@@ -3,8 +3,8 @@ import "server-only";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 function key() {
-  const secret = process.env.ENCRYPTION_KEY;
-  if (!secret) throw new Error("ENCRYPTION_KEY is not configured");
+  const secret = process.env.ENCRYPTION_KEY ?? process.env.INTEGRATION_ENCRYPTION_KEY;
+  if (!secret) throw new Error("ENCRYPTION_KEY or INTEGRATION_ENCRYPTION_KEY is not configured");
   return createHash("sha256").update(secret).digest();
 }
 

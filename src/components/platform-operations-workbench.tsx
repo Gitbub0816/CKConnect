@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { CalendarCheck, Download, FileUp, RefreshCw, ShieldAlert } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CalendarCheck, CheckCircle2, Download, FileUp, Hash, Link2, RefreshCw, Send, ShieldAlert, Unplug } from "lucide-react";
 import {
   replayWebhook,
   promoteEndpointSubmission,
@@ -98,32 +98,259 @@ function SubmissionsWorkbench({ data, organizationSlug }: { data: Data; organiza
 }
 
 function IntegrationsWorkbench({ data, organizationSlug }: { data: Data; organizationSlug: string }) {
-  return <div className="grid gap-4 2xl:grid-cols-[1fr_1fr]">
-    <section className="space-y-3">{(data.records ?? []).map((integration) => {
-      const coverage = (integration.coverage ?? {}) as Value;
-      const runs = (integration.runs as Value[]) ?? [];
-      return <article className="ck-card overflow-hidden" key={String(integration.id)}>
-        <div className="grid gap-4 p-5 lg:grid-cols-[1fr_auto]">
-          <div>
-            <div className="flex flex-wrap items-center gap-2"><strong>{String(integration.provider)}</strong><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${integration.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{String(integration.status)}</span><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${integration.health === "HEALTHY" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{String(integration.health)}</span></div>
-            <p className="mt-2 text-xs text-slate-500">{String(integration.direction)} sync - last successful contact {integration.lastSyncAt ? new Date(String(integration.lastSyncAt)).toLocaleString() : "never"}</p>
-          </div>
-          <form action={runIntegrationSync}><input name="organizationSlug" type="hidden" value={organizationSlug}/><input name="entityId" type="hidden" value={String(integration.id)}/><button className="ck-button ck-button-secondary" type="submit"><RefreshCw size={14}/>Run sync check</button></form>
+  const router = useRouter();
+  const integrations = useMemo(() => data.records ?? [], [data.records]);
+  const slack = integrations.find((item) => String(item.provider) === "SLACK");
+  const slackSettings = (slack?.settings ?? {}) as Value;
+  const slackNotifications = (slackSettings.notifications ?? {}) as Value;
+  const [channels, setChannels] = useState<Array<{ id: string; name: string; private?: boolean }>>([]);
+  const [channelId, setChannelId] = useState(String(slackSettings.defaultChannelId ?? ""));
+  const [notifications, setNotifications] = useState<Record<string, boolean>>({
+    newLead: Boolean(slackNotifications.newLead ?? true),
+    newBooking: Boolean(slackNotifications.newBooking ?? true),
+    invoicePaid: Boolean(slackNotifications.invoicePaid ?? true),
+    invoiceOverdue: Boolean(slackNotifications.invoiceOverdue ?? true),
+    customerMessage: Boolean(slackNotifications.customerMessage ?? true),
+    lowInventory: Boolean(slackNotifications.lowInventory ?? true),
+    kiraAutomation: Boolean(slackNotifications.kiraAutomation ?? true),
+  });
+  const [slackStatus, setSlackStatus] = useState("");
+  const slackActive = slack?.status === "ACTIVE";
+  const providerCounts = useMemo(() => ({
+    active: integrations.filter((item) => item.status === "ACTIVE").length,
+    needsWork: integrations.filter((item) => ["ERROR", "REAUTH_REQUIRED", "MISSING_ENV"].includes(String(item.status))).length,
+    ready: integrations.filter((item) => item.status === "READY_TO_CONNECT").length,
+  }), [integrations]);
+
+  useEffect(() => {
+    if (!slackActive) return;
+    let cancelled = false;
+    fetch(`/api/integrations/slack/channels?organizationSlug=${encodeURIComponent(organizationSlug)}`)
+      .then((response) => response.ok ? response.json() : Promise.reject(response))
+      .then((payload: { channels?: Array<{ id: string; name: string; private?: boolean }> }) => {
+        if (!cancelled) setChannels(payload.channels ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setSlackStatus("Slack is connected, but channels could not be loaded.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationSlug, slackActive]);
+
+  async function sendSlackTest() {
+    if (!channelId) return setSlackStatus("Choose a Slack channel first.");
+    setSlackStatus("Sending Slack test message...");
+    const response = await fetch("/api/integrations/slack/test-message", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        organizationSlug,
+        channelId,
+        message: "ClearKey Connect is ready to send workspace alerts into Slack.",
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    setSlackStatus(response.ok ? "Slack test message sent." : String(payload.error ?? "Slack test failed."));
+  }
+
+  async function saveSlackSettings() {
+    const channel = channels.find((item) => item.id === channelId);
+    setSlackStatus("Saving Slack routing...");
+    const response = await fetch("/api/integrations/slack/settings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        organizationSlug,
+        defaultChannelId: channelId,
+        defaultChannelName: channel?.name ?? "",
+        notifications,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    setSlackStatus(response.ok ? "Slack routing saved." : String(payload.error ?? "Slack settings could not be saved."));
+    if (response.ok) router.refresh();
+  }
+
+  async function disconnectSlack() {
+    setSlackStatus("Disconnecting Slack...");
+    const response = await fetch("/api/integrations/slack/disconnect", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ organizationSlug }),
+    });
+    setSlackStatus(response.ok ? "Slack disconnected." : "Slack disconnect failed.");
+    router.refresh();
+  }
+
+  return <div className="space-y-6">
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="grid gap-px bg-slate-200 md:grid-cols-3">
+        <div className="bg-white px-5 py-4">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Active providers</div>
+          <div className="mt-1 text-2xl font-semibold">{providerCounts.active}</div>
         </div>
-        {Boolean(integration.lastError) && <p className="mx-5 rounded-xl bg-red-50 p-3 text-xs text-red-700">{String(integration.lastError)}</p>}
-        <div className="grid gap-px border-t bg-slate-200 lg:grid-cols-[260px_1fr]">
-          <div className="bg-[#f8f5ef] p-5">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Entity coverage</div>
-            <div className="mt-3 flex flex-wrap gap-2">{["contacts","accounts","invoices","products","payments"].map((key) => <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${coverage[key] ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`} key={key}>{key}</span>)}</div>
+        <div className="bg-white px-5 py-4">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Ready to connect</div>
+          <div className="mt-1 text-2xl font-semibold">{providerCounts.ready}</div>
+        </div>
+        <div className="bg-white px-5 py-4">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Needs work</div>
+          <div className="mt-1 text-2xl font-semibold">{providerCounts.needsWork}</div>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+          <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
+            <tr>
+              <th className="border-y px-5 py-3">Provider</th>
+              <th className="border-y px-5 py-3">State</th>
+              <th className="border-y px-5 py-3">Coverage</th>
+              <th className="border-y px-5 py-3">Last contact</th>
+              <th className="border-y px-5 py-3 text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {integrations.map((integration) => {
+              const coverage = (integration.coverage ?? {}) as Value;
+              const isSlack = integration.provider === "SLACK";
+              const connected = integration.status === "ACTIVE";
+              return <tr className="align-top hover:bg-slate-50/80" key={String(integration.provider)}>
+                <td className="border-b px-5 py-4">
+                  <div className="flex items-start gap-3">
+                    <div className={`grid size-9 shrink-0 place-items-center rounded-xl ${isSlack ? "bg-[#4A154B] text-white" : "bg-slate-100 text-slate-700"}`}>
+                      {isSlack ? <Hash size={18}/> : <Link2 size={18}/>}
+                    </div>
+                    <div>
+                      <div className="font-semibold">{String(integration.label ?? integration.provider)}</div>
+                      <p className="mt-1 max-w-xl text-xs leading-5 text-slate-500">{String(integration.description ?? "")}</p>
+                    </div>
+                  </div>
+                </td>
+                <td className="border-b px-5 py-4">
+                  <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${connected ? "bg-emerald-50 text-emerald-700" : integration.status === "MISSING_ENV" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-800"}`}>{String(integration.status).replaceAll("_", " ")}</span>
+                  <div className="mt-2 text-xs text-slate-500">{String(integration.health ?? "UNKNOWN").replaceAll("_", " ")}</div>
+                </td>
+                <td className="border-b px-5 py-4">
+                  <div className="flex max-w-sm flex-wrap gap-1.5">
+                    {["contacts","accounts","invoices","products","payments","collaboration"].map((key) => (
+                      <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${coverage[key] ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-400"}`} key={key}>{key}</span>
+                    ))}
+                  </div>
+                </td>
+                <td className="border-b px-5 py-4 text-xs text-slate-600">
+                  {integration.lastSyncAt ? new Date(String(integration.lastSyncAt)).toLocaleString() : "Never"}
+                  {Boolean(integration.lastError) && <p className="mt-1 text-red-600">{String(integration.lastError)}</p>}
+                </td>
+                <td className="border-b px-5 py-4 text-right">
+                  {isSlack && integration.status !== "ACTIVE" ? (
+                    <a className="ck-button inline-flex" href={`/api/integrations/slack/install?organizationSlug=${encodeURIComponent(organizationSlug)}`}>
+                      <Link2 size={14}/>Connect Slack
+                    </a>
+                  ) : !integration.virtual ? (
+                    <form action={runIntegrationSync}>
+                      <input name="organizationSlug" type="hidden" value={organizationSlug}/>
+                      <input name="entityId" type="hidden" value={String(integration.id)}/>
+                      <button className="ck-button ck-button-secondary inline-flex" type="submit"><RefreshCw size={14}/>Sync check</button>
+                    </form>
+                  ) : (
+                    <span className="text-xs text-slate-400">Configure secrets</span>
+                  )}
+                </td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="border-b px-5 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-semibold">Slack workspace integration</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-500">Route Connect events into channels, expose slash commands, and keep notification preferences tenant-scoped.</p>
+            </div>
+            {slackActive ? <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700"><CheckCircle2 size={14}/>Connected</span> : null}
+          </div>
+        </div>
+        <div className="grid gap-px bg-slate-200 lg:grid-cols-[260px_1fr]">
+          <div className="bg-slate-50 p-5 text-sm">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Workspace</div>
+            <div className="mt-2 font-semibold">{String(slackSettings.teamName ?? "Not connected")}</div>
+            <div className="mt-1 text-xs text-slate-500">{String(slackSettings.teamId ?? "Connect Slack to capture team metadata.")}</div>
+            <div className="mt-5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Default channel</div>
+            <div className="mt-2 font-semibold">{String(slackSettings.defaultChannelName ?? "Select after install")}</div>
           </div>
           <div className="bg-white p-5">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Recent sync runs</div>
-            <div className="mt-3 space-y-2">{runs.map((run) => <div className="grid gap-2 rounded-lg bg-[#f8f5ef] p-3 text-xs sm:grid-cols-[1fr_auto]" key={String(run.id)}><span>{String(run.status)} - {String(run.direction)} - {run.startedAt ? new Date(String(run.startedAt)).toLocaleString() : ""}</span><span>{String(run.processed)} processed / {String(run.failed)} failed</span>{Boolean(run.error) && <p className="text-red-700 sm:col-span-2">{String(run.error)}</p>}</div>)}{!runs.length && <p className="text-xs text-slate-500">No sync runs recorded yet.</p>}</div>
+            {!slackActive ? (
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <div className="font-semibold">Install ClearKey in Slack</div>
+                  <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">Connect uses OAuth, stores bot credentials encrypted, verifies events with Slack signatures, and never exposes workspace tokens to the browser.</p>
+                </div>
+                <a className="ck-button" href={`/api/integrations/slack/install?organizationSlug=${encodeURIComponent(organizationSlug)}`}><Link2 size={15}/>Connect Slack</a>
+              </div>
+            ) : (
+              <div className="grid gap-5">
+                <label className="text-sm font-semibold">Alert channel
+                  <select className="ck-input mt-2" value={channelId} onChange={(event) => setChannelId(event.target.value)}>
+                    <option value="">Choose a Slack channel</option>
+                    {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}{channel.private ? " (private)" : ""}</option>)}
+                  </select>
+                </label>
+                <div className="grid gap-px overflow-hidden rounded-xl border bg-slate-200 sm:grid-cols-2 lg:grid-cols-3">
+                  {[
+                    ["newLead", "New leads"],
+                    ["newBooking", "Bookings"],
+                    ["invoicePaid", "Invoice paid"],
+                    ["invoiceOverdue", "Invoice overdue"],
+                    ["customerMessage", "Customer messages"],
+                    ["lowInventory", "Low inventory"],
+                    ["kiraAutomation", "Kira automations"],
+                  ].map(([key, label]) => (
+                    <label className="flex items-center gap-2 bg-white px-4 py-3 text-sm font-semibold" key={key}>
+                      <input checked={notifications[key]} onChange={(event) => setNotifications((current) => ({ ...current, [key]: event.target.checked }))} type="checkbox"/>
+                      {label}
+                    </label>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button className="ck-button" onClick={saveSlackSettings} type="button"><CheckCircle2 size={15}/>Save Slack routing</button>
+                  <button className="ck-button" onClick={sendSlackTest} type="button"><Send size={15}/>Send test message</button>
+                  <button className="ck-button ck-button-secondary" onClick={disconnectSlack} type="button"><Unplug size={15}/>Disconnect</button>
+                </div>
+                {slackStatus && <p className="text-sm text-slate-600">{slackStatus}</p>}
+              </div>
+            )}
           </div>
         </div>
-      </article>;
-    })}</section>
-    <section className="ck-card h-fit overflow-hidden"><div className="border-b p-5"><h3 className="font-semibold">Webhook delivery queue</h3><p className="mt-1 text-xs text-slate-500">Idempotent provider events, retry attempts, and operator-requested replay.</p></div><div className="divide-y">{(data.webhooks ?? []).map((event) => <div className="grid gap-3 p-4 sm:grid-cols-[1fr_auto] sm:items-center" key={String(event.id)}><div><strong className="text-sm">{String(event.provider)} - {String(event.type)}</strong><p className="mt-1 text-xs text-slate-500">{String(event.status)} - {String(event.attempts)} attempt(s) - {new Date(String(event.createdAt)).toLocaleString()}</p>{Boolean(event.error) && <p className="mt-1 text-xs text-red-600">{String(event.error)}</p>}</div>{event.status === "FAILED" && <form action={replayWebhook}><input name="organizationSlug" type="hidden" value={organizationSlug}/><input name="entityId" type="hidden" value={String(event.id)}/><button className="ck-button ck-button-secondary" type="submit"><RefreshCw size={14}/>Queue replay</button></form>}</div>)}</div></section>
+      </div>
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="border-b px-5 py-4">
+          <h3 className="font-semibold">Webhook delivery queue</h3>
+          <p className="mt-1 text-xs text-slate-500">Idempotent provider events, retries, and replay.</p>
+        </div>
+        <div className="max-h-[420px] overflow-auto">
+          {(data.webhooks ?? []).map((event) => <div className="grid gap-3 border-b px-5 py-4 text-sm" key={String(event.id)}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <strong>{String(event.provider)} - {String(event.type)}</strong>
+                <p className="mt-1 text-xs text-slate-500">{String(event.status)} - {String(event.attempts)} attempt(s) - {new Date(String(event.createdAt)).toLocaleString()}</p>
+                {Boolean(event.error) && <p className="mt-1 text-xs text-red-600">{String(event.error)}</p>}
+              </div>
+              {event.status === "FAILED" && <form action={replayWebhook}>
+                <input name="organizationSlug" type="hidden" value={organizationSlug}/>
+                <input name="entityId" type="hidden" value={String(event.id)}/>
+                <button className="ck-button ck-button-secondary !px-3 !py-2 text-xs" type="submit"><RefreshCw size={13}/>Replay</button>
+              </form>}
+            </div>
+          </div>)}
+          {!(data.webhooks ?? []).length && <div className="px-5 py-10 text-sm text-slate-500">No webhook events have been captured yet.</div>}
+        </div>
+      </div>
+    </section>
   </div>;
 }
 

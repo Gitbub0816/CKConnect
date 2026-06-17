@@ -1874,6 +1874,7 @@ export async function getModuleData(slug: string, module: string) {
       };
     }
     case "integrations": {
+      const integrationConfig = getIntegrationConfigStatus();
       const [records, webhooks] = await Promise.all([
         db.integration.findMany({
           where: { organizationId },
@@ -1886,21 +1887,159 @@ export async function getModuleData(slug: string, module: string) {
           take: 50,
         }),
       ]);
-      return {
-        kind: "integrations",
-        records: records.map((r) => ({
+      const connectedByProvider = new Map(records.map((record) => [record.provider, record]));
+      const providerCatalog = [
+        {
+          provider: "SLACK",
+          label: "Slack",
+          description:
+            "Native workspace notifications, slash commands, channel routing, customer activity alerts, and operational handoffs.",
+          configured: integrationConfig.slack,
+          scopes: ["channels:read", "chat:write", "commands", "team:read", "users:read"],
+          coverage: {
+            contacts: true,
+            accounts: true,
+            invoices: true,
+            products: true,
+            payments: true,
+            collaboration: true,
+          },
+        },
+        {
+          provider: "STRIPE",
+          label: "Stripe",
+          description: "Checkout, connected payment providers, payment events, refunds, and collection state.",
+          configured: integrationConfig.stripe,
+          scopes: ["payments", "checkout", "webhooks"],
+          coverage: {
+            contacts: false,
+            accounts: false,
+            invoices: true,
+            products: false,
+            payments: true,
+            collaboration: false,
+          },
+        },
+        {
+          provider: "QUICKBOOKS",
+          label: "QuickBooks",
+          description: "Accounting migration, ledgers, invoices, payments, products, and reconciliation sync.",
+          configured: integrationConfig.quickbooks,
+          scopes: ["accounting", "reports", "inventory"],
+          coverage: {
+            contacts: true,
+            accounts: true,
+            invoices: true,
+            products: true,
+            payments: true,
+            collaboration: false,
+          },
+        },
+        {
+          provider: "ZOHO_MAIL",
+          label: "Zoho Mail",
+          description: "Tenant domain mailboxes, aliases, templates, outbound delivery, and message history.",
+          configured: integrationConfig.zoho,
+          scopes: ["mailboxes", "aliases", "mail delivery"],
+          coverage: {
+            contacts: true,
+            accounts: true,
+            invoices: true,
+            products: false,
+            payments: false,
+            collaboration: false,
+          },
+        },
+        {
+          provider: "PLAID",
+          label: "Plaid",
+          description: "Bank account connections, balances, transaction feeds, and reconciliation inputs.",
+          configured: integrationConfig.plaid,
+          scopes: ["accounts", "transactions", "balances"],
+          coverage: {
+            contacts: false,
+            accounts: false,
+            invoices: false,
+            products: false,
+            payments: true,
+            collaboration: false,
+          },
+        },
+        {
+          provider: "GRAPESJS",
+          label: "GrapesJS",
+          description: "Website builder workspace, block libraries, page drafts, and publication handoff.",
+          configured: integrationConfig.grapesjs,
+          scopes: ["builder", "templates", "assets"],
+          coverage: {
+            contacts: false,
+            accounts: false,
+            invoices: false,
+            products: true,
+            payments: true,
+            collaboration: false,
+          },
+        },
+      ];
+      const mapped = providerCatalog.map((provider) => {
+        const r = connectedByProvider.get(provider.provider);
+        return {
+          id: r?.id ?? provider.provider,
+          virtual: !r,
+          provider: provider.provider,
+          label: provider.label,
+          description: provider.description,
+          configured: provider.configured,
+          status: r?.status ?? (provider.configured ? "READY_TO_CONNECT" : "MISSING_ENV"),
+          direction: r?.syncDirection ?? "BIDIRECTIONAL",
+          lastSyncAt: iso(r?.lastSyncAt),
+          lastError: r?.lastError ?? null,
+          settings: r?.settings ?? {},
+          health: r
+            ? r.status === "ACTIVE" && !r.lastError
+              ? "HEALTHY"
+              : r.status === "ACTIVE"
+                ? "DEGRADED"
+                : "NEEDS_CONFIGURATION"
+            : provider.configured
+              ? "READY"
+              : "MISSING_ENV",
+          scopes: provider.scopes,
+          coverage: provider.coverage,
+          runs:
+            r?.syncRuns.map((run) => ({
+              id: run.id,
+              status: run.status,
+              direction: run.direction,
+              processed: run.processedCount,
+              failed: run.failedCount,
+              error: run.errorSummary,
+              startedAt: iso(run.startedAt),
+              completedAt: iso(run.completedAt),
+            })) ?? [],
+        };
+      });
+      const uncataloged = records
+        .filter((r) => !providerCatalog.some((provider) => provider.provider === r.provider))
+        .map((r) => ({
           id: r.id,
+          virtual: false,
           provider: r.provider,
+          label: r.provider.replaceAll("_", " "),
+          description: "Connected provider managed by ClearKey Connect.",
+          configured: true,
           status: r.status,
           direction: r.syncDirection,
           lastSyncAt: iso(r.lastSyncAt),
           lastError: r.lastError,
+          settings: r.settings,
           health:
             r.status === "ACTIVE" && !r.lastError
               ? "HEALTHY"
               : r.status === "ACTIVE"
                 ? "DEGRADED"
                 : "NEEDS_CONFIGURATION",
+          scopes: [],
           coverage: {
             contacts: true,
             accounts: true,
@@ -1922,7 +2061,10 @@ export async function getModuleData(slug: string, module: string) {
             startedAt: iso(run.startedAt),
             completedAt: iso(run.completedAt),
           })),
-        })),
+        }));
+      return {
+        kind: "integrations",
+        records: [...mapped, ...uncataloged],
         webhooks: webhooks.map((event) => ({
           id: event.id,
           provider: event.provider,
