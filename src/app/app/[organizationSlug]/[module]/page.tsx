@@ -55,14 +55,18 @@ const modules = new Set([
 
 export async function renderWorkspaceModulePage({
   params,
+  searchParams,
 }: {
   params: Promise<{
     organizationSlug: string;
     module: string;
     section?: string[];
   }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { organizationSlug, module, section } = await params;
+  const sp = searchParams ? await searchParams : {};
+  const activeTab = typeof sp.tab === "string" ? sp.tab : undefined;
   const activeSection = section?.[0] ?? "overview";
   if (!modules.has(module)) notFound();
   const { organization: configuration } = await requireOrganizationAccess(
@@ -141,7 +145,7 @@ export async function renderWorkspaceModulePage({
     (!endpoint || !endpoint.theme || !endpoint.endpointPages[0])
   )
     notFound();
-  if (module !== "appearance" && !data) notFound();
+  if (module !== "appearance" && !bundle && !data) notFound();
 
   return (
     <AppShell active={module} organizationSlug={organizationSlug}>
@@ -175,6 +179,7 @@ export async function renderWorkspaceModulePage({
           </AccountingSuite>
         ) : (
           <ModulePage
+            activeTab={activeTab}
             data={data!}
             module={module}
             organizationSlug={organizationSlug}

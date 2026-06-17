@@ -3859,6 +3859,99 @@ export async function saveWebsitePage(formData: FormData) {
   revalidatePath(`/site/${website.defaultHostname}`);
 }
 
+export async function createWebsite(formData: FormData) {
+  const input = z
+    .object({
+      organizationSlug: z.string().min(1),
+      template: z.string().trim().default("business"),
+      siteName: z.string().trim().max(120).default(""),
+    })
+    .parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    "websites.write",
+  );
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  const siteName = input.siteName || (organization.name as string) || "My Website";
+  const templateBlocks: Record<string, Record<string, unknown>[]> = {
+    business: [
+      { type: "hero", title: `Welcome to ${siteName}`, body: "Describe your customer promise and the key benefit you deliver.", action: "Get started" },
+      { type: "services", title: "What we offer", body: "Our core services designed to help you succeed." },
+      { type: "testimonial", title: "Trusted by customers", body: "Real feedback from people who work with us." },
+      { type: "cta", title: "Ready to get started?", body: "Let's talk about how we can help your business grow.", action: "Book a call" },
+    ],
+    portfolio: [
+      { type: "hero", title: siteName, body: "Creative work for brands that want to stand out.", action: "See my work" },
+      { type: "content", title: "Selected projects", body: "A curated selection of recent client work." },
+      { type: "services", title: "What I do", body: "Design, strategy, and execution from concept to launch." },
+      { type: "cta", title: "Let's work together", body: "Tell me about your project and goals.", action: "Start a project" },
+    ],
+    healthcare: [
+      { type: "hero", title: `${siteName}`, body: "Compassionate care delivered by experienced professionals.", action: "Book appointment" },
+      { type: "services", title: "Our services", body: "Comprehensive health and wellness offerings for every stage of life." },
+      { type: "content", title: "About our practice", body: "Board-certified providers with a patient-first approach." },
+      { type: "booking", title: "Schedule a visit", body: "Choose a time that works for you." },
+      { type: "cta", title: "Questions? We're here.", body: "Reach out to our team any time.", action: "Contact us" },
+    ],
+    ecommerce: [
+      { type: "hero", title: siteName, body: "Premium products delivered to your door.", action: "Shop now" },
+      { type: "services", title: "Why shop with us", body: "Quality products, fast shipping, hassle-free returns." },
+      { type: "payment", title: "Secure checkout", body: "Multiple payment options accepted." },
+      { type: "testimonial", title: "Happy customers", body: "See what shoppers are saying about us." },
+      { type: "cta", title: "New arrivals weekly", body: "Join our list and be first to know.", action: "Subscribe" },
+    ],
+    minimal: [
+      { type: "hero", title: siteName, body: "Simple, clear, effective.", action: "Learn more" },
+      { type: "cta", title: "Get in touch", body: "We'd love to hear from you.", action: "Contact" },
+    ],
+  };
+  const blocks = templateBlocks[input.template] ?? templateBlocks.business;
+  const baseHostname = `${input.organizationSlug}.clearkey.co`;
+  const createRecord = async (hostname: string, slug: string) => {
+    return db.website.create({
+      data: {
+        organizationId: organization.id as string,
+        slug,
+        defaultHostname: hostname,
+        status: "DRAFT",
+        themeJson: {} as Prisma.InputJsonValue,
+        configJson: {} as Prisma.InputJsonValue,
+        pages: {
+          create: {
+            path: "/",
+            title: siteName,
+            seoJson: { title: siteName, description: "" } as Prisma.InputJsonValue,
+            contentJson: {
+              blocks,
+              code: { html: "", css: "", javascript: "" },
+            } as Prisma.InputJsonValue,
+            status: "DRAFT",
+            sortOrder: 0,
+          },
+        },
+      },
+    });
+  };
+  let website;
+  try {
+    website = await createRecord(baseHostname, "main");
+  } catch {
+    const rand = nanoid(6).toLowerCase();
+    website = await createRecord(`${input.organizationSlug}-${rand}.clearkey.co`, rand);
+  }
+  await appendAuditEvent({
+    organizationId: organization.id as string,
+    actorUserId: user.id,
+    action: "website.created",
+    entityType: "Website",
+    entityId: website.id,
+    after: { websiteId: website.id, template: input.template },
+    category: "BUSINESS",
+  });
+  revalidatePath(`/app/${input.organizationSlug}/websites`);
+}
+
 const linkableEntityTypes = [
   "Contact",
   "CrmAccount",
@@ -4410,4 +4503,161 @@ export async function verifyDomainNow(formData: FormData) {
     category: "INTEGRATION",
   });
   revalidatePath(`/app/${input.organizationSlug}/domains`);
+}
+
+const updateRecordSchema = z.object({
+  organizationSlug: z.string().min(1),
+  module: z.string().min(1),
+  recordId: z.string().min(1),
+  firstName: z.string().trim().max(100).optional().default(""),
+  lastName: z.string().trim().max(100).optional().default(""),
+  email: z.string().trim().max(255).optional().default(""),
+  phone: z.string().trim().max(50).optional().default(""),
+  mobile: z.string().trim().max(50).optional().default(""),
+  jobTitle: z.string().trim().max(150).optional().default(""),
+  company: z.string().trim().max(200).optional().default(""),
+  website: z.string().trim().max(500).optional().default(""),
+  industry: z.string().trim().max(100).optional().default(""),
+  name: z.string().trim().max(200).optional().default(""),
+  amount: z.coerce.number().min(0).optional(),
+  probability: z.coerce.number().min(0).max(100).optional(),
+  nextStep: z.string().trim().max(500).optional().default(""),
+  closeDate: z.string().optional().default(""),
+  status: z.string().trim().max(50).optional().default(""),
+  source: z.string().trim().max(100).optional().default(""),
+  rating: z.string().trim().max(50).optional().default(""),
+  estimatedValue: z.coerce.number().min(0).optional(),
+  score: z.coerce.number().min(0).max(100).optional(),
+  accountType: z.string().trim().max(50).optional().default(""),
+  annualRevenue: z.coerce.number().min(0).optional(),
+});
+
+export async function updateWorkspaceRecord(formData: FormData) {
+  const input = updateRecordSchema.parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    `${input.module}.write`,
+  );
+  if (!user) throw new Error("A signed-in user is required to update records");
+  const db = getDb();
+  let entityType: string;
+  let entityId: string;
+  let before: Record<string, unknown> = {};
+  let after: Record<string, unknown> = {};
+
+  switch (input.module) {
+    case "contacts": {
+      const existing = await db.contact.findFirstOrThrow({
+        where: { id: input.recordId, organizationId: organization.id },
+      });
+      before = existing as Record<string, unknown>;
+      const updated = await db.contact.update({
+        where: { id: input.recordId },
+        data: {
+          firstName: input.firstName || existing.firstName,
+          lastName: input.lastName || existing.lastName || null,
+          email: input.email || existing.email || null,
+          phone: input.phone || existing.phone || null,
+          mobile: input.mobile || existing.mobile || null,
+          jobTitle: input.jobTitle || existing.jobTitle || null,
+        },
+      });
+      after = updated as Record<string, unknown>;
+      entityType = "Contact";
+      entityId = input.recordId;
+      break;
+    }
+    case "leads": {
+      const existing = await db.lead.findFirstOrThrow({
+        where: { id: input.recordId, organizationId: organization.id },
+      });
+      before = existing as Record<string, unknown>;
+      const updated = await db.lead.update({
+        where: { id: input.recordId },
+        data: {
+          firstName: input.firstName || existing.firstName,
+          lastName: input.lastName || existing.lastName || null,
+          email: input.email || existing.email || null,
+          phone: input.phone || existing.phone || null,
+          company: input.company || existing.company || null,
+          source: input.source || existing.source || null,
+          rating: input.rating || existing.rating || null,
+          estimatedValue:
+            input.estimatedValue !== undefined
+              ? input.estimatedValue
+              : existing.estimatedValue ?? undefined,
+          score: input.score !== undefined ? input.score : existing.score,
+        },
+      });
+      after = updated as Record<string, unknown>;
+      entityType = "Lead";
+      entityId = input.recordId;
+      break;
+    }
+    case "deals": {
+      const existing = await db.deal.findFirstOrThrow({
+        where: { id: input.recordId, organizationId: organization.id },
+      });
+      before = existing as Record<string, unknown>;
+      const updated = await db.deal.update({
+        where: { id: input.recordId },
+        data: {
+          name: input.name || existing.name,
+          amount:
+            input.amount !== undefined ? input.amount : existing.amount,
+          probability:
+            input.probability !== undefined
+              ? input.probability
+              : existing.probability,
+          nextStep: input.nextStep || existing.nextStep || null,
+          expectedCloseDate: input.closeDate
+            ? new Date(input.closeDate)
+            : existing.expectedCloseDate,
+        },
+      });
+      after = updated as Record<string, unknown>;
+      entityType = "Deal";
+      entityId = input.recordId;
+      break;
+    }
+    case "accounts": {
+      const existing = await db.crmAccount.findFirstOrThrow({
+        where: { id: input.recordId, organizationId: organization.id },
+      });
+      before = existing as Record<string, unknown>;
+      const updated = await db.crmAccount.update({
+        where: { id: input.recordId },
+        data: {
+          name: input.name || existing.name,
+          website: input.website || existing.website || null,
+          phone: input.phone || existing.phone || null,
+          industry: input.industry || existing.industry || null,
+          accountType: input.accountType || existing.accountType,
+          annualRevenue:
+            input.annualRevenue !== undefined
+              ? input.annualRevenue
+              : existing.annualRevenue ?? undefined,
+        },
+      });
+      after = updated as Record<string, unknown>;
+      entityType = "CrmAccount";
+      entityId = input.recordId;
+      break;
+    }
+    default:
+      throw new Error(`Unsupported module for update: ${input.module}`);
+  }
+
+  await appendAuditEvent({
+    organizationId: organization.id,
+    actorUserId: user.id,
+    action: `${input.module}.record.updated`,
+    entityType,
+    entityId,
+    before,
+    after,
+    category: "BUSINESS",
+  });
+  revalidatePath(`/app/${input.organizationSlug}/${input.module}/${input.recordId}`);
+  revalidatePath(`/app/${input.organizationSlug}/${input.module}`);
 }

@@ -2844,6 +2844,184 @@ export async function getModuleData(slug: string, module: string) {
   }
 }
 
+export async function getRecordDetail(slug: string, module: string, recordId: string) {
+  const db = getDb();
+  const organization = await db.organization.findUnique({ where: { slug } });
+  if (!organization) return null;
+  const organizationId = organization.id;
+
+  if (module === "contacts") {
+    const r = await db.contact.findFirst({
+      where: { id: recordId, organizationId },
+      include: {
+        account: true,
+        deals: { orderBy: { updatedAt: "desc" } },
+        cases: { orderBy: { updatedAt: "desc" }, take: 10 },
+        activities: { orderBy: { occurredAt: "desc" }, take: 20 },
+        notes: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 30 },
+        invoices: { orderBy: { issueDate: "desc" }, take: 10 },
+      },
+    });
+    if (!r) return null;
+    return {
+      kind: "contact" as const,
+      id: r.id,
+      name: `${r.firstName} ${r.lastName ?? ""}`.trim(),
+      firstName: r.firstName,
+      lastName: r.lastName,
+      email: r.email,
+      phone: r.phone,
+      mobile: r.mobile,
+      jobTitle: r.jobTitle,
+      lifecycleStatus: r.lifecycleStatus,
+      preferredContactMethod: r.preferredContactMethod,
+      emailOptOut: r.emailOptOut,
+      smsOptOut: r.smsOptOut,
+      createdAt: iso(r.createdAt),
+      updatedAt: iso(r.updatedAt),
+      account: r.account ? { id: r.account.id, name: r.account.name, type: r.account.accountType } : null,
+      deals: r.deals.map((d) => ({ id: d.id, name: d.name, stage: d.stage, amount: money(d.amount), probability: d.probability })),
+      cases: r.cases.map((c) => ({ id: c.id, number: c.caseNumber, subject: c.subject, status: c.status, priority: c.priority })),
+      activities: r.activities.map((a) => ({ id: a.id, type: a.type, subject: a.subject, body: a.body, occurredAt: iso(a.occurredAt) })),
+      notes: r.notes.map((n) => ({ id: n.id, body: n.body, createdAt: iso(n.createdAt) })),
+      invoices: r.invoices.map((i) => ({ id: i.id, number: i.invoiceNumber, status: i.status, total: money(i.total), balance: money(i.balanceDue), dueDate: iso(i.dueDate) })),
+    };
+  }
+
+  if (module === "leads") {
+    const r = await db.lead.findFirst({ where: { id: recordId, organizationId } });
+    if (!r) return null;
+    const notes = await db.note.findMany({
+      where: { organizationId, relatedType: "Lead", relatedId: recordId, deletedAt: null },
+      orderBy: { createdAt: "desc" },
+    });
+    return {
+      kind: "lead" as const,
+      id: r.id,
+      name: `${r.firstName} ${r.lastName ?? ""}`.trim(),
+      firstName: r.firstName,
+      lastName: r.lastName,
+      company: r.company,
+      email: r.email,
+      phone: r.phone,
+      source: r.source,
+      status: r.status,
+      score: r.score,
+      estimatedValue: money(r.estimatedValue),
+      rating: r.rating,
+      convertedAt: iso(r.convertedAt),
+      createdAt: iso(r.createdAt),
+      updatedAt: iso(r.updatedAt),
+      notes: notes.map((n) => ({ id: n.id, body: n.body, createdAt: iso(n.createdAt) })),
+    };
+  }
+
+  if (module === "deals") {
+    const r = await db.deal.findFirst({
+      where: { id: recordId, organizationId },
+      include: { account: true, primaryContact: true },
+    });
+    if (!r) return null;
+    const notes = await db.note.findMany({
+      where: { organizationId, relatedType: "Deal", relatedId: recordId, deletedAt: null },
+      orderBy: { createdAt: "desc" },
+    });
+    return {
+      kind: "deal" as const,
+      id: r.id,
+      name: r.name,
+      stage: r.stage,
+      amount: money(r.amount),
+      currency: r.currency,
+      probability: r.probability,
+      expectedCloseDate: iso(r.expectedCloseDate),
+      nextStep: r.nextStep,
+      lossReason: r.lossReason,
+      closedAt: iso(r.closedAt),
+      createdAt: iso(r.createdAt),
+      updatedAt: iso(r.updatedAt),
+      account: r.account ? { id: r.account.id, name: r.account.name, type: r.account.accountType } : null,
+      contact: r.primaryContact ? {
+        id: r.primaryContact.id,
+        name: `${r.primaryContact.firstName} ${r.primaryContact.lastName ?? ""}`.trim(),
+        email: r.primaryContact.email,
+        phone: r.primaryContact.phone,
+      } : null,
+      notes: notes.map((n) => ({ id: n.id, body: n.body, createdAt: iso(n.createdAt) })),
+    };
+  }
+
+  if (module === "accounts") {
+    const r = await db.crmAccount.findFirst({
+      where: { id: recordId, organizationId },
+      include: {
+        contacts: { orderBy: { firstName: "asc" } },
+        deals: { orderBy: { updatedAt: "desc" } },
+        invoices: { orderBy: { issueDate: "desc" }, take: 15 },
+        cases: { orderBy: { updatedAt: "desc" }, take: 15 },
+      },
+    });
+    if (!r) return null;
+    const notes = await db.note.findMany({
+      where: { organizationId, relatedType: "CrmAccount", relatedId: recordId, deletedAt: null },
+      orderBy: { createdAt: "desc" },
+    });
+    const lifetimeValue = r.invoices.reduce((s, i) => s + money(i.amountPaid), 0);
+    const openPipeline = r.deals.filter((d) => !d.stage.startsWith("CLOSED")).reduce((s, d) => s + money(d.amount), 0);
+    const receivable = r.invoices.reduce((s, i) => s + money(i.balanceDue), 0);
+    return {
+      kind: "account" as const,
+      id: r.id,
+      name: r.name,
+      accountType: r.accountType,
+      website: r.website,
+      phone: r.phone,
+      industry: r.industry,
+      annualRevenue: money(r.annualRevenue),
+      createdAt: iso(r.createdAt),
+      updatedAt: iso(r.updatedAt),
+      lifetimeValue,
+      openPipeline,
+      receivable,
+      contacts: r.contacts.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName ?? ""}`.trim(), title: c.jobTitle, email: c.email, phone: c.phone, lifecycle: c.lifecycleStatus })),
+      deals: r.deals.map((d) => ({ id: d.id, name: d.name, stage: d.stage, amount: money(d.amount), probability: d.probability, nextStep: d.nextStep })),
+      invoices: r.invoices.map((i) => ({ id: i.id, number: i.invoiceNumber, status: i.status, total: money(i.total), balance: money(i.balanceDue), dueDate: iso(i.dueDate) })),
+      cases: r.cases.map((c) => ({ id: c.id, number: c.caseNumber, subject: c.subject, status: c.status, priority: c.priority })),
+      notes: notes.map((n) => ({ id: n.id, body: n.body, createdAt: iso(n.createdAt) })),
+    };
+  }
+
+  if (module === "invoices") {
+    const r = await db.invoice.findFirst({
+      where: { id: recordId, organizationId },
+      include: {
+        account: true,
+        contact: true,
+        items: { orderBy: { sortOrder: "asc" } },
+        allocations: { include: { payment: true } },
+      },
+    });
+    if (!r) return null;
+    return {
+      kind: "invoice" as const,
+      id: r.id,
+      number: r.invoiceNumber,
+      status: r.status,
+      issueDate: iso(r.issueDate),
+      dueDate: iso(r.dueDate),
+      total: money(r.total),
+      amountPaid: money(r.amountPaid),
+      balanceDue: money(r.balanceDue),
+      account: r.account ? { id: r.account.id, name: r.account.name } : null,
+      contact: r.contact ? { id: r.contact.id, name: `${r.contact.firstName} ${r.contact.lastName ?? ""}`.trim(), email: r.contact.email } : null,
+      items: r.items.map((i) => ({ description: i.description, quantity: money(i.quantity), unitPrice: money(i.unitPrice), total: money(i.lineTotal) })),
+      payments: r.allocations.map((a) => ({ id: a.payment.id, amount: money(a.amount), method: a.payment.method, reference: a.payment.referenceNumber, receivedAt: iso(a.payment.receivedAt) })),
+    };
+  }
+
+  return null;
+}
+
 export async function getPublishedEndpoint(slug: string, pageSlug = "home") {
   const db = getDb();
   return db.organization.findUnique({

@@ -41,7 +41,7 @@ export async function AppShell({
 
   return (
     <div
-      className={`ck-app-shell grid min-h-screen lg:h-screen lg:overflow-hidden ${theme?.consoleNavigationStyle === "rail" ? "lg:grid-cols-[82px_1fr]" : "lg:grid-cols-[280px_1fr]"} ${theme?.consoleDensity === "compact" ? "console-compact" : theme?.consoleDensity === "spacious" ? "console-spacious" : ""}`}
+      className={`ck-app-shell flex min-h-screen lg:h-screen lg:overflow-hidden ${theme?.consoleDensity === "compact" ? "console-compact" : theme?.consoleDensity === "spacious" ? "console-spacious" : ""}`}
       style={shellStyle}
     >
       <AppSidebar
@@ -53,7 +53,7 @@ export async function AppShell({
         organizationSlug={organizationSlug}
         title={theme?.consoleTitle ?? organization?.name ?? "ClearKey Connect"}
       />
-      <div className="flex min-w-0 flex-col lg:h-screen lg:overflow-y-auto">
+      <div className="flex min-w-0 flex-1 flex-col lg:h-screen lg:overflow-y-auto">
         <header className="ck-topbar flex h-16 shrink-0 items-center justify-between border-b px-5 lg:px-7">
           <div>
             <div className="ck-section-label">ClearKey workspace</div>
