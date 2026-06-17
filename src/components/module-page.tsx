@@ -954,66 +954,52 @@ export function ModulePage({
   const workbench = tabOverride ?? primaryWorkbench;
   return (
     <div
-      className={embedded ? "" : "ck-module-page p-5 lg:p-7"}
+      className={embedded ? "" : "ck-module-page"}
       style={
         { "--module-tint": meta.tint } as CSSProperties &
           Record<"--module-tint", string>
       }
     >
-      <div
-        className={`ck-module-header flex flex-wrap items-end justify-between gap-4 ${embedded ? "rounded-lg border bg-white p-4" : ""}`}
-      >
-        <div>
-          {!embedded && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="ck-module-pill">{meta.center}</span>
-              <div className="ck-section-label">
-                {organizationSlug.replaceAll("-", " ")}
-              </div>
-            </div>
-          )}
-          {embedded ? (
-            <h2 className="text-xl font-semibold tracking-tight">
-              {config.title}
-            </h2>
-          ) : (
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-              {config.title}
-            </h1>
-          )}
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--ck-ink-secondary)]">
-            {config.description}
-          </p>
+      {embedded ? (
+        <div className="ck-module-header flex flex-wrap items-center justify-between gap-4 rounded-lg border bg-white p-4">
+          <h2 className="text-xl font-semibold tracking-tight">{config.title}</h2>
+          <QuickCreate label={config.action} module={module} organizationSlug={organizationSlug} />
         </div>
-        <QuickCreate
-          label={config.action}
-          module={module}
-          organizationSlug={organizationSlug}
-        />
-      </div>
-      {!embedded && (
-        <nav className="ck-module-tabs mt-4" aria-label={`${config.title} sections`}>
-          {meta.tabs.map((tab, index) => {
-            const slug = tab.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-            const isActive = activeTab ? activeTab === slug : index === 0;
-            return (
-              <a className={isActive ? "is-active" : ""} href={`?tab=${slug}`} key={tab}>
-                {tab}
-              </a>
-            );
-          })}
-        </nav>
+      ) : (
+        <>
+          <div className="ck-module-header flex items-center justify-between border-b px-5 py-3 lg:px-7">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="ck-module-pill shrink-0">{meta.center}</span>
+              <h1 className="truncate text-xl font-semibold tracking-tight">{config.title}</h1>
+            </div>
+            <QuickCreate label={config.action} module={module} organizationSlug={organizationSlug} />
+          </div>
+          <div className="border-b px-5 lg:px-7">
+            <nav className="ck-module-tabs" aria-label={`${config.title} sections`}>
+              {meta.tabs.map((tab, index) => {
+                const slug = tab.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+                const isActive = activeTab ? activeTab === slug : index === 0;
+                return (
+                  <a className={isActive ? "is-active" : ""} href={`?tab=${slug}`} key={tab}>
+                    {tab}
+                  </a>
+                );
+              })}
+            </nav>
+          </div>
+        </>
       )}
+      <div className={embedded ? "" : "p-5 lg:p-7"}>
       {primaryWorkbenchModules.has(module) ? (
         <>
-          <div className="mt-6">{workbench}</div>
+          <div>{workbench}</div>
           <div className="mt-4">
             <MetricGrid metrics={data.metrics} />
           </div>
         </>
       ) : (
         <>
-          <div className="mt-6">
+          <div>
             <MetricGrid metrics={data.metrics} />
           </div>
           <div className="mt-4">{workbench}</div>
@@ -1046,6 +1032,7 @@ export function ModulePage({
           </p>
         </div>
       )}
+      </div>
     </div>
   );
 }
