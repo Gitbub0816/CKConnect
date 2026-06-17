@@ -6,52 +6,39 @@ import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
-  BadgeDollarSign,
-  Bell,
   BookOpen,
-  Boxes,
-  BriefcaseBusiness,
-  Building2,
   CalendarDays,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CircleDollarSign,
-  ContactRound,
-  Database,
-  FileCheck2,
   FileText,
-  Files,
   Gauge,
   Globe2,
-  HandCoins,
   Headphones,
   Landmark,
   ListTodo,
-  Mail,
   Megaphone,
   MessageSquare,
-  Palette,
   Plug,
-  Receipt,
   Settings,
-  ShieldCheck,
   Sparkles,
-  Users,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
 
+type SidebarChild = { label: string; slug: string };
+
 type SidebarItem = {
-  children?: { label: string; slug: string }[];
+  children?: SidebarChild[];
+  childrenNested?: boolean;
   feature?: string;
   icon: LucideIcon;
   label: string;
   slug: string;
 };
 
-type SidebarSection = {
-  label: string;
-  items: SidebarItem[];
-};
+type SidebarSection = { label: string; items: SidebarItem[] };
 
 const moduleTints: Record<string, string> = {
   dashboard: "#5B5FCF",
@@ -92,7 +79,6 @@ const moduleTints: Record<string, string> = {
   billing: "#10B981",
   audit: "#6B7280",
   compliance: "#F59E0B",
-  admin: "#6B7280",
   settings: "#6B7280",
 };
 
@@ -104,7 +90,6 @@ const sections: SidebarSection[] = [
       { slug: "reports", label: "Reports", icon: BarChart3, feature: "reports" },
       { slug: "tasks", label: "Tasks", icon: ListTodo },
       { slug: "calendar", label: "Calendar", icon: CalendarDays },
-      { slug: "bookings", label: "Bookings", icon: CalendarDays },
       { slug: "collaboration", label: "Collaboration", icon: MessageSquare },
     ],
   },
@@ -113,7 +98,7 @@ const sections: SidebarSection[] = [
     items: [
       {
         slug: "crm",
-        label: "CRM center",
+        label: "CRM",
         icon: Sparkles,
         feature: "crm",
         children: [
@@ -121,78 +106,83 @@ const sections: SidebarSection[] = [
           { slug: "accounts", label: "Accounts" },
           { slug: "contacts", label: "Contacts" },
           { slug: "deals", label: "Deals" },
-          { slug: "cases", label: "Cases" },
-          { slug: "campaigns", label: "Campaigns" },
-          { slug: "tasks", label: "Tasks" },
-          { slug: "reports", label: "Reports" },
-          { slug: "automation", label: "Automation" },
         ],
       },
-      { slug: "leads", label: "Leads", icon: Sparkles, feature: "crm" },
-      { slug: "accounts", label: "Accounts", icon: Building2, feature: "crm" },
-      { slug: "contacts", label: "Contacts", icon: ContactRound, feature: "crm" },
-      { slug: "deals", label: "Deals", icon: BriefcaseBusiness, feature: "crm" },
       { slug: "cases", label: "Cases", icon: Headphones, feature: "cases" },
       { slug: "campaigns", label: "Campaigns", icon: Megaphone, feature: "campaigns" },
     ],
   },
   {
-    label: "Accounting",
+    label: "Finance",
     items: [
       { slug: "invoices", label: "Invoices", icon: FileText, feature: "accounting" },
       { slug: "payments", label: "Payments", icon: CircleDollarSign, feature: "accounting" },
-      { slug: "expenses", label: "Expenses", icon: Receipt, feature: "accounting" },
-      { slug: "vendors", label: "Vendors & bills", icon: HandCoins, feature: "accounting" },
+      { slug: "banking", label: "Banking", icon: Landmark, feature: "banking" },
       {
         slug: "accounting",
         label: "Accounting",
         icon: BookOpen,
         feature: "accounting",
+        childrenNested: true,
         children: [
-          { slug: "sales-invoices", label: "Invoices" },
-          { slug: "payments-deposits", label: "Payments" },
-          { slug: "vendors-bills", label: "Bills" },
-          { slug: "expenses-receipts", label: "Expenses" },
+          { slug: "chart-of-accounts", label: "Chart of accounts" },
+          { slug: "journal", label: "Journal" },
           { slug: "bank-transactions", label: "Bank feed" },
           { slug: "reconciliation", label: "Reconcile" },
-          { slug: "chart-of-accounts", label: "Chart" },
-          { slug: "journal", label: "Journal" },
-          { slug: "close-books", label: "Close" },
-          { slug: "reports", label: "Reports" },
+          { slug: "expenses-receipts", label: "Expenses" },
+          { slug: "vendors-bills", label: "Bills" },
+          { slug: "payroll", label: "Payroll" },
+          { slug: "tax-documents", label: "Tax documents" },
+          { slug: "products", label: "Products" },
         ],
       },
-      { slug: "banking", label: "Banking", icon: Landmark, feature: "banking" },
-      { slug: "products", label: "Products", icon: Boxes },
-      { slug: "payroll", label: "Payroll", icon: BadgeDollarSign, feature: "payroll" },
-      { slug: "tax-documents", label: "Tax documents", icon: FileCheck2 },
     ],
   },
   {
     label: "Platform",
     items: [
       { slug: "automations", label: "Automations", icon: Workflow, feature: "automations" },
-      { slug: "email", label: "Email", icon: Mail, feature: "managedEmail" },
-      { slug: "documents", label: "Documents", icon: Files },
-      { slug: "submissions", label: "Form inbox", icon: Headphones },
-      { slug: "notifications", label: "Notifications", icon: Bell },
       { slug: "integrations", label: "Integrations", icon: Plug },
-      { slug: "payment-settings", label: "Payment providers", icon: CircleDollarSign },
-      { slug: "support", label: "ClearKey support", icon: Headphones },
-      { slug: "team", label: "Team & roles", icon: Users },
-      { slug: "appearance", label: "Appearance", icon: Palette, feature: "websites" },
-      { slug: "websites", label: "Website builder", icon: Globe2, feature: "websites" },
-      { slug: "data-studio", label: "Data & storage", icon: Database },
-      { slug: "domains", label: "Domains & DNS", icon: Globe2, feature: "domains" },
-      { slug: "billing", label: "Plans & billing", icon: CircleDollarSign },
-      { slug: "audit", label: "Audit log", icon: ShieldCheck },
-      { slug: "compliance", label: "Compliance", icon: FileCheck2 },
-      { slug: "settings", label: "Settings", icon: Settings },
+      {
+        slug: "websites",
+        label: "Sites & content",
+        icon: Globe2,
+        feature: "websites",
+        children: [
+          { slug: "websites", label: "Website builder" },
+          { slug: "appearance", label: "Appearance" },
+          { slug: "domains", label: "Domains" },
+          { slug: "email", label: "Email" },
+          { slug: "documents", label: "Documents" },
+          { slug: "submissions", label: "Form inbox" },
+          { slug: "notifications", label: "Notifications" },
+        ],
+      },
+      {
+        slug: "settings",
+        label: "Workspace",
+        icon: Settings,
+        children: [
+          { slug: "team", label: "Team & roles" },
+          { slug: "payment-settings", label: "Payment providers" },
+          { slug: "billing", label: "Plans & billing" },
+          { slug: "data-studio", label: "Data & storage" },
+          { slug: "audit", label: "Audit log" },
+          { slug: "compliance", label: "Compliance" },
+          { slug: "settings", label: "Settings" },
+          { slug: "support", label: "ClearKey support" },
+        ],
+      },
     ],
   },
 ];
 
-const scrollStorageKey = "ckconnect.sidebar.scrollTop";
-const openStorageKey = "ckconnect.sidebar.openSections";
+const scrollKey = "ckconnect.sidebar.scrollTop";
+const openSectionsKey = "ckconnect.sidebar.openSections";
+const expandedItemsKey = "ckconnect.sidebar.expandedItems";
+const collapsedKey = "ckconnect.sidebar.collapsed";
+
+const defaultSections = sections.map((s) => s.label);
 
 export function AppSidebar({
   active,
@@ -214,6 +204,11 @@ export function AppSidebar({
   const pathname = usePathname();
   const navRef = useRef<HTMLDivElement>(null);
   const isRail = navigationStyle === "rail";
+
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [openSections, setOpenSections] = useState<string[]>(defaultSections);
+  const [expandedItems, setExpandedItems] = useState<string[]>([]);
+
   const visibleSections = useMemo(
     () =>
       sections
@@ -226,136 +221,185 @@ export function AppSidebar({
         .filter((section) => section.items.length),
     [enabled],
   );
-  const activeSection =
-    visibleSections.find((section) =>
-      section.items.some((item) => item.slug === active),
-    )?.label ?? "Overview";
-  const [openSections, setOpenSections] = useState<string[]>(["Overview"]);
-  const visibleOpenSections = useMemo(() => {
-    const next = new Set(openSections);
-    next.add(activeSection);
-    return [...next];
-  }, [activeSection, openSections]);
+
+  const activeItemParent = useMemo(() => {
+    for (const section of visibleSections) {
+      for (const item of section.items) {
+        if (item.children?.some((c) => c.slug === active)) return item.slug;
+      }
+    }
+    return null;
+  }, [active, visibleSections]);
+
+  const effectiveExpandedItems = useMemo(() => {
+    if (!activeItemParent || expandedItems.includes(activeItemParent)) return expandedItems;
+    return [...expandedItems, activeItemParent];
+  }, [expandedItems, activeItemParent]);
 
   useEffect(() => {
-    const restoreScroll = () => {
-      const stored = sessionStorage.getItem(openStorageKey);
-      if (stored) {
-        try {
-          setOpenSections(JSON.parse(stored) as string[]);
-        } catch {
-          sessionStorage.removeItem(openStorageKey);
-        }
-      }
-      const saved = Number(sessionStorage.getItem(scrollStorageKey) ?? "0");
-      if (navRef.current) navRef.current.scrollTop = saved;
-    };
-    const frame = window.requestAnimationFrame(restoreScroll);
-    return () => window.cancelAnimationFrame(frame);
+    try {
+      const c = localStorage.getItem(collapsedKey);
+      if (c !== null) setIsCollapsed(JSON.parse(c) as boolean);
+      const s = localStorage.getItem(openSectionsKey);
+      if (s) setOpenSections(JSON.parse(s) as string[]);
+      const e = localStorage.getItem(expandedItemsKey);
+      if (e) setExpandedItems(JSON.parse(e) as string[]);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    const saved = Number(sessionStorage.getItem(scrollKey) ?? "0");
+    if (navRef.current) navRef.current.scrollTop = saved;
   }, [pathname]);
 
   function persistScroll() {
     if (!navRef.current) return;
-    sessionStorage.setItem(scrollStorageKey, String(navRef.current.scrollTop));
+    sessionStorage.setItem(scrollKey, String(navRef.current.scrollTop));
   }
 
   function toggleSection(label: string) {
     setOpenSections((current) => {
       const next = current.includes(label)
-        ? current.filter((item) => item !== label)
+        ? current.filter((s) => s !== label)
         : [...current, label];
-      sessionStorage.setItem(openStorageKey, JSON.stringify(next));
+      try { localStorage.setItem(openSectionsKey, JSON.stringify(next)); } catch {}
       return next;
     });
   }
 
+  function toggleItem(slug: string) {
+    setExpandedItems((current) => {
+      const next = current.includes(slug)
+        ? current.filter((s) => s !== slug)
+        : [...current, slug];
+      try { localStorage.setItem(expandedItemsKey, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }
+
+  function toggleCollapsed() {
+    setIsCollapsed((current) => {
+      const next = !current;
+      try { localStorage.setItem(collapsedKey, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }
+
+  const iconOnly = isRail || isCollapsed;
+
   return (
-    <aside className="ck-sidebar hidden h-screen overflow-hidden bg-[var(--console-sidebar)] text-slate-300 lg:flex lg:flex-col">
-      <Link
-        className="ck-sidebar-brand flex h-16 shrink-0 items-center gap-3 border-b border-white/8 px-5 font-semibold text-white"
-        href={base}
-        onClick={persistScroll}
-      >
-        {logoUrl ? (
-          // Tenant logos can be hosted on arbitrary verified domains.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img alt="" className="size-9 rounded-lg object-contain" src={logoUrl} />
-        ) : (
-          <span className="grid size-9 place-items-center rounded-xl bg-[var(--ck-accent)] text-xs font-bold text-white">
-            CK
-          </span>
-        )}
-        {!isRail && <span className="truncate">{title}</span>}
-      </Link>
+    <aside
+      className={`ck-sidebar hidden h-screen shrink-0 overflow-hidden bg-[var(--console-sidebar)] text-slate-300 transition-all duration-200 ease-in-out lg:flex lg:flex-col ${iconOnly ? "w-14" : "w-[260px]"}`}
+    >
+      <div className="flex h-16 shrink-0 items-center border-b border-white/8">
+        <Link
+          className={`flex items-center gap-3 font-semibold text-white ${iconOnly ? "px-[13px]" : "px-4"}`}
+          href={base}
+          onClick={persistScroll}
+        >
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img alt="" className="size-9 shrink-0 rounded-lg object-contain" src={logoUrl} />
+          ) : (
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[var(--ck-accent)] text-xs font-bold text-white">
+              CK
+            </span>
+          )}
+          {!iconOnly && <span className="truncate">{title}</span>}
+        </Link>
+      </div>
+
       <nav
-        className="ck-sidebar-nav min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4"
+        className="ck-sidebar-nav min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-3"
         onScroll={persistScroll}
         ref={navRef}
       >
         {visibleSections.map((section) => {
-          const isOpen = isRail || visibleOpenSections.includes(section.label);
+          const isSectionOpen = iconOnly || openSections.includes(section.label);
           return (
-            <div className="mb-2" key={section.label}>
-              {!isRail && (
+            <div className="mb-3" key={section.label}>
+              {!iconOnly && (
                 <button
-                  className="ck-sidebar-section flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[.16em] text-slate-500 transition hover:bg-white/7 hover:text-slate-300"
+                  className="mb-1 flex w-full items-center justify-between rounded px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[.16em] text-slate-500 transition hover:text-slate-300"
                   onClick={() => toggleSection(section.label)}
                   type="button"
                 >
                   <span>{section.label}</span>
                   <ChevronDown
-                    className={`transition ${isOpen ? "" : "-rotate-90"}`}
-                    size={14}
+                    className={`transition ${isSectionOpen ? "" : "-rotate-90"}`}
+                    size={12}
                   />
                 </button>
               )}
-              {isOpen && (
-                <div className={`mt-1 space-y-1 ${isRail ? "" : "pl-1"}`}>
+              {isSectionOpen && (
+                <div className="space-y-0.5">
                   {section.items.map((item) => {
-                    const selected = active === item.slug;
+                    const isSelected = active === item.slug;
+                    const hasActiveChild = item.children?.some((c) => c.slug === active) ?? false;
+                    const isExpanded = !iconOnly && effectiveExpandedItems.includes(item.slug);
                     const Icon = item.icon;
                     const tint = moduleTints[item.slug] ?? "#5B5FCF";
                     return (
                       <div
                         key={item.slug}
-                        style={
-                          { "--module-tint": tint } as CSSProperties &
-                            Record<"--module-tint", string>
-                        }
+                        style={{ "--module-tint": tint } as CSSProperties & Record<"--module-tint", string>}
                       >
-                        <Link
-                          className={`ck-sidebar-link relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition ${
-                            selected
+                        <div
+                          className={`relative flex items-center rounded-lg ${
+                            isSelected
                               ? "ck-sidebar-link-active text-white"
-                              : "hover:bg-white/7 hover:text-white"
+                              : hasActiveChild
+                              ? "text-slate-200"
+                              : "text-slate-300 hover:bg-white/7 hover:text-white"
                           }`}
-                          href={
-                            item.slug === "dashboard"
-                              ? base
-                              : `${base}/${item.slug}`
-                          }
-                          onClick={persistScroll}
-                          title={isRail ? item.label : undefined}
                         >
-                          <Icon className="shrink-0" size={16} />
-                          {!isRail && (
-                            <span className="truncate">{item.label}</span>
-                          )}
-                        </Link>
-                      {selected && item.children && !isRail && (
-                        <div className="ml-7 mt-1 grid gap-1 border-l border-white/10 pl-2">
-                          {item.children.map((child) => (
-                            <Link
-                              className="ck-sidebar-child rounded-md px-2 py-1.5 text-[12px] text-slate-400 transition hover:bg-white/7 hover:text-white"
-                              href={`${base}/${item.slug}/${child.slug}`}
-                              key={child.slug}
-                              onClick={persistScroll}
+                          <Link
+                            className="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2 text-[13px]"
+                            href={item.slug === "dashboard" ? base : `${base}/${item.slug}`}
+                            onClick={persistScroll}
+                            title={iconOnly ? item.label : undefined}
+                          >
+                            <Icon className="shrink-0" size={16} />
+                            {!iconOnly && <span className="truncate">{item.label}</span>}
+                          </Link>
+                          {!iconOnly && item.children && (
+                            <button
+                              aria-label={isExpanded ? "Collapse" : "Expand"}
+                              className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded text-slate-500 transition hover:bg-white/10 hover:text-slate-300"
+                              onClick={() => toggleItem(item.slug)}
+                              type="button"
                             >
-                              {child.label}
-                            </Link>
-                          ))}
+                              <ChevronDown
+                                className={`transition ${isExpanded ? "" : "-rotate-90"}`}
+                                size={13}
+                              />
+                            </button>
+                          )}
                         </div>
-                      )}
+                        {isExpanded && item.children && (
+                          <div className="ml-[13px] mt-0.5 border-l border-white/10 pb-1 pl-3">
+                            {item.children.map((child) => {
+                              const childActive = active === child.slug;
+                              const childHref = item.childrenNested
+                                ? `${base}/${item.slug}/${child.slug}`
+                                : `${base}/${child.slug}`;
+                              return (
+                                <Link
+                                  className={`block rounded-md px-2 py-1.5 text-[12px] transition ${
+                                    childActive
+                                      ? "font-medium text-white"
+                                      : "text-slate-400 hover:bg-white/7 hover:text-white"
+                                  }`}
+                                  href={childHref}
+                                  key={child.slug}
+                                  onClick={persistScroll}
+                                >
+                                  {child.label}
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -365,10 +409,22 @@ export function AppSidebar({
           );
         })}
       </nav>
-      <div
-        className={`shrink-0 border-t border-white/8 p-4 text-xs text-slate-500 ${isRail ? "hidden" : ""}`}
-      >
-        Workspace: <span className="text-slate-300">{organizationSlug}</span>
+
+      <div className="shrink-0 border-t border-white/8 p-2">
+        {!isRail && (
+          <button
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-slate-500 transition hover:bg-white/7 hover:text-slate-300"
+            onClick={toggleCollapsed}
+            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            type="button"
+          >
+            {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+            {!isCollapsed && <span>Collapse</span>}
+          </button>
+        )}
+        {!iconOnly && (
+          <p className="mt-1 truncate px-2 text-[10px] text-slate-600">{organizationSlug}</p>
+        )}
       </div>
     </aside>
   );
