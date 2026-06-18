@@ -3859,6 +3859,33 @@ export async function saveWebsitePage(formData: FormData) {
   revalidatePath(`/site/${website.defaultHostname}`);
 }
 
+export async function updateWebsiteDataGrant(formData: FormData) {
+  const input = z
+    .object({
+      organizationSlug: z.string().min(1),
+      websiteId: z.string().uuid(),
+      grantAction: z.string().regex(/^[a-z.]+\|(?:APPROVE|REVOKE)$/),
+    })
+    .parse(Object.fromEntries(formData));
+  const { user, organization } = await requireOrganizationAccess(input.organizationSlug, "websites.write");
+  if (!user) return;
+  const db = getDb();
+  const website = await db.website.findFirstOrThrow({
+    where: { id: input.websiteId, organizationId: organization.id },
+    select: { id: true, configJson: true },
+  });
+  const [scope, action] = input.grantAction.split("|");
+  const config = (website.configJson ?? {}) as Record<string, unknown>;
+  const grants = new Set<string>(Array.isArray(config.dataGrants) ? (config.dataGrants as string[]) : []);
+  if (action === "APPROVE") grants.add(scope);
+  else grants.delete(scope);
+  await db.website.update({
+    where: { id: website.id },
+    data: { configJson: { ...config, dataGrants: [...grants] } as never },
+  });
+  revalidatePath(`/app/${input.organizationSlug}/websites`);
+}
+
 export async function createWebsite(formData: FormData) {
   const input = z
     .object({
