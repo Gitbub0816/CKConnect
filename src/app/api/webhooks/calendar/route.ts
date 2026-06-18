@@ -15,7 +15,7 @@ function verifySignature(payload: string, header: string | null, secret: string)
 
 export async function POST(request: Request) {
   const context = requestContext(request);
-  const secret = process.env.CALENDAR_WEBHOOK_SECRET;
+  const secret = process.env.CALENDAR_WEBHOOK_SECRET ?? process.env.CALENDAR_SHARED_SECRET;
   if (!secret) {
     logger.warn("calendar.webhook.not_configured", context);
     return Response.json({ error: "Webhook not configured" }, { status: 503 });
