@@ -191,6 +191,8 @@ export function AppSidebar({
   logoUrl,
   navigationStyle,
   organizationSlug,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  slackConnected: _slackConnected,
   title,
 }: {
   active: string;
@@ -199,6 +201,7 @@ export function AppSidebar({
   logoUrl?: string | null;
   navigationStyle?: string | null;
   organizationSlug: string;
+  slackConnected?: boolean;
   title: string;
 }) {
   const pathname = usePathname();
