@@ -990,9 +990,7 @@ export function ModulePage({
         </>
       )}
       <div className={embedded ? "" : "p-5 lg:p-7"}>
-      {module === "integrations" ? (
-        <div>{workbench}</div>
-      ) : primaryWorkbenchModules.has(module) ? (
+      {primaryWorkbenchModules.has(module) ? (
         <>
           <div>{workbench}</div>
           <div className="mt-4">

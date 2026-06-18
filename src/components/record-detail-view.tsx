@@ -644,12 +644,9 @@ function DealDetailView({
   record: DealDetail;
   organizationSlug: string;
 }) {
-  const closeReferenceDate = record.updatedAt ?? record.createdAt;
   const daysToClose = record.expectedCloseDate
-    && closeReferenceDate
     ? Math.ceil(
-        (new Date(record.expectedCloseDate).getTime() -
-          new Date(closeReferenceDate).getTime()) /
+        (new Date(record.expectedCloseDate).getTime() - Date.now()) /
           86_400_000,
       )
     : null;

@@ -534,17 +534,11 @@ export async function saveDashboardStudio(formData: FormData) {
       chartStyle: z.enum([
         "cards",
         "bars",
-        "bar",
         "spotlight",
         "compact",
         "trend",
         "donut",
         "table",
-        "line",
-        "area",
-        "pie",
-        "funnel",
-        "kpi",
       ]),
       accent: z.enum(["gold", "emerald", "slate", "rose"]),
       density: z.enum(["compact", "balanced", "roomy"]),
@@ -3802,7 +3796,6 @@ export async function saveWebsitePage(formData: FormData) {
       codeHtml: z.string().max(100_000).optional().default(""),
       codeCss: z.string().max(100_000).optional().default(""),
       codeJs: z.string().max(100_000).optional().default(""),
-      grapesJson: z.string().max(1_000_000).optional().default("{}"),
       publish: z
         .string()
         .optional()
@@ -3819,9 +3812,6 @@ export async function saveWebsitePage(formData: FormData) {
     .min(1)
     .max(50)
     .parse(JSON.parse(input.blocksJson));
-  const grapesProject = z
-    .record(z.string(), z.unknown())
-    .parse(JSON.parse(input.grapesJson || "{}"));
   const db = getDb();
   const website = await db.website.findFirstOrThrow({
     where: { id: input.websiteId, organizationId: organization.id },
@@ -3842,7 +3832,6 @@ export async function saveWebsitePage(formData: FormData) {
           css: input.codeCss,
           javascript: input.codeJs,
         },
-        grapesProject,
       } as Prisma.InputJsonValue,
       status: input.publish ? "PUBLISHED" : "DRAFT",
     },
@@ -3959,98 +3948,6 @@ export async function createWebsite(formData: FormData) {
     entityId: website.id,
     after: { websiteId: website.id, template: input.template },
     category: "BUSINESS",
-  });
-  revalidatePath(`/app/${input.organizationSlug}/websites`);
-}
-
-const websiteDataScopes = [
-  "business_profile.read",
-  "locations.read",
-  "services.read",
-  "inventory.read",
-  "inventory.write_reservations",
-  "pricing.read",
-  "booking.read",
-  "booking.write_requests",
-  "customers.write_leads",
-  "forms.write_submissions",
-  "chat.write_sessions",
-  "chat.read_business_hours",
-  "staff.read_public",
-  "reviews.read_public",
-  "payments.create_checkout",
-  "portal.create_login_link",
-] as const;
-
-export async function updateWebsiteDataGrant(formData: FormData) {
-  const raw = Object.fromEntries(formData);
-  const [scope, command] = String(raw.grantAction ?? "").split("|");
-  const input = z
-    .object({
-      organizationSlug: z.string().min(1),
-      websiteId: z.string().uuid(),
-      grantAction: z.string().min(1),
-      scope: z.enum(websiteDataScopes),
-      command: z.enum(["APPROVE", "REVOKE"]),
-    })
-    .parse({ ...raw, scope, command });
-  const { organization, user } = await requireOrganizationAccess(
-    input.organizationSlug,
-    "websites.publish",
-  );
-  if (!user) throw new Error("A signed-in user is required");
-  const website = await getDb().website.findFirstOrThrow({
-    where: { id: input.websiteId, organizationId: organization.id },
-  });
-  const link = await getDb().dataLink.upsert({
-    where: {
-      organizationId_sourceType_sourceId_targetType_targetId_relationship: {
-        organizationId: organization.id,
-        sourceType: "Website",
-        sourceId: website.id,
-        targetType: "WebsiteDataScope",
-        targetId: input.scope,
-        relationship: "approved_scope",
-      },
-    },
-    update: {
-      active: input.command === "APPROVE",
-      permissions: input.command === "APPROVE" ? [input.scope] : [],
-      metadataJson: {
-        approvedByUserId: user.id,
-        scope: input.scope,
-        status: input.command === "APPROVE" ? "active" : "revoked",
-        updatedAt: new Date().toISOString(),
-      },
-    },
-    create: {
-      organizationId: organization.id,
-      sourceType: "Website",
-      sourceId: website.id,
-      targetType: "WebsiteDataScope",
-      targetId: input.scope,
-      relationship: "approved_scope",
-      permissions: [input.scope],
-      metadataJson: {
-        approvedByUserId: user.id,
-        scope: input.scope,
-        status: "active",
-        updatedAt: new Date().toISOString(),
-      },
-    },
-  });
-  await appendAuditEvent({
-    organizationId: organization.id,
-    actorUserId: user.id,
-    action:
-      input.command === "APPROVE"
-        ? "website_data_scope.approved"
-        : "website_data_scope.revoked",
-    entityType: "DataLink",
-    entityId: link.id,
-    after: { websiteId: website.id, scope: input.scope, active: link.active },
-    category: "SECURITY",
-    retentionClass: "SECURITY_7Y",
   });
   revalidatePath(`/app/${input.organizationSlug}/websites`);
 }
