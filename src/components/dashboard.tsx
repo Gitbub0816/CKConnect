@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { saveDashboardStudio } from "@/app/app/[organizationSlug]/actions";
 import { EChartsPanel } from "@/components/charts/echarts-panel";
+import { ThreeMetricScene } from "@/components/charts/three-metric-scene";
 import { formatCurrency } from "@/lib/utils";
 
 type DashboardData = NonNullable<
@@ -455,6 +456,11 @@ export function Dashboard({ data }: { data: DashboardData }) {
             })}
           </div>
         </div>
+      </section>
+
+      <section className="mt-5" aria-label="Three-dimensional operating signal visualization">
+        <div className="mb-2 flex items-center justify-between"><div><div className="ck-section-label">Spatial comparison</div><h2 className="font-semibold">Operating scale</h2></div><span className="text-xs text-slate-500">Drag-free live view</span></div>
+        <ThreeMetricScene metrics={primaryRows} />
       </section>
 
       <section className="mt-5 grid gap-5 xl:grid-cols-[1fr_1fr]" id="studio">

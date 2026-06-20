@@ -1,6 +1,20 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      {
+        source: "/legal",
+        destination: "https://legal.clearkey.solutions",
+        permanent: true,
+      },
+      {
+        source: "/legal/:path*",
+        destination: "https://legal.clearkey.solutions/:path*",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [{
       source: "/(.*)",

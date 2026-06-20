@@ -22,8 +22,16 @@ function Collaboration({
     .find((u) => typeof u === "string" && (u as string).includes("slack.com")) as
     | string
     | undefined;
+  const integration = (data as { integration?: { connected?: boolean; settings?: Record<string, unknown> } }).integration;
+  const configuredSlackUrl = [integration?.settings?.workspaceUrl, integration?.settings?.teamUrl]
+    .find((value) => typeof value === "string" && value.startsWith("https://")) as string | undefined;
   return (
-    <CollaborationHub organizationSlug={organizationSlug} slackUrl={slackUrl} />
+    <CollaborationHub
+      channels={(data.records ?? []) as never[]}
+      organizationSlug={organizationSlug}
+      slackConnected={Boolean(integration?.connected)}
+      slackUrl={configuredSlackUrl ?? slackUrl}
+    />
   );
 }
 

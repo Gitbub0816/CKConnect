@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
+
 import {
   BadgeCheck,
   Database,
+  ExternalLink,
   Globe2,
   HardDrive,
   LayoutTemplate,
@@ -10,10 +13,13 @@ import {
   Play,
   Plus,
   ShieldCheck,
+  Save,
 } from "lucide-react";
 import {
   createDataLink,
   createWebsite,
+  saveWebsitePage,
+  selectWebsiteBuilder,
   saveReportQuery,
   updateMembershipAccess,
   updateStoragePolicy,
@@ -36,6 +42,7 @@ type Data = {
   permissionCatalog?: string[];
   assets?: Value[];
   automations?: Value[];
+  dataGrants?: Value[];
   entities?: Value[];
   catalog?: Value[];
   links?: Value[];
@@ -592,14 +599,16 @@ const websiteTemplates = [
   },
 ];
 
-function WebsiteWorkbench({
+function WebsiteSdkWorkbench({
   data,
   organizationSlug,
+  websiteId,
 }: {
   data: Data;
   organizationSlug: string;
+  websiteId?: string;
 }) {
-  const website = data.websites?.[0];
+  const website = data.websites?.find((item) => String(item.id) === websiteId) ?? data.websites?.[0];
   const page = (website?.pages as Value[] | undefined)?.[0];
   if (!website || !page)
     return (
@@ -652,7 +661,7 @@ function WebsiteWorkbench({
       </div>
     );
   const builderUrl =
-    process.env.NEXT_PUBLIC_BUILDER_API_URL ?? "https://builder-api.cksites.dev";
+    process.env.NEXT_PUBLIC_BUILDER_API_URL ?? "https://builder-api.clearkey.solutions";
   return (
     <div style={{ height: "calc(100vh - 8.5rem)" }}>
       <SdkEmbed
@@ -665,6 +674,114 @@ function WebsiteWorkbench({
         organizationSlug={organizationSlug}
         title="Website Builder"
       />
+    </div>
+  );
+}
+
+function WebsiteWorkbench({
+  data,
+  organizationSlug,
+}: {
+  data: Data;
+  organizationSlug: string;
+}) {
+  const [websiteId, setWebsiteId] = useState(String(data.websites?.[0]?.id ?? ""));
+  const website = data.websites?.find((item) => String(item.id) === websiteId) ?? data.websites?.[0];
+  const pages = (website?.pages as Value[] | undefined) ?? [];
+  const [pageId, setPageId] = useState(String(pages[0]?.id ?? ""));
+  const page = pages.find((item) => String(item.id) === pageId) ?? pages[0];
+  const pageContent = (page?.content as { blocks?: Value[]; code?: Value } | undefined) ?? {};
+  const [blocks, setBlocks] = useState<Value[]>(pageContent.blocks ?? []);
+  const [editorOpen, setEditorOpen] = useState(false);
+
+  if (!website || !page) {
+    return (
+      <div>
+        <header className="border-b pb-5">
+          <h2 className="text-xl font-semibold">Create a website</h2>
+          <p className="mt-1 text-sm text-slate-500">Choose a starting structure. Every option creates editable pages, data links, and version history.</p>
+        </header>
+        <div className="divide-y border-y">
+          {websiteTemplates.map((template) => (
+            <form action={createWebsite} key={template.id}>
+              <input name="organizationSlug" type="hidden" value={organizationSlug} />
+              <input name="template" type="hidden" value={template.id} />
+              <button className="grid w-full gap-4 px-4 py-4 text-left hover:bg-slate-50 sm:grid-cols-[160px_1fr_auto] sm:items-center" type="submit">
+                <span className="h-14 border-l-8 bg-slate-100" style={{ borderColor: template.accent }} />
+                <span><strong className="block">{template.label}</strong><span className="mt-1 block text-xs leading-5 text-slate-500">{template.description}</span><span className="mt-2 block text-[11px] text-slate-400">{template.blocks.join(" / ")}</span></span>
+                <span className="text-sm font-semibold" style={{ color: template.accent }}>Use template</span>
+              </button>
+            </form>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const builderType = String(website.builderType ?? "CONNECT");
+  const editor = (website.editor as Value | undefined) ?? {};
+  const externalBuilderUrl = String(editor.externalBuilderUrl ?? "");
+  const versions = (website.versions as Value[] | undefined) ?? [];
+  const code = (pageContent.code as Value | undefined) ?? {};
+
+  if (editorOpen && builderType === "GRAPESJS") {
+    return (
+      <div>
+        <div className="flex items-center gap-3 border p-3"><button className="ck-button ck-button-secondary" onClick={() => setEditorOpen(false)} type="button">Back to site console</button><strong>GrapesJS editor</strong></div>
+        <WebsiteSdkWorkbench data={data} organizationSlug={organizationSlug} websiteId={String(website.id)} />
+      </div>
+    );
+  }
+
+  function choosePage(nextPage: Value) {
+    setPageId(String(nextPage.id));
+    const content = (nextPage.content as { blocks?: Value[] } | undefined) ?? {};
+    setBlocks(content.blocks ?? []);
+  }
+
+  function chooseWebsite(nextWebsiteId: string) {
+    setWebsiteId(nextWebsiteId);
+    const nextWebsite = data.websites?.find((item) => String(item.id) === nextWebsiteId);
+    const nextPage = ((nextWebsite?.pages as Value[] | undefined) ?? [])[0];
+    if (nextPage) choosePage(nextPage);
+  }
+
+  function updateBlock(index: number, key: string, value: string) {
+    setBlocks((current) => current.map((block, blockIndex) => blockIndex === index ? { ...block, [key]: value } : block));
+  }
+
+  return (
+    <div className="grid min-h-[760px] overflow-hidden border bg-white xl:h-[calc(100vh-12rem)] xl:grid-cols-[240px_minmax(0,1fr)_320px]">
+      <aside className="min-h-0 overflow-y-auto border-r bg-slate-50">
+        <div className="border-b p-4">
+          <div className="text-xs font-semibold uppercase text-slate-500">Sites</div>
+          <select className="ck-input mt-2" onChange={(event) => chooseWebsite(event.target.value)} value={String(website.id)}>{data.websites?.map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.name)}</option>)}</select>
+        </div>
+        <div className="border-b p-4">
+          <div className="text-xs font-semibold uppercase text-slate-500">Pages</div>
+          <nav className="mt-2 -mx-2">{pages.map((item) => <button className={`block w-full px-2 py-2 text-left text-sm hover:bg-slate-200 ${String(page.id) === String(item.id) ? "bg-slate-200 font-semibold" : ""}`} key={String(item.id)} onClick={() => choosePage(item)} type="button">{String(item.title)}<span className="block text-[11px] font-normal text-slate-500">{String(item.path)}</span></button>)}</nav>
+        </div>
+        <div className="p-4"><a className="flex items-center gap-2 text-sm font-semibold text-indigo-700" href={`https://${String(website.hostname)}`} rel="noreferrer" target="_blank">Open live site <ExternalLink size={14} /></a></div>
+      </aside>
+
+      <main className="min-h-0 overflow-y-auto">
+        <header className="flex flex-wrap items-center gap-3 border-b px-5 py-3"><div><h2 className="font-semibold">{String(page.title)}</h2><p className="text-xs text-slate-500">{String(website.hostname)}{String(page.path)}</p></div><div className="ml-auto text-xs text-slate-500">{String(page.status)}</div></header>
+        <form action={saveWebsitePage} className="p-5">
+          <input name="organizationSlug" type="hidden" value={organizationSlug} /><input name="websiteId" type="hidden" value={String(website.id)} /><input name="pageId" type="hidden" value={String(page.id)} /><input name="blocksJson" type="hidden" value={JSON.stringify(blocks)} />
+          <div className="grid gap-4 md:grid-cols-2"><label className="text-xs font-semibold text-slate-600">Page title<input className="ck-input mt-2" defaultValue={String(page.title)} name="title" required /></label><label className="text-xs font-semibold text-slate-600">Path<input className="ck-input mt-2" defaultValue={String(page.path)} name="path" required /></label></div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2"><label className="text-xs font-semibold text-slate-600">SEO title<input className="ck-input mt-2" defaultValue={String((page.seo as Value | undefined)?.title ?? page.title)} name="seoTitle" /></label><label className="text-xs font-semibold text-slate-600">SEO description<input className="ck-input mt-2" defaultValue={String((page.seo as Value | undefined)?.description ?? "")} name="seoDescription" /></label></div>
+          <div className="mt-6 flex items-center justify-between border-b pb-3"><div><div className="text-xs font-semibold uppercase text-slate-500">Page structure</div><h3 className="mt-1 font-semibold">Content blocks</h3></div><button className="ck-button ck-button-secondary" onClick={() => setBlocks((current) => [...current, { type: "text", title: "New section", body: "" }])} type="button"><Plus size={14} /> Add block</button></div>
+          <div className="divide-y border-b">{blocks.map((block, index) => <div className="grid gap-3 py-4 md:grid-cols-[140px_1fr_auto]" key={`${String(block.type)}-${index}`}><select className="ck-input" onChange={(event) => updateBlock(index, "type", event.target.value)} value={String(block.type ?? "text")}><option value="hero">Hero</option><option value="text">Text</option><option value="services">Services</option><option value="products">Products</option><option value="gallery">Gallery</option><option value="booking">Booking</option><option value="contact">Contact form</option><option value="cta">Call to action</option></select><div className="grid gap-2"><input className="ck-input" onChange={(event) => updateBlock(index, "title", event.target.value)} placeholder="Section title" value={String(block.title ?? "")} /><textarea className="ck-input min-h-20" onChange={(event) => updateBlock(index, "body", event.target.value)} placeholder="Section content" value={String(block.body ?? "")} /></div><button aria-label="Remove block" className="ck-icon-button" onClick={() => setBlocks((current) => current.filter((_, blockIndex) => blockIndex !== index))} type="button">×</button></div>)}</div>
+          <details className="mt-5 border-y py-3"><summary className="cursor-pointer text-sm font-semibold">Advanced HTML, CSS, and JavaScript</summary><div className="mt-4 grid gap-4"><textarea className="ck-input min-h-32 font-mono text-xs" defaultValue={String(code.html ?? "")} name="codeHtml" placeholder="HTML" /><textarea className="ck-input min-h-32 font-mono text-xs" defaultValue={String(code.css ?? "")} name="codeCss" placeholder="CSS" /><textarea className="ck-input min-h-32 font-mono text-xs" defaultValue={String(code.javascript ?? "")} name="codeJs" placeholder="JavaScript" /></div></details>
+          <div className="mt-5 flex flex-wrap gap-2"><button className="ck-button ck-button-secondary" type="submit"><Save size={15} /> Save draft</button><button className="ck-button" name="publish" type="submit" value="on">Publish version</button></div>
+        </form>
+      </main>
+
+      <aside className="min-h-0 overflow-y-auto border-l">
+        <section className="border-b p-5"><div className="text-xs font-semibold uppercase text-slate-500">Editor selection</div><form action={selectWebsiteBuilder} className="mt-3 space-y-3"><input name="organizationSlug" type="hidden" value={organizationSlug} /><input name="websiteId" type="hidden" value={String(website.id)} /><select className="ck-input" defaultValue={builderType} name="builderType"><option value="CONNECT">Connect native editor</option><option value="GRAPESJS">GrapesJS</option><option value="EXTERNAL">External builder</option></select><input className="ck-input" defaultValue={externalBuilderUrl} name="externalBuilderUrl" placeholder="https://builder.example.com" /><button className="ck-button ck-button-secondary w-full" type="submit">Save editor choice</button></form>{builderType === "GRAPESJS" && <button className="ck-button mt-2 w-full" onClick={() => setEditorOpen(true)} type="button">Open selected builder</button>}{builderType === "EXTERNAL" && externalBuilderUrl && <a className="ck-button mt-2 w-full" href={externalBuilderUrl} rel="noreferrer" target="_blank">Open selected builder <ExternalLink size={14} /></a>}</section>
+        <section className="border-b p-5"><div className="text-xs font-semibold uppercase text-slate-500">Version history</div><div className="mt-3 divide-y border-y">{versions.map((version) => <div className="py-3 text-sm" key={String(version.id)}><div className="flex justify-between"><strong>Version {String(version.number)}</strong><span className="text-xs text-slate-500">{String(version.status)}</span></div><div className="mt-1 text-xs text-slate-500">{String(version.label ?? version.changeSummary ?? "Saved version")}</div></div>)}{!versions.length && <div className="py-4 text-sm text-slate-500">Versions appear after the first save.</div>}</div></section>
+        <section className="p-5"><div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-500"><Database size={14} /> Data links</div><div className="mt-3 divide-y border-y">{(data.dataGrants ?? []).filter((grant) => String(grant.websiteId) === String(website.id)).map((grant) => <div className="flex items-center justify-between py-3 text-sm" key={String(grant.id)}><span>{String(grant.scope)}</span><span className="text-xs text-slate-500">{grant.active ? "Approved" : "Revoked"}</span></div>)}{!(data.dataGrants ?? []).some((grant) => String(grant.websiteId) === String(website.id)) && <div className="py-4 text-sm text-slate-500">No data scopes approved.</div>}</div></section>
+      </aside>
     </div>
   );
 }

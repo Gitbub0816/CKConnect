@@ -196,6 +196,7 @@ model Organization {
   bankAccounts               BankAccount[]
   bankTransactions           BankTransaction[]
   savedViews                 SavedView[]
+  dashboards                 DashboardDefinition[]
   emailTemplates             EmailTemplate[]
   emailMessages              EmailMessage[]
   endpointPages              EndpointPage[]
@@ -213,6 +214,7 @@ model Organization {
   aiGovernanceEvents         AiGovernanceEvent[]
   billingAuditLogs           BillingAuditLog[]
   collaborationChannels      CollaborationChannel[]
+  collaborationReactions     CollaborationReaction[]
   supportTickets             PlatformSupportTicket[]
   paymentProviderConnections PaymentProviderConnection[]
   paymentTransactions        PaymentTransaction[]
@@ -241,6 +243,7 @@ model User {
   assignedTasks           Task[]                   @relation("TaskAssignee")
   auditLogs               AuditLog[]
   collaborationMessages   CollaborationMessage[]
+  collaborationReactions  CollaborationReaction[]
   platformSupportMessages PlatformSupportMessage[]
   adminActions            AdminActionLog[]
   aiConversations         AiConversation[]
@@ -290,13 +293,34 @@ model CollaborationMessage {
   body         String
   messageType  String               @default("TEXT")
   metadata     Json                 @default("{}")
+  attachmentsJson Json              @default("[]")
+  parentMessageId String?           @db.Uuid
   editedAt     DateTime?
   deletedAt    DateTime?
   createdAt    DateTime             @default(now())
   channel      CollaborationChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
   author       User?                @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  parentMessage CollaborationMessage? @relation("MessageThread", fields: [parentMessageId], references: [id], onDelete: Cascade)
+  replies       CollaborationMessage[] @relation("MessageThread")
+  reactions     CollaborationReaction[]
 
   @@index([channelId, createdAt])
+  @@index([parentMessageId, createdAt])
+}
+
+model CollaborationReaction {
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @db.Uuid
+  messageId      String               @db.Uuid
+  userId         String               @db.Uuid
+  emoji          String
+  createdAt      DateTime             @default(now())
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  message        CollaborationMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([organizationId, createdAt])
 }
 
 model PlatformSupportTicket {
@@ -563,11 +587,14 @@ model Website {
   status          String           @default("DRAFT")
   themeJson       Json             @default("{}")
   configJson      Json             @default("{}")
+  builderType     String           @default("CONNECT")
+  editorJson      Json             @default("{}")
   publishedAt     DateTime?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   pages           WebsitePage[]
+  versions        WebsiteVersion[]
   aiConversations AiConversation[]
 
   @@unique([organizationId, slug])
@@ -704,6 +731,24 @@ model ManagedMailbox {
 
   @@index([organizationId, active])
   @@index([organizationDomainId, status])
+}
+
+model WebsiteVersion {
+  id             String    @id @default(uuid()) @db.Uuid
+  websiteId      String    @db.Uuid
+  versionNumber  Int
+  label          String?
+  status         String    @default("DRAFT")
+  snapshotJson   Json
+  changeSummary  String?
+  authorUserId   String?   @db.Uuid
+  publishedAt    DateTime?
+  scheduledFor   DateTime?
+  createdAt      DateTime  @default(now())
+  website        Website   @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, versionNumber])
+  @@index([websiteId, status, createdAt])
 }
 
 model MailboxAlias {
@@ -1082,12 +1127,19 @@ model CalendarEvent {
   relatedType    String?
   relatedId      String?      @db.Uuid
   attendeeJson   Json         @default("[]")
+  allDay         Boolean      @default(false)
+  color          String?
+  recurrenceJson Json         @default("{}")
+  conferencingJson Json       @default("{}")
+  sourceProvider String       @default("CLEARKEY")
+  externalId     String?
   status         String       @default("CONFIRMED")
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, startsAt])
+  @@unique([organizationId, sourceProvider, externalId])
 }
 
 model Product {
@@ -1632,6 +1684,45 @@ model SavedView {
 
   @@unique([organizationId, userId, module, name])
   @@index([organizationId, module])
+}
+
+model DashboardDefinition {
+  id             String            @id @default(uuid()) @db.Uuid
+  organizationId String            @db.Uuid
+  userId         String?           @db.Uuid
+  name           String
+  description    String?
+  dateRange      String            @default("30d")
+  comparison     String            @default("prior_period")
+  refreshMinutes Int               @default(0)
+  layoutJson     Json              @default("{}")
+  themeJson      Json              @default("{}")
+  shared         Boolean           @default(false)
+  isDefault      Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  widgets        DashboardWidget[]
+
+  @@unique([organizationId, userId, name])
+  @@index([organizationId, shared, updatedAt])
+}
+
+model DashboardWidget {
+  id          String              @id @default(uuid()) @db.Uuid
+  dashboardId String              @db.Uuid
+  title       String
+  sourceModule String
+  metricKey   String
+  chartType   String              @default("kpi")
+  position    Int
+  configJson  Json                @default("{}")
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  dashboard   DashboardDefinition @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+
+  @@unique([dashboardId, position])
+  @@index([dashboardId, metricKey])
 }
 
 model EmailTemplate {

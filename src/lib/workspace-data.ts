@@ -157,12 +157,12 @@ export async function getWorkspaceDashboard(slug: string, userId?: string) {
         startedAt: { gte: new Date(Date.now() - 7 * 86_400_000) },
       },
     }),
-    db.savedView.findMany({
+    db.dashboardDefinition.findMany({
       where: {
         organizationId,
-        module: "dashboard",
         OR: [{ shared: true }, ...(userId ? [{ userId }] : [])],
       },
+      include: { widgets: { orderBy: { position: "asc" } } },
       orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
       take: 6,
     }),
@@ -284,7 +284,14 @@ export async function getWorkspaceDashboard(slug: string, userId?: string) {
       name: dashboard.name,
       shared: dashboard.shared,
       isDefault: dashboard.isDefault,
-      config: dashboard.filtersJson,
+      config: {
+        ...(dashboard.layoutJson as Record<string, unknown>),
+        widgets: dashboard.widgets.map((widget) => widget.metricKey),
+        chartStyle: dashboard.widgets[0]?.chartType ?? "bar",
+        dateRange: dashboard.dateRange,
+        comparison: dashboard.comparison,
+        refreshMinutes: dashboard.refreshMinutes,
+      },
       updatedAt: iso(dashboard.updatedAt),
     })),
   };
@@ -334,7 +341,10 @@ export async function getModuleData(slug: string, module: string) {
       const [records, assets, automations, dataGrants, integrations] = await Promise.all([
         db.website.findMany({
           where: { organizationId },
-          include: { pages: true },
+          include: {
+            pages: { orderBy: { sortOrder: "asc" } },
+            versions: { orderBy: { versionNumber: "desc" }, take: 20 },
+          },
           orderBy: { updatedAt: "desc" },
         }),
         db.storedFile.findMany({
@@ -419,8 +429,10 @@ export async function getModuleData(slug: string, module: string) {
           name: website.slug,
           hostname: website.defaultHostname,
           status: website.status,
+          builderType: website.builderType,
           theme: website.themeJson,
           config: website.configJson,
+          editor: website.editorJson,
           publishedAt: iso(website.publishedAt),
           updatedAt: iso(website.updatedAt),
           pages: website.pages.map((page) => ({
@@ -430,6 +442,16 @@ export async function getModuleData(slug: string, module: string) {
             status: page.status,
             seo: page.seoJson,
             content: page.contentJson,
+          })),
+          versions: website.versions.map((version) => ({
+            id: version.id,
+            number: version.versionNumber,
+            label: version.label,
+            status: version.status,
+            changeSummary: version.changeSummary,
+            publishedAt: iso(version.publishedAt),
+            scheduledFor: iso(version.scheduledFor),
+            createdAt: iso(version.createdAt),
           })),
         })),
         assets: assets.map((asset) => ({
@@ -1138,6 +1160,7 @@ export async function getModuleData(slug: string, module: string) {
           description: r.description,
           attendees: Array.isArray(r.attendeeJson) ? r.attendeeJson.length : 0,
           status: r.status,
+          color: r.color,
         })),
         metrics: [
           {

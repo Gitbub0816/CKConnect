@@ -61,8 +61,8 @@ export default async function CustomerWorkspacePage({
         </section>
         <CustomerWorkspaceChat publicId={publicId} token={token} />
         <footer className="mt-5 text-center text-[10px] text-slate-400">
-          <Link href="/legal/terms">Terms</Link> ·{" "}
-          <Link href="/legal/privacy">Privacy</Link> · Securely hosted by ClearKey
+          <Link href="https://legal.clearkey.solutions/terms">Terms</Link> ·{" "}
+          <Link href="https://legal.clearkey.solutions/privacy">Privacy</Link> · Securely hosted by ClearKey
           Connect
         </footer>
       </div>

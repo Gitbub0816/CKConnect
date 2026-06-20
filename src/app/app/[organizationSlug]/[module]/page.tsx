@@ -8,10 +8,8 @@ import {
 } from "@/components/addendum-workspaces";
 import { CrmSuite } from "@/components/crm-suite";
 import { ModulePage } from "@/components/module-page";
-import { SdkViewport } from "@/components/sdk-viewport";
 import { getModuleData, getPublishedEndpoint } from "@/lib/workspace-data";
 import { requireOrganizationAccess } from "@/lib/authorization";
-import { createSdkEmbedConfig } from "@/lib/sdk-embed";
 
 const modules = new Set([
   "crm",
@@ -83,24 +81,6 @@ export async function renderWorkspaceModulePage({
         : `${module}.read`,
   );
   const configuration = access.organization;
-  const sdkKind = {
-    calendar: "calendar",
-    collaboration: "collaboration",
-    websites: "builder",
-  }[module] as "builder" | "calendar" | "collaboration" | undefined;
-  if (sdkKind) {
-    const config = createSdkEmbedConfig({
-      kind: sdkKind,
-      membership: access.membership,
-      organization: access.organization,
-      user: access.user,
-    });
-    return (
-      <AppShell active={module} fullViewport organizationSlug={organizationSlug}>
-        <SdkViewport config={config} />
-      </AppShell>
-    );
-  }
   const featureMap: Record<string, string> = {
     leads: "crm",
     accounts: "crm",

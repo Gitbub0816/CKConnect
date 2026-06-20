@@ -415,27 +415,21 @@ function display(value: unknown, key: string) {
 }
 
 function MetricGrid({ metrics = [] }: { metrics?: Metric[] }) {
+  if (!metrics.length) return null;
   return (
-    <div className="ck-metric-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {metrics.map((metric, index) => (
-        <article
-          className="ck-card ck-metric-card relative overflow-hidden p-5"
-          key={metric.label}
-        >
-          <div
-            className="absolute inset-y-0 left-0 w-1 bg-[var(--module-tint)]"
-            style={{ opacity: 0.35 + index * 0.16 }}
-          />
+    <div className="grid border-y bg-white sm:grid-cols-2 xl:grid-cols-4">
+      {metrics.map((metric) => (
+        <div className="border-b px-4 py-3 last:border-b-0 sm:border-r xl:border-b-0" key={metric.label}>
           <div className="ck-section-label">
             {metric.label}
           </div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight data-metric">
+          <div className="mt-1 text-xl font-semibold tracking-tight data-metric">
             {metric.format === "currency"
               ? formatCurrency(metric.value)
               : metric.value.toLocaleString()}
             {metric.suffix}
           </div>
-        </article>
+        </div>
       ))}
     </div>
   );

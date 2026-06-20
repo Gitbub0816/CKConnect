@@ -1,6 +1,6 @@
 {
   "name": "clearkey-connect",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "postinstall": "prisma generate && playwright install chromium",
@@ -32,6 +32,7 @@
     "@sentry/nextjs": "^10.57.0",
     "@stripe/react-stripe-js": "^6.6.0",
     "@stripe/stripe-js": "^9.8.0",
+    "@types/three": "^0.184.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
@@ -53,6 +54,7 @@
     "recharts": "^3.8.1",
     "stripe": "^22.2.1",
     "tailwind-merge": "^3.6.0",
+    "three": "^0.184.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

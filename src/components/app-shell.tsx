@@ -101,10 +101,10 @@ export async function AppShell({
             </span>
           </span>
           <span>
-            <Link href="/legal/terms">Terms</Link> -{" "}
-            <Link href="/legal/privacy">Privacy</Link> -{" "}
-            <Link href="/legal/security">Security</Link> -{" "}
-            <Link href="/legal/accessibility">Accessibility</Link>
+            <Link href="https://legal.clearkey.solutions/terms">Terms</Link> -{" "}
+            <Link href="https://legal.clearkey.solutions/privacy">Privacy</Link> -{" "}
+            <Link href="https://legal.clearkey.solutions/security">Security</Link> -{" "}
+            <Link href="https://legal.clearkey.solutions/accessibility">Accessibility</Link>
           </span>
         </footer>}
       </div>

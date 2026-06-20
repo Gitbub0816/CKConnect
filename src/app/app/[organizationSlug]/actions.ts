@@ -532,6 +532,12 @@ export async function saveDashboardStudio(formData: FormData) {
       organizationSlug: z.string().min(1),
       name: z.string().trim().min(2).max(80),
       chartStyle: z.enum([
+        "line",
+        "bar",
+        "area",
+        "pie",
+        "funnel",
+        "kpi",
         "cards",
         "bars",
         "spotlight",
@@ -582,8 +588,8 @@ export async function saveDashboardStudio(formData: FormData) {
   if (!user) throw new Error("A signed-in user is required");
   const db = getDb();
   if (input.isDefault) {
-    await db.savedView.updateMany({
-      where: { organizationId: organization.id, userId: user.id, module: "dashboard" },
+    await db.dashboardDefinition.updateMany({
+      where: { organizationId: organization.id, userId: user.id },
       data: { isDefault: false },
     });
   }
@@ -601,39 +607,73 @@ export async function saveDashboardStudio(formData: FormData) {
     showInsights: input.showInsights,
     showActivity: input.showActivity,
   } as Prisma.InputJsonValue;
-  const dashboard = await db.savedView.upsert({
-    where: {
-      organizationId_userId_module_name: {
-        organizationId: organization.id,
-        userId: user.id,
-        module: "dashboard",
-        name: input.name,
-      },
-    },
-    update: {
-      filtersJson: config,
-      columnsJson: input.widgets as Prisma.InputJsonValue,
-      sortJson: { chartStyle: input.chartStyle, accent: input.accent },
-      shared: input.shared,
-      isDefault: input.isDefault,
-    },
-    create: {
-      organizationId: organization.id,
-      userId: user.id,
-      module: "dashboard",
-      name: input.name,
-      filtersJson: config,
-      columnsJson: input.widgets as Prisma.InputJsonValue,
-      sortJson: { chartStyle: input.chartStyle, accent: input.accent },
-      shared: input.shared,
-      isDefault: input.isDefault,
-    },
+  const widgetCatalog: Record<string, { label: string; module: string }> = {
+    cash: { label: "Cash position", module: "banking" },
+    pipeline: { label: "Open pipeline", module: "deals" },
+    outstanding: { label: "Outstanding invoices", module: "invoices" },
+    collected: { label: "Collected revenue", module: "payments" },
+    exceptions: { label: "Open exceptions", module: "tasks" },
+    receivables: { label: "Receivables", module: "invoices" },
+    payroll: { label: "Payroll readiness", module: "payroll" },
+    newLeads: { label: "New leads", module: "leads" },
+    overdueTasks: { label: "Overdue tasks", module: "tasks" },
+    bankReview: { label: "Bank feed review", module: "banking" },
+    automationFailures: { label: "Automation failures", module: "automations" },
+  };
+  const dashboard = await db.$transaction(async (tx) => {
+    const existing = await tx.dashboardDefinition.findFirst({
+      where: { organizationId: organization.id, userId: user.id, name: input.name },
+      select: { id: true },
+    });
+    const definition = existing
+      ? await tx.dashboardDefinition.update({
+          where: { id: existing.id },
+          data: {
+            dateRange: input.dateRange,
+            comparison: input.comparison,
+            refreshMinutes: input.refreshMinutes,
+            layoutJson: config,
+            themeJson: { accent: input.accent, density: input.density },
+            shared: input.shared,
+            isDefault: input.isDefault,
+          },
+        })
+      : await tx.dashboardDefinition.create({
+          data: {
+            organizationId: organization.id,
+            userId: user.id,
+            name: input.name,
+            dateRange: input.dateRange,
+            comparison: input.comparison,
+            refreshMinutes: input.refreshMinutes,
+            layoutJson: config,
+            themeJson: { accent: input.accent, density: input.density },
+            shared: input.shared,
+            isDefault: input.isDefault,
+          },
+        });
+    await tx.dashboardWidget.deleteMany({ where: { dashboardId: definition.id } });
+    await tx.dashboardWidget.createMany({
+      data: input.widgets.map((metricKey, position) => ({
+        dashboardId: definition.id,
+        title: widgetCatalog[metricKey].label,
+        sourceModule: widgetCatalog[metricKey].module,
+        metricKey,
+        chartType: input.chartStyle,
+        position,
+        configJson: {
+          comparison: input.comparison,
+          goal: input.goalMetric === metricKey ? input.goalTarget : null,
+        },
+      })),
+    });
+    return definition;
   });
   await appendAuditEvent({
     organizationId: organization.id,
     actorUserId: user.id,
     action: "dashboard.studio.saved",
-    entityType: "SavedView",
+    entityType: "DashboardDefinition",
     entityId: dashboard.id,
     after: { ...input, widgets: input.widgets },
     category: "BUSINESS",
@@ -3845,6 +3885,34 @@ export async function saveWebsitePage(formData: FormData) {
       websiteId: website.id,
     })
     : null;
+  const latestVersion = await db.websiteVersion.aggregate({
+    where: { websiteId: website.id },
+    _max: { versionNumber: true },
+  });
+  await db.websiteVersion.create({
+    data: {
+      websiteId: website.id,
+      versionNumber: (latestVersion._max.versionNumber ?? 0) + 1,
+      label: input.publish ? `Published ${page.title}` : `Draft ${page.title}`,
+      status: input.publish ? "PUBLISHED" : "DRAFT",
+      snapshotJson: {
+        page: {
+          id: page.id,
+          path: page.path,
+          title: page.title,
+          seo: page.seoJson,
+          content: page.contentJson,
+        },
+        website: {
+          builderType: website.builderType,
+          config: website.configJson,
+          theme: website.themeJson,
+        },
+      } as Prisma.InputJsonValue,
+      authorUserId: user.id,
+      publishedAt: input.publish ? new Date() : null,
+    },
+  });
   await appendAuditEvent({
     organizationId: organization.id,
     actorUserId: user.id,
@@ -3857,6 +3925,46 @@ export async function saveWebsitePage(formData: FormData) {
   });
   revalidatePath(`/app/${input.organizationSlug}/websites`);
   revalidatePath(`/site/${website.defaultHostname}`);
+}
+
+export async function selectWebsiteBuilder(formData: FormData) {
+  const input = z.object({
+    organizationSlug: z.string().min(1),
+    websiteId: z.string().uuid(),
+    builderType: z.enum(["CONNECT", "GRAPESJS", "EXTERNAL"]),
+    externalBuilderUrl: z.string().url().optional().or(z.literal("")),
+  }).parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    "websites.write",
+  );
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  const before = await db.website.findFirstOrThrow({
+    where: { id: input.websiteId, organizationId: organization.id },
+  });
+  const editor = before.editorJson as Record<string, unknown>;
+  const website = await db.website.update({
+    where: { id: before.id },
+    data: {
+      builderType: input.builderType,
+      editorJson: {
+        ...editor,
+        externalBuilderUrl: input.externalBuilderUrl || null,
+      },
+    },
+  });
+  await appendAuditEvent({
+    organizationId: organization.id,
+    actorUserId: user.id,
+    action: "website.builder.selected",
+    entityType: "Website",
+    entityId: website.id,
+    before: { builderType: before.builderType, editor: before.editorJson },
+    after: { builderType: website.builderType, editor: website.editorJson },
+    category: "BUSINESS",
+  });
+  revalidatePath(`/app/${input.organizationSlug}/websites`);
 }
 
 export async function updateWebsiteDataGrant(formData: FormData) {

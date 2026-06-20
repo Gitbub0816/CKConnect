@@ -170,7 +170,7 @@ export default function Home() {
 
       <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-[#c9a033]/20 px-6 py-7 text-xs text-[#81786f]">
         <span>© 2026 ClearKey Solutions. Precision software for modern business.</span>
-        <Link className="font-semibold hover:text-[#8b6914]" href="/legal">Legal and policy center</Link>
+        <Link className="font-semibold hover:text-[#8b6914]" href="https://legal.clearkey.solutions">Legal and policy center</Link>
       </footer>
     </main>
   );

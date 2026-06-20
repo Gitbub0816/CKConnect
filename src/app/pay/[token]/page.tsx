@@ -148,9 +148,9 @@ export default async function InvoicePaymentPage({
               {theme?.paymentFooterText ?? "Payment details are collected by the tenant's configured provider and are never stored by ClearKey Connect."}
             </p>
             <div className="mt-5 border-t pt-4 text-[10px] text-slate-400">
-              <Link href="/legal/terms">Terms</Link> ·{" "}
-              <Link href="/legal/privacy">Privacy</Link> ·{" "}
-              <Link href="/legal/payment-terms">Payment terms</Link>
+              <Link href="https://legal.clearkey.solutions/terms">Terms</Link> ·{" "}
+              <Link href="https://legal.clearkey.solutions/privacy">Privacy</Link> ·{" "}
+              <Link href="https://legal.clearkey.solutions/payment-terms">Payment terms</Link>
             </div>
           </aside>
         </div>

@@ -1,7 +1,7 @@
 import { AppShell } from "@/components/app-shell";
-import { SdkViewport } from "@/components/sdk-viewport";
+import { Dashboard } from "@/components/dashboard";
 import { requireOrganizationAccess } from "@/lib/authorization";
-import { createSdkEmbedConfig } from "@/lib/sdk-embed";
+import { getWorkspaceDashboard } from "@/lib/workspace-data";
 
 export default async function DashboardPage({
   params,
@@ -9,16 +9,12 @@ export default async function DashboardPage({
   params: Promise<{ organizationSlug: string }>;
 }) {
   const { organizationSlug } = await params;
-  const { membership, organization, user } = await requireOrganizationAccess(organizationSlug);
-  const config = createSdkEmbedConfig({
-    kind: "dashboard",
-    membership,
-    organization,
-    user,
-  });
+  const { user } = await requireOrganizationAccess(organizationSlug);
+  const data = await getWorkspaceDashboard(organizationSlug, user?.id);
+  if (!data) return null;
   return (
-    <AppShell active="dashboard" fullViewport organizationSlug={organizationSlug}>
-      <SdkViewport config={config} />
+    <AppShell active="dashboard" organizationSlug={organizationSlug}>
+      <Dashboard data={data} />
     </AppShell>
   );
 }

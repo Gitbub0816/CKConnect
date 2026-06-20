@@ -424,7 +424,7 @@ export function PortalRenderer({
         <footer className="portal-footer">
           <span>© 2026 {organization.name}</span>
           <div>
-            <Link href="/legal">Legal</Link>
+            <Link href="https://legal.clearkey.solutions">Legal</Link>
             {settings.showPoweredBy !== false && (
               <span>
                 <ShieldCheck size={14} />

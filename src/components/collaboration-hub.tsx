@@ -1,88 +1,120 @@
 "use client";
 
 import { useState } from "react";
-import { MessageSquare } from "lucide-react";
-import { SdkEmbed } from "@/components/sdk-embed";
+import { ExternalLink, Hash, MessageSquare, Plus, Search, Send, Users, Video } from "lucide-react";
+import { createCollaborationChannel, sendCollaborationMessage } from "@/app/app/[organizationSlug]/actions";
 
-const CKCOLLAB_API_URL =
-  process.env.NEXT_PUBLIC_CKCOLLAB_API_URL ?? "https://ckcollab-api.clearkey.solutions";
+type Message = { id: string; body: string; author: string; authorType: string; createdAt: string };
+type Channel = {
+  id: string;
+  publicId: string;
+  name: string;
+  description?: string | null;
+  type: string;
+  visibility: string;
+  videoUrl?: string | null;
+  customerWorkspaceUrl?: string | null;
+  messages: Message[];
+};
 
 export function CollaborationHub({
+  channels = [],
   organizationSlug,
+  slackConnected = false,
   slackUrl,
 }: {
+  channels?: Channel[];
   organizationSlug: string;
+  slackConnected?: boolean;
   slackUrl?: string;
 }) {
-  const [mode, setMode] = useState<"ck" | "slack">("ck");
+  const [mode, setMode] = useState<"connect" | "slack">("connect");
+  const [selectedId, setSelectedId] = useState(channels[0]?.id ?? "");
+  const [creating, setCreating] = useState(false);
+  const [query, setQuery] = useState("");
+  const selected = channels.find((channel) => channel.id === selectedId) ?? channels[0];
+  const filtered = channels.filter((channel) =>
+    `${channel.name} ${channel.description ?? ""}`.toLowerCase().includes(query.toLowerCase()),
+  );
+
+  if (mode === "slack") {
+    return (
+      <div className="grid min-h-[620px] place-items-center border bg-white p-8 text-center lg:h-[calc(100vh-12rem)]">
+        <div>
+          <MessageSquare className="mx-auto text-[#4A154B]" size={42} />
+          <h2 className="mt-4 text-2xl font-semibold">Slack workspace</h2>
+          <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-600">Slack remains an optional tenant integration. Open the connected workspace, or return to Connect Collaboration for tenant-native channels and customer spaces.</p>
+          <div className="mt-6 flex justify-center gap-2">
+            <button className="ck-button ck-button-secondary" onClick={() => setMode("connect")} type="button">Back to Collaboration</button>
+            {slackConnected && slackUrl ? <a className="ck-button" href={slackUrl} rel="noreferrer" target="_blank">Open Slack <ExternalLink size={14} /></a> : <a className="ck-button" href={`/app/${organizationSlug}/integrations`}>Configure Slack</a>}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col overflow-hidden" style={{ height: "calc(100vh - 8.5rem)" }}>
-      <div className="flex shrink-0 items-center gap-2 border-b bg-white px-4 py-2">
-        <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-          View via
-        </span>
-        <button
-          className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
-            mode === "ck"
-              ? "bg-indigo-600 text-white"
-              : "border text-slate-600 hover:bg-slate-50"
-          }`}
-          onClick={() => setMode("ck")}
-          type="button"
-        >
-          CK Collab
-        </button>
-        <button
-          className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
-            mode === "slack"
-              ? "bg-[#4A154B] text-white"
-              : "border text-slate-600 hover:bg-slate-50"
-          }`}
-          onClick={() => setMode("slack")}
-          type="button"
-        >
-          Slack
-        </button>
-      </div>
-
-      <div className="flex flex-1 overflow-hidden">
-        {mode === "ck" ? (
-          <SdkEmbed
-            apiUrl={CKCOLLAB_API_URL}
-            organizationSlug={organizationSlug}
-            title="CK Collaboration"
-          />
-        ) : (
-          <div className="flex flex-1 flex-col items-center justify-center p-10 text-center">
-            <MessageSquare className="mx-auto text-[#4A154B]" size={40} />
-            <h3 className="mt-4 text-xl font-semibold">Slack workspace</h3>
-            <p className="mt-2 max-w-sm text-sm text-slate-500">
-              Open your connected Slack workspace or link one to use Slack as the
-              collaboration layer for this tenant.
-            </p>
-            {slackUrl ? (
-              <a
-                className="ck-button mt-6"
-                href={slackUrl}
-                rel="noreferrer"
-                target="_blank"
-              >
-                Open in Slack →
-              </a>
-            ) : (
-              <a
-                className="ck-button mt-6"
-                href="https://slack.com/oauth/v2/authorize"
-                rel="noreferrer"
-                target="_blank"
-              >
-                Connect Slack workspace
-              </a>
-            )}
+    <div className="grid min-h-[680px] overflow-hidden border bg-white lg:h-[calc(100vh-12rem)] lg:grid-cols-[280px_minmax(0,1fr)_300px]">
+      <aside className="flex min-h-0 flex-col border-r bg-slate-950 text-white">
+        <div className="border-b border-white/10 p-3">
+          <div className="flex items-center justify-between">
+            <strong>Collaboration</strong>
+            <button aria-label="Create channel" className="grid size-8 place-items-center hover:bg-white/10" onClick={() => setCreating((value) => !value)} type="button"><Plus size={17} /></button>
           </div>
+          <label className="mt-3 flex items-center gap-2 border border-white/15 px-3 py-2 text-sm text-white/60"><Search size={14} /><input className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-white/40" onChange={(event) => setQuery(event.target.value)} placeholder="Find a channel" value={query} /></label>
+        </div>
+        {creating && (
+          <form action={createCollaborationChannel} className="space-y-2 border-b border-white/10 p-3" onSubmit={() => setCreating(false)}>
+            <input name="organizationSlug" type="hidden" value={organizationSlug} />
+            <input className="w-full border border-white/15 bg-white/10 px-3 py-2 text-sm outline-none" name="name" placeholder="Channel name" required />
+            <input className="w-full border border-white/15 bg-white/10 px-3 py-2 text-sm outline-none" name="description" placeholder="Purpose" />
+            <select className="w-full border border-white/15 bg-slate-900 px-3 py-2 text-sm" name="channelType"><option value="INTERNAL">Internal team</option><option value="PROJECT">Project</option><option value="CUSTOMER">Customer space</option></select>
+            <button className="w-full bg-white px-3 py-2 text-sm font-semibold text-slate-950" type="submit">Create channel</button>
+          </form>
         )}
-      </div>
+        <nav className="min-h-0 flex-1 overflow-y-auto py-2">
+          {filtered.map((channel) => (
+            <button className={`flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-white/10 ${selected?.id === channel.id ? "bg-white/10" : ""}`} key={channel.id} onClick={() => setSelectedId(channel.id)} type="button">
+              {channel.type === "CUSTOMER" ? <Users className="mt-0.5 shrink-0" size={15} /> : <Hash className="mt-0.5 shrink-0" size={15} />}
+              <span className="min-w-0"><strong className="block truncate text-sm">{channel.name}</strong><span className="block truncate text-xs text-white/50">{channel.description ?? channel.type.replaceAll("_", " ")}</span></span>
+            </button>
+          ))}
+        </nav>
+        {slackConnected && <button className="border-t border-white/10 px-4 py-3 text-left text-sm hover:bg-white/10" onClick={() => setMode("slack")} type="button">Open Slack workspace</button>}
+      </aside>
+
+      <main className="flex min-h-0 flex-col">
+        {selected ? (
+          <>
+            <header className="flex items-center gap-3 border-b px-5 py-3">
+              <div className="min-w-0"><h2 className="truncate font-semibold">{selected.name}</h2><p className="truncate text-xs text-slate-500">{selected.description ?? selected.visibility}</p></div>
+              <div className="ml-auto flex gap-2">
+                {selected.videoUrl && <a aria-label="Open video room" className="ck-icon-button" href={selected.videoUrl} rel="noreferrer" target="_blank"><Video size={16} /></a>}
+                {selected.customerWorkspaceUrl && <a aria-label="Open customer workspace" className="ck-icon-button" href={selected.customerWorkspaceUrl} rel="noreferrer" target="_blank"><ExternalLink size={16} /></a>}
+              </div>
+            </header>
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-slate-50 px-5 py-5">
+              {selected.messages.map((message) => (
+                <div className="grid grid-cols-[36px_1fr] gap-3" key={message.id}>
+                  <div className="grid size-9 place-items-center bg-slate-900 text-xs font-semibold text-white">{message.author.slice(0, 2).toUpperCase()}</div>
+                  <div><div className="flex items-baseline gap-2"><strong className="text-sm">{message.author}</strong><span className="text-[11px] text-slate-400">{new Date(message.createdAt).toLocaleString()}</span></div><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{message.body}</p></div>
+                </div>
+              ))}
+              {!selected.messages.length && <div className="grid h-full place-items-center text-sm text-slate-500">Start the conversation in {selected.name}.</div>}
+            </div>
+            <form action={sendCollaborationMessage} className="flex items-end gap-2 border-t p-3">
+              <input name="organizationSlug" type="hidden" value={organizationSlug} />
+              <input name="channelId" type="hidden" value={selected.id} />
+              <textarea className="ck-input min-h-12 flex-1 resize-none" name="body" placeholder={`Message ${selected.name}`} required />
+              <button aria-label="Send message" className="ck-button h-12" type="submit"><Send size={16} /></button>
+            </form>
+          </>
+        ) : <div className="grid h-full place-items-center text-sm text-slate-500">Create a channel to begin collaborating.</div>}
+      </main>
+
+      <aside className="min-h-0 overflow-y-auto border-l p-5">
+        {selected && <><div className="text-xs font-semibold uppercase text-slate-500">Channel details</div><h3 className="mt-2 text-lg font-semibold">{selected.name}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{selected.description ?? "No channel description has been added."}</p><dl className="mt-5 divide-y border-y text-sm"><div className="flex justify-between py-3"><dt className="text-slate-500">Type</dt><dd>{selected.type}</dd></div><div className="flex justify-between py-3"><dt className="text-slate-500">Visibility</dt><dd>{selected.visibility}</dd></div><div className="flex justify-between py-3"><dt className="text-slate-500">Messages</dt><dd>{selected.messages.length}</dd></div></dl></>}
+      </aside>
     </div>
   );
 }
