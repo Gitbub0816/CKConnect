@@ -43,13 +43,24 @@ export async function GET(request: Request) {
   const organization = await db.organization.findUniqueOrThrow({
     where: { id: organizationId },
   });
+  const existingIntegration = await db.integration.findUnique({
+    where: { organizationId_provider: { organizationId, provider: "SLACK" } },
+    select: { settings: true },
+  });
+  const existingSettings =
+    existingIntegration?.settings && typeof existingIntegration.settings === "object"
+      ? (existingIntegration.settings as Record<string, unknown>)
+      : {};
   const settings: SlackInstallSettings = {
+    ...existingSettings,
     teamId: token.team.id,
     teamName: token.team.name,
     appId: token.app_id,
     botUserId: token.bot_user_id,
     defaultChannelId: token.incoming_webhook?.channel_id,
     defaultChannelName: token.incoming_webhook?.channel,
+    navigationMode:
+      existingSettings.navigationMode === "replace" ? "replace" : "alongside",
     notifications: {
       newLead: true,
       newBooking: true,

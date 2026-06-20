@@ -105,6 +105,9 @@ function IntegrationsWorkbench({ data, organizationSlug }: { data: Data; organiz
   const slackNotifications = (slackSettings.notifications ?? {}) as Value;
   const [channels, setChannels] = useState<Array<{ id: string; name: string; private?: boolean }>>([]);
   const [channelId, setChannelId] = useState(String(slackSettings.defaultChannelId ?? ""));
+  const [navigationMode, setNavigationMode] = useState<"alongside" | "replace">(
+    slackSettings.navigationMode === "replace" ? "replace" : "alongside",
+  );
   const [notifications, setNotifications] = useState<Record<string, boolean>>({
     newLead: Boolean(slackNotifications.newLead ?? true),
     newBooking: Boolean(slackNotifications.newBooking ?? true),
@@ -164,6 +167,7 @@ function IntegrationsWorkbench({ data, organizationSlug }: { data: Data; organiz
         organizationSlug,
         defaultChannelId: channelId,
         defaultChannelName: channel?.name ?? "",
+        navigationMode,
         notifications,
       }),
     });
@@ -300,6 +304,19 @@ function IntegrationsWorkbench({ data, organizationSlug }: { data: Data; organiz
                     {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}{channel.private ? " (private)" : ""}</option>)}
                   </select>
                 </label>
+                <fieldset>
+                  <legend className="text-sm font-semibold">Workspace navigation</legend>
+                  <div className="mt-2 grid gap-px overflow-hidden rounded-xl border bg-slate-200 sm:grid-cols-2">
+                    <label className="flex cursor-pointer gap-3 bg-white p-4 text-sm">
+                      <input checked={navigationMode === "alongside"} name="slackNavigation" onChange={() => setNavigationMode("alongside")} type="radio" />
+                      <span><strong className="block">Add Slack</strong><span className="mt-1 block text-xs font-normal text-slate-500">Keep the native Collaboration workspace and add Slack beside it.</span></span>
+                    </label>
+                    <label className="flex cursor-pointer gap-3 bg-white p-4 text-sm">
+                      <input checked={navigationMode === "replace"} name="slackNavigation" onChange={() => setNavigationMode("replace")} type="radio" />
+                      <span><strong className="block">Replace Collaboration</strong><span className="mt-1 block text-xs font-normal text-slate-500">Show Slack in navigation instead of the native Collaboration entry.</span></span>
+                    </label>
+                  </div>
+                </fieldset>
                 <div className="grid gap-px overflow-hidden rounded-xl border bg-slate-200 sm:grid-cols-2 lg:grid-cols-3">
                   {[
                     ["newLead", "New leads"],

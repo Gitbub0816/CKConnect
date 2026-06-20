@@ -1,9 +1,7 @@
-import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { SdkEmbed } from "@/components/sdk-embed";
+import { SdkViewport } from "@/components/sdk-viewport";
 import { requireOrganizationAccess } from "@/lib/authorization";
-
-const KPI_API_URL = process.env.NEXT_PUBLIC_KPI_API_URL ?? "https://kpi-api.clearkey.solutions";
+import { createSdkEmbedConfig } from "@/lib/sdk-embed";
 
 export default async function DashboardPage({
   params,
@@ -11,17 +9,16 @@ export default async function DashboardPage({
   params: Promise<{ organizationSlug: string }>;
 }) {
   const { organizationSlug } = await params;
-  const { user } = await requireOrganizationAccess(organizationSlug);
-  if (!user) notFound();
+  const { membership, organization, user } = await requireOrganizationAccess(organizationSlug);
+  const config = createSdkEmbedConfig({
+    kind: "dashboard",
+    membership,
+    organization,
+    user,
+  });
   return (
-    <AppShell active="dashboard" organizationSlug={organizationSlug}>
-      <div className="flex h-full flex-1 overflow-hidden">
-        <SdkEmbed
-          apiUrl={KPI_API_URL}
-          organizationSlug={organizationSlug}
-          title="KPI Dashboard"
-        />
-      </div>
+    <AppShell active="dashboard" fullViewport organizationSlug={organizationSlug}>
+      <SdkViewport config={config} />
     </AppShell>
   );
 }

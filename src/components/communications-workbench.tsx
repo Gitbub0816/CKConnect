@@ -303,6 +303,8 @@ export function CommunicationsWorkbench({
   data: Data;
   organizationSlug: string;
 }) {
+  if (module === "slack")
+    return <SlackCollaboration data={data} organizationSlug={organizationSlug} />;
   if (module === "collaboration")
     return <Collaboration data={data} organizationSlug={organizationSlug} />;
   if (module === "support")

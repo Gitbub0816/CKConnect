@@ -23,6 +23,7 @@ export type SlackInstallSettings = {
   botUserId?: string;
   defaultChannelId?: string;
   defaultChannelName?: string;
+  navigationMode?: "alongside" | "replace";
   notifications?: Record<string, boolean>;
 };
 

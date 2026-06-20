@@ -214,6 +214,11 @@ const copy: Record<
       "Team channels, customer workspaces, video rooms, messaging, and shared calendar context.",
     action: "New workspace",
   },
+  slack: {
+    title: "Slack",
+    description: "Connected Slack channels and tenant-scoped workspace activity.",
+    action: "New message",
+  },
   support: {
     title: "ClearKey support",
     description:
@@ -875,6 +880,7 @@ export function ModulePage({
   ]);
   const communicationModules = new Set([
     "collaboration",
+    "slack",
     "support",
     "payment-settings",
   ]);

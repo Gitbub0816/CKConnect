@@ -47,6 +47,7 @@ const moduleTints: Record<string, string> = {
   calendar: "#F97316",
   bookings: "#F97316",
   collaboration: "#3B82F6",
+  slack: "#4A154B",
   crm: "#0EA5E9",
   leads: "#0EA5E9",
   accounts: "#0EA5E9",
@@ -191,8 +192,7 @@ export function AppSidebar({
   logoUrl,
   navigationStyle,
   organizationSlug,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  slackConnected: _slackConnected,
+  slackMode,
   title,
 }: {
   active: string;
@@ -201,7 +201,7 @@ export function AppSidebar({
   logoUrl?: string | null;
   navigationStyle?: string | null;
   organizationSlug: string;
-  slackConnected?: boolean;
+  slackMode?: "alongside" | "replace" | null;
   title: string;
 }) {
   const pathname = usePathname();
@@ -219,10 +219,14 @@ export function AppSidebar({
           ...section,
           items: section.items.filter(
             (item) => !item.feature || enabled?.[item.feature] !== false,
-          ),
+          ).flatMap((item) => {
+            if (item.slug !== "collaboration" || !slackMode) return [item];
+            const slackItem = { ...item, icon: SlackLogo, label: "Slack", slug: "slack" };
+            return slackMode === "replace" ? [slackItem] : [item, slackItem];
+          }),
         }))
         .filter((section) => section.items.length),
-    [enabled],
+    [enabled, slackMode],
   );
 
   const activeItemParent = useMemo(() => {

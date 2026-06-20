@@ -6,6 +6,7 @@ const schema = z.object({
   organizationSlug: z.string().min(1),
   defaultChannelId: z.string().max(80).optional().default(""),
   defaultChannelName: z.string().max(120).optional().default(""),
+  navigationMode: z.enum(["alongside", "replace"]).default("alongside"),
   notifications: z.record(z.string(), z.boolean()).default({}),
 });
 
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
     ...currentSettings,
     defaultChannelId: input.defaultChannelId || null,
     defaultChannelName: input.defaultChannelName || null,
+    navigationMode: input.navigationMode,
     notifications: input.notifications,
   };
   await db.integration.update({
