@@ -15,6 +15,7 @@ import {
   FileText,
   Gauge,
   Globe2,
+  Hash,
   Headphones,
   Landmark,
   ListTodo,
@@ -221,7 +222,7 @@ export function AppSidebar({
             (item) => !item.feature || enabled?.[item.feature] !== false,
           ).flatMap((item) => {
             if (item.slug !== "collaboration" || !slackMode) return [item];
-            const slackItem = { ...item, icon: SlackLogo, label: "Slack", slug: "slack" };
+            const slackItem = { ...item, icon: Hash, label: "Slack", slug: "slack" };
             return slackMode === "replace" ? [slackItem] : [item, slackItem];
           }),
         }))
@@ -244,14 +245,23 @@ export function AppSidebar({
   }, [expandedItems, activeItemParent]);
 
   useEffect(() => {
+    let collapsed: boolean | undefined;
+    let savedSections: string[] | undefined;
+    let savedItems: string[] | undefined;
     try {
       const c = localStorage.getItem(collapsedKey);
-      if (c !== null) setIsCollapsed(JSON.parse(c) as boolean);
+      if (c !== null) collapsed = JSON.parse(c) as boolean;
       const s = localStorage.getItem(openSectionsKey);
-      if (s) setOpenSections(JSON.parse(s) as string[]);
+      if (s) savedSections = JSON.parse(s) as string[];
       const e = localStorage.getItem(expandedItemsKey);
-      if (e) setExpandedItems(JSON.parse(e) as string[]);
+      if (e) savedItems = JSON.parse(e) as string[];
     } catch {}
+    const frame = requestAnimationFrame(() => {
+      if (collapsed !== undefined) setIsCollapsed(collapsed);
+      if (savedSections) setOpenSections(savedSections);
+      if (savedItems) setExpandedItems(savedItems);
+    });
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {

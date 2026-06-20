@@ -646,6 +646,8 @@ function DealDetailView({
 }) {
   const daysToClose = record.expectedCloseDate
     ? Math.ceil(
+        // This server-rendered view intentionally evaluates the current request time.
+        // eslint-disable-next-line react-hooks/purity
         (new Date(record.expectedCloseDate).getTime() - Date.now()) /
           86_400_000,
       )

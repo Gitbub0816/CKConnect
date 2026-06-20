@@ -1,4 +1,4 @@
-import { Headphones, MessageSquare, Send } from "lucide-react";
+import { Headphones, Send } from "lucide-react";
 import {
   createPlatformSupportTicket,
   replyPlatformSupportTicket,
@@ -304,7 +304,7 @@ export function CommunicationsWorkbench({
   organizationSlug: string;
 }) {
   if (module === "slack")
-    return <SlackCollaboration data={data} organizationSlug={organizationSlug} />;
+    return <Collaboration data={data} organizationSlug={organizationSlug} />;
   if (module === "collaboration")
     return <Collaboration data={data} organizationSlug={organizationSlug} />;
   if (module === "support")
