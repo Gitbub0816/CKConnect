@@ -104,6 +104,58 @@ export async function getWorkspaceDashboard(slug: string, userId?: string) {
   const organization = await db.organization.findUnique({ where: { slug } });
   if (!organization) return null;
   const organizationId = organization.id;
+  const dashboardsQuery = db.dashboardDefinition
+    .findMany({
+      where: {
+        organizationId,
+        OR: [{ shared: true }, ...(userId ? [{ userId }] : [])],
+      },
+      include: { widgets: { orderBy: { position: "asc" } } },
+      orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+      take: 6,
+    })
+    .then((dashboards) =>
+      dashboards.map((dashboard) => ({
+        id: dashboard.id,
+        name: dashboard.name,
+        shared: dashboard.shared,
+        isDefault: dashboard.isDefault,
+        config: {
+          ...(dashboard.layoutJson as Record<string, unknown>),
+          widgets: dashboard.widgets.map((widget) => widget.metricKey),
+          chartStyle: dashboard.widgets[0]?.chartType ?? "bar",
+          dateRange: dashboard.dateRange,
+          comparison: dashboard.comparison,
+          refreshMinutes: dashboard.refreshMinutes,
+        },
+        updatedAt: iso(dashboard.updatedAt),
+      })),
+    )
+    .catch(async (error: unknown) => {
+      const prismaError = error as { code?: string; message?: string; meta?: unknown };
+      console.error("[dashboard] native dashboard query failed; using legacy storage", {
+        code: prismaError.code,
+        message: prismaError.message,
+        meta: prismaError.meta,
+      });
+      const legacy = await db.savedView.findMany({
+        where: {
+          organizationId,
+          module: "dashboard",
+          OR: [{ shared: true }, ...(userId ? [{ userId }] : [])],
+        },
+        orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+        take: 6,
+      });
+      return legacy.map((dashboard) => ({
+        id: dashboard.id,
+        name: dashboard.name,
+        shared: dashboard.shared,
+        isDefault: dashboard.isDefault,
+        config: dashboard.filtersJson,
+        updatedAt: iso(dashboard.updatedAt),
+      }));
+    });
   const [
     openDeals,
     invoices,
@@ -157,15 +209,7 @@ export async function getWorkspaceDashboard(slug: string, userId?: string) {
         startedAt: { gte: new Date(Date.now() - 7 * 86_400_000) },
       },
     }),
-    db.dashboardDefinition.findMany({
-      where: {
-        organizationId,
-        OR: [{ shared: true }, ...(userId ? [{ userId }] : [])],
-      },
-      include: { widgets: { orderBy: { position: "asc" } } },
-      orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
-      take: 6,
-    }),
+    dashboardsQuery,
   ]);
   const pipeline = openDeals.reduce((sum, deal) => sum + money(deal.amount), 0);
   const outstanding = invoices.reduce(
@@ -279,21 +323,7 @@ export async function getWorkspaceDashboard(slug: string, userId?: string) {
           "Workflow executions that failed during the last seven days.",
       },
     ],
-    dashboards: dashboards.map((dashboard) => ({
-      id: dashboard.id,
-      name: dashboard.name,
-      shared: dashboard.shared,
-      isDefault: dashboard.isDefault,
-      config: {
-        ...(dashboard.layoutJson as Record<string, unknown>),
-        widgets: dashboard.widgets.map((widget) => widget.metricKey),
-        chartStyle: dashboard.widgets[0]?.chartType ?? "bar",
-        dateRange: dashboard.dateRange,
-        comparison: dashboard.comparison,
-        refreshMinutes: dashboard.refreshMinutes,
-      },
-      updatedAt: iso(dashboard.updatedAt),
-    })),
+    dashboards,
   };
 }
 
