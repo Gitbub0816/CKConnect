@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import {
+  addDays,
   addMonths,
+  addWeeks,
   eachDayOfInterval,
   endOfMonth,
   endOfWeek,
@@ -11,7 +13,9 @@ import {
   isSameMonth,
   startOfMonth,
   startOfWeek,
+  subDays,
   subMonths,
+  subWeeks,
 } from "date-fns";
 import { CalendarDays, Check, ChevronLeft, ChevronRight, List, X } from "lucide-react";
 import { updateCalendarCommitment } from "@/app/app/[organizationSlug]/actions";
@@ -41,7 +45,9 @@ export function CalendarWorkbench({
   organizationSlug: string;
 }) {
   const [cursor, setCursor] = useState(() => new Date());
-  const [view, setView] = useState<"month" | "agenda">("month");
+  const [view, setView] = useState<"month" | "week" | "day" | "agenda">(
+    "month",
+  );
   const [selectedId, setSelectedId] = useState<string | null>(records[0]?.id ?? null);
   const selected = records.find((event) => event.id === selectedId) ?? null;
   const monthDays = useMemo(() => {
@@ -54,25 +60,59 @@ export function CalendarWorkbench({
   const visibleEvents = records.filter((event) =>
     view === "agenda" || isSameMonth(new Date(event.startsAt), cursor),
   );
+  const weekDays = useMemo(
+    () =>
+      eachDayOfInterval({
+        start: startOfWeek(cursor, { weekStartsOn: 1 }),
+        end: endOfWeek(cursor, { weekStartsOn: 1 }),
+      }),
+    [cursor],
+  );
+  const navigate = (direction: -1 | 1) => {
+    if (view === "month" || view === "agenda") {
+      setCursor((date) =>
+        direction === 1 ? addMonths(date, 1) : subMonths(date, 1),
+      );
+    } else if (view === "week") {
+      setCursor((date) =>
+        direction === 1 ? addWeeks(date, 1) : subWeeks(date, 1),
+      );
+    } else {
+      setCursor((date) =>
+        direction === 1 ? addDays(date, 1) : subDays(date, 1),
+      );
+    }
+  };
+  const periodTitle =
+    view === "day"
+      ? format(cursor, "EEEE, MMMM d, yyyy")
+      : view === "week"
+        ? `${format(weekDays[0], "MMM d")} - ${format(weekDays[6], "MMM d, yyyy")}`
+        : format(cursor, "MMMM yyyy");
 
   return (
     <div className="flex min-h-[680px] flex-col overflow-hidden border bg-white lg:h-[calc(100vh-12rem)]">
       <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
-        <button aria-label="Previous month" className="ck-icon-button" onClick={() => setCursor((date) => subMonths(date, 1))} type="button">
+        <button aria-label="Previous period" className="ck-icon-button" onClick={() => navigate(-1)} type="button">
           <ChevronLeft size={17} />
         </button>
         <button className="ck-button ck-button-secondary" onClick={() => setCursor(new Date())} type="button">Today</button>
-        <button aria-label="Next month" className="ck-icon-button" onClick={() => setCursor((date) => addMonths(date, 1))} type="button">
+        <button aria-label="Next period" className="ck-icon-button" onClick={() => navigate(1)} type="button">
           <ChevronRight size={17} />
         </button>
-        <h2 className="ml-2 min-w-44 text-lg font-semibold">{format(cursor, "MMMM yyyy")}</h2>
+        <h2 className="ml-2 min-w-44 text-lg font-semibold">{periodTitle}</h2>
         <div className="ml-auto flex items-center border">
-          <button className={`flex h-9 items-center gap-2 px-3 text-sm ${view === "month" ? "bg-slate-900 text-white" : "hover:bg-slate-50"}`} onClick={() => setView("month")} type="button">
-            <CalendarDays size={15} /> Month
-          </button>
-          <button className={`flex h-9 items-center gap-2 border-l px-3 text-sm ${view === "agenda" ? "bg-slate-900 text-white" : "hover:bg-slate-50"}`} onClick={() => setView("agenda")} type="button">
-            <List size={15} /> Agenda
-          </button>
+          {(["month", "week", "day", "agenda"] as const).map((mode) => (
+            <button
+              className={`flex h-9 items-center gap-2 border-l px-3 text-sm first:border-l-0 ${view === mode ? "bg-slate-900 text-white" : "hover:bg-slate-50"}`}
+              key={mode}
+              onClick={() => setView(mode)}
+              type="button"
+            >
+              {mode === "agenda" ? <List size={15} /> : mode === "month" ? <CalendarDays size={15} /> : null}
+              <span className="capitalize">{mode}</span>
+            </button>
+          ))}
         </div>
         <QuickCreate label="New event" module="calendar" organizationSlug={organizationSlug} />
       </header>
@@ -100,6 +140,76 @@ export function CalendarWorkbench({
                   </div>
                 );
               })}
+            </div>
+          ) : view === "week" ? (
+            <div className="grid min-h-full grid-cols-7">
+              {weekDays.map((day) => {
+                const events = records.filter((event) =>
+                  isSameDay(new Date(event.startsAt), day),
+                );
+                return (
+                  <div className="min-w-0 border-r" key={day.toISOString()}>
+                    <div className="border-b px-3 py-3 text-center">
+                      <div className="text-[11px] font-semibold uppercase text-slate-500">
+                        {format(day, "EEE")}
+                      </div>
+                      <div className="mt-1 text-lg font-semibold">
+                        {format(day, "d")}
+                      </div>
+                    </div>
+                    <div className="divide-y">
+                      {events.map((event) => (
+                        <button
+                          className={`block w-full border-l-4 px-3 py-3 text-left hover:bg-slate-50 ${selectedId === event.id ? "bg-slate-50" : ""}`}
+                          key={event.id}
+                          onClick={() => setSelectedId(event.id)}
+                          style={{ borderColor: event.color ?? "#5b5fcf" }}
+                          type="button"
+                        >
+                          <span className="block text-[11px] text-slate-500">
+                            {format(new Date(event.startsAt), "p")}
+                          </span>
+                          <strong className="mt-1 block text-sm">
+                            {event.title}
+                          </strong>
+                          <span className="mt-1 block truncate text-xs text-slate-500">
+                            {event.location ?? "No location"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : view === "day" ? (
+            <div className="divide-y">
+              {records
+                .filter((event) =>
+                  isSameDay(new Date(event.startsAt), cursor),
+                )
+                .map((event) => (
+                  <button
+                    className={`grid w-full grid-cols-[120px_1fr_auto] items-center gap-4 border-l-4 px-5 py-5 text-left hover:bg-slate-50 ${selectedId === event.id ? "bg-slate-50" : ""}`}
+                    key={event.id}
+                    onClick={() => setSelectedId(event.id)}
+                    style={{ borderColor: event.color ?? "#5b5fcf" }}
+                    type="button"
+                  >
+                    <span className="font-semibold">
+                      {format(new Date(event.startsAt), "p")}
+                    </span>
+                    <span>
+                      <strong className="block">{event.title}</strong>
+                      <span className="text-xs text-slate-500">
+                        {event.location ?? "No location"}
+                      </span>
+                    </span>
+                    <span className="text-xs uppercase text-slate-500">
+                      {event.status}
+                    </span>
+                  </button>
+                ))}
             </div>
           ) : (
             <div className="divide-y">

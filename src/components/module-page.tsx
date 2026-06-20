@@ -952,6 +952,19 @@ export function ModulePage({
     <DataExplorer module={module} organizationSlug={organizationSlug} records={data.records ?? []} />
   );
   const workbench = tabOverride ?? primaryWorkbench;
+  if (["calendar", "collaboration", "slack", "websites"].includes(module)) {
+    return (
+      <div
+        className="min-h-0 overflow-hidden"
+        style={
+          { "--module-tint": meta.tint } as CSSProperties &
+            Record<"--module-tint", string>
+        }
+      >
+        {workbench}
+      </div>
+    );
+  }
   return (
     <div
       className={embedded ? "" : "ck-module-page"}

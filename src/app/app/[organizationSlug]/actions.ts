@@ -545,6 +545,7 @@ export async function saveDashboardStudio(formData: FormData) {
         "trend",
         "donut",
         "table",
+        "three",
       ]),
       accent: z.enum(["gold", "emerald", "slate", "rose"]),
       density: z.enum(["compact", "balanced", "roomy"]),
@@ -576,6 +577,7 @@ export async function saveDashboardStudio(formData: FormData) {
         .string()
         .optional()
         .transform((value) => value === "on"),
+      widgetConfigJson: z.string().max(20_000).optional().default("{}"),
     })
     .parse({
       ...Object.fromEntries(formData),
@@ -587,6 +589,17 @@ export async function saveDashboardStudio(formData: FormData) {
   );
   if (!user) throw new Error("A signed-in user is required");
   const db = getDb();
+  const parsedWidgetConfig = z
+    .record(
+      z.string(),
+      z.object({
+        chartType: z
+          .enum(["kpi", "line", "bar", "pie", "gauge", "table", "three"])
+          .optional(),
+        title: z.string().trim().min(1).max(100).optional(),
+      }),
+    )
+    .parse(JSON.parse(input.widgetConfigJson));
   if (input.isDefault) {
     await db.dashboardDefinition.updateMany({
       where: { organizationId: organization.id, userId: user.id },
@@ -606,6 +619,7 @@ export async function saveDashboardStudio(formData: FormData) {
     goalTarget: input.goalTarget,
     showInsights: input.showInsights,
     showActivity: input.showActivity,
+    widgetSettings: parsedWidgetConfig,
   } as Prisma.InputJsonValue;
   const widgetCatalog: Record<string, { label: string; module: string }> = {
     cash: { label: "Cash position", module: "banking" },
@@ -656,10 +670,13 @@ export async function saveDashboardStudio(formData: FormData) {
     await tx.dashboardWidget.createMany({
       data: input.widgets.map((metricKey, position) => ({
         dashboardId: definition.id,
-        title: widgetCatalog[metricKey].label,
+        title:
+          parsedWidgetConfig[metricKey]?.title ??
+          widgetCatalog[metricKey].label,
         sourceModule: widgetCatalog[metricKey].module,
         metricKey,
-        chartType: input.chartStyle,
+        chartType:
+          parsedWidgetConfig[metricKey]?.chartType ?? input.chartStyle,
         position,
         configJson: {
           comparison: input.comparison,
@@ -3178,6 +3195,7 @@ export async function createCollaborationChannel(formData: FormData) {
     category: "BUSINESS",
   });
   revalidatePath(`/app/${input.organizationSlug}/collaboration`);
+  revalidatePath(`/app/${input.organizationSlug}/slack`);
 }
 
 export async function sendCollaborationMessage(formData: FormData) {
@@ -3186,6 +3204,7 @@ export async function sendCollaborationMessage(formData: FormData) {
       organizationSlug: z.string(),
       channelId: z.string().uuid(),
       body: z.string().trim().min(1).max(5000),
+      parentMessageId: z.string().uuid().optional().or(z.literal("")),
     })
     .parse(Object.fromEntries(formData));
   const { organization, user } = await requireOrganizationAccess(
@@ -3200,8 +3219,22 @@ export async function sendCollaborationMessage(formData: FormData) {
       archivedAt: null,
     },
   });
+  if (input.parentMessageId) {
+    await getDb().collaborationMessage.findFirstOrThrow({
+      where: {
+        id: input.parentMessageId,
+        channelId: channel.id,
+        deletedAt: null,
+      },
+    });
+  }
   const message = await getDb().collaborationMessage.create({
-    data: { channelId: channel.id, authorUserId: user.id, body: input.body },
+    data: {
+      channelId: channel.id,
+      authorUserId: user.id,
+      body: input.body,
+      parentMessageId: input.parentMessageId || null,
+    },
   });
   await appendAuditEvent({
     organizationId: organization.id,
@@ -3209,10 +3242,72 @@ export async function sendCollaborationMessage(formData: FormData) {
     action: "collaboration.message.sent",
     entityType: "CollaborationMessage",
     entityId: message.id,
-    after: { channelId: channel.id, messageType: message.messageType },
+    after: {
+      channelId: channel.id,
+      messageType: message.messageType,
+      parentMessageId: message.parentMessageId,
+    },
     category: "BUSINESS",
   });
   revalidatePath(`/app/${input.organizationSlug}/collaboration`);
+  revalidatePath(`/app/${input.organizationSlug}/slack`);
+}
+
+export async function toggleCollaborationReaction(formData: FormData) {
+  const input = z
+    .object({
+      organizationSlug: z.string(),
+      messageId: z.string().uuid(),
+      emoji: z.enum(["thumbs-up", "heart", "check", "eyes"]),
+    })
+    .parse(Object.fromEntries(formData));
+  const { organization, user } = await requireOrganizationAccess(
+    input.organizationSlug,
+    "collaboration.write",
+  );
+  if (!user) throw new Error("A signed-in user is required");
+  const db = getDb();
+  await db.collaborationMessage.findFirstOrThrow({
+    where: {
+      id: input.messageId,
+      channel: { organizationId: organization.id, archivedAt: null },
+      deletedAt: null,
+    },
+  });
+  const existing = await db.collaborationReaction.findUnique({
+    where: {
+      messageId_userId_emoji: {
+        messageId: input.messageId,
+        userId: user.id,
+        emoji: input.emoji,
+      },
+    },
+  });
+  if (existing) {
+    await db.collaborationReaction.delete({ where: { id: existing.id } });
+  } else {
+    await db.collaborationReaction.create({
+      data: {
+        organizationId: organization.id,
+        messageId: input.messageId,
+        userId: user.id,
+        emoji: input.emoji,
+      },
+    });
+  }
+  await appendAuditEvent({
+    organizationId: organization.id,
+    actorUserId: user.id,
+    action: existing
+      ? "collaboration.reaction.removed"
+      : "collaboration.reaction.added",
+    entityType: "CollaborationMessage",
+    entityId: input.messageId,
+    after: { emoji: input.emoji },
+    category: "BUSINESS",
+  });
+  revalidatePath(`/app/${input.organizationSlug}/collaboration`);
+  revalidatePath(`/app/${input.organizationSlug}/slack`);
 }
 
 export async function createPlatformSupportTicket(formData: FormData) {

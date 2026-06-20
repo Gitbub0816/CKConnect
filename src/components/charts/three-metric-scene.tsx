@@ -4,8 +4,10 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
 export function ThreeMetricScene({
+  height = 280,
   metrics,
 }: {
+  height?: number;
   metrics: Array<{ name: string; value: number }>;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -88,7 +90,11 @@ export function ThreeMetricScene({
   }, [metrics]);
 
   return (
-    <div className="relative h-[280px] min-h-[280px] w-full overflow-hidden bg-[#07111f]" ref={hostRef}>
+    <div
+      className="relative w-full overflow-hidden bg-[#07111f]"
+      ref={hostRef}
+      style={{ height, minHeight: height }}
+    >
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-wrap gap-x-5 gap-y-1 p-4 text-xs text-white/70">
         {metrics.map((metric) => <span key={metric.name}><strong className="text-white">{metric.name}</strong> {metric.value.toLocaleString()}</span>)}
       </div>

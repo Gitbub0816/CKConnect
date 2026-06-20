@@ -29,6 +29,7 @@ import {
 } from "@/app/app/[organizationSlug]/actions";
 import { formatCurrency } from "@/lib/utils";
 import { SdkEmbed } from "@/components/sdk-embed";
+import { WebsiteStudio } from "@/components/website-studio";
 
 type Value = Record<string, unknown>;
 type Data = {
@@ -47,7 +48,90 @@ type Data = {
   catalog?: Value[];
   links?: Value[];
   storagePolicies?: Value[];
+  integrationStatus?: Record<string, Value>;
 };
+
+function NativeWebsiteWorkbench({
+  data,
+  organizationSlug,
+}: {
+  data: Data;
+  organizationSlug: string;
+}) {
+  const [websiteId, setWebsiteId] = useState(
+    String(data.websites?.[0]?.id ?? ""),
+  );
+  const website =
+    data.websites?.find((item) => String(item.id) === websiteId) ??
+    data.websites?.[0];
+  const pages = (website?.pages as Value[] | undefined) ?? [];
+  const [pageId, setPageId] = useState(String(pages[0]?.id ?? ""));
+  const page = pages.find((item) => String(item.id) === pageId) ?? pages[0];
+
+  if (!website || !page) {
+    return <WebsiteWorkbench data={data} organizationSlug={organizationSlug} />;
+  }
+
+  function selectWebsite(nextWebsiteId: string) {
+    setWebsiteId(nextWebsiteId);
+    const nextWebsite = data.websites?.find(
+      (item) => String(item.id) === nextWebsiteId,
+    );
+    const firstPage = ((nextWebsite?.pages as Value[] | undefined) ?? [])[0];
+    setPageId(String(firstPage?.id ?? ""));
+  }
+
+  return (
+    <div className="flex h-[calc(100vh-5rem)] min-h-[720px] flex-col overflow-hidden bg-white">
+      <header className="flex min-h-14 items-center gap-3 border-b px-4">
+        <strong className="text-sm">Site workspace</strong>
+        <select
+          aria-label="Website"
+          className="h-9 min-w-48 border bg-white px-3 text-sm"
+          onChange={(event) => selectWebsite(event.target.value)}
+          value={String(website.id)}
+        >
+          {data.websites?.map((item) => (
+            <option key={String(item.id)} value={String(item.id)}>
+              {String(item.name)}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="Page"
+          className="h-9 min-w-44 border bg-white px-3 text-sm"
+          onChange={(event) => setPageId(event.target.value)}
+          value={String(page.id)}
+        >
+          {pages.map((item) => (
+            <option key={String(item.id)} value={String(item.id)}>
+              {String(item.title)}
+            </option>
+          ))}
+        </select>
+        <a
+          className="ml-auto text-sm font-semibold text-indigo-700"
+          href={`https://${String(website.hostname)}`}
+          rel="noreferrer"
+          target="_blank"
+        >
+          Open live site <ExternalLink className="inline" size={14} />
+        </a>
+      </header>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <WebsiteStudio
+          assets={(data.assets ?? []) as never[]}
+          automations={(data.automations ?? []) as never[]}
+          dataGrants={(data.dataGrants ?? []) as never[]}
+          integrationStatus={data.integrationStatus as never}
+          organizationSlug={organizationSlug}
+          page={page}
+          website={website}
+        />
+      </div>
+    </div>
+  );
+}
 
 function ReportsWorkbench({
   data,
@@ -1249,7 +1333,12 @@ export function PlatformWorkbench({
       <SettingsWorkbench data={data} organizationSlug={organizationSlug} />
     );
   if (module === "websites")
-    return <WebsiteWorkbench data={data} organizationSlug={organizationSlug} />;
+    return (
+      <NativeWebsiteWorkbench
+        data={data}
+        organizationSlug={organizationSlug}
+      />
+    );
   if (module === "data-studio")
     return (
       <DataStudioWorkbench data={data} organizationSlug={organizationSlug} />

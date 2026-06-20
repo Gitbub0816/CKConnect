@@ -17,6 +17,7 @@ import {
 import { saveDashboardStudio } from "@/app/app/[organizationSlug]/actions";
 import { EChartsPanel } from "@/components/charts/echarts-panel";
 import { ThreeMetricScene } from "@/components/charts/three-metric-scene";
+import { DashboardWorkspace } from "@/components/dashboard-workspace";
 import { formatCurrency } from "@/lib/utils";
 
 type DashboardData = NonNullable<
@@ -233,6 +234,24 @@ export function Dashboard({ data }: { data: DashboardData }) {
     name: deal.name,
     value: deal.amount,
   }));
+
+  if (data.organization.id) {
+    return (
+      <DashboardWorkspace
+        dashboards={savedDashboards}
+        metrics={Object.entries(statMap).map(([key, stat]) => ({
+          key,
+          label: stat.label,
+          value: stat.value,
+          note: stat.note,
+          href: stat.href,
+          format: stat.format === "number" ? "number" : "currency",
+        }))}
+        organizationName={data.organization.name}
+        organizationSlug={data.organization.slug}
+      />
+    );
+  }
 
   return (
     <div

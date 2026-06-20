@@ -1,10 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, Hash, MessageSquare, Plus, Search, Send, Users, Video } from "lucide-react";
-import { createCollaborationChannel, sendCollaborationMessage } from "@/app/app/[organizationSlug]/actions";
+import { Check, Eye, ExternalLink, Hash, Heart, MessageCircle, MessageSquare, Plus, Search, Send, ThumbsUp, Users, Video, X } from "lucide-react";
+import { createCollaborationChannel, sendCollaborationMessage, toggleCollaborationReaction } from "@/app/app/[organizationSlug]/actions";
 
-type Message = { id: string; body: string; author: string; authorType: string; createdAt: string };
+type Reaction = { id: string; emoji: string; userId: string };
+type Message = {
+  id: string;
+  body: string;
+  author: string;
+  authorType: string;
+  createdAt: string;
+  reactions?: Reaction[];
+  replies?: Message[];
+};
 type Channel = {
   id: string;
   publicId: string;
@@ -32,7 +41,9 @@ export function CollaborationHub({
   const [selectedId, setSelectedId] = useState(channels[0]?.id ?? "");
   const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState("");
+  const [threadId, setThreadId] = useState("");
   const selected = channels.find((channel) => channel.id === selectedId) ?? channels[0];
+  const thread = selected?.messages.find((message) => message.id === threadId);
   const filtered = channels.filter((channel) =>
     `${channel.name} ${channel.description ?? ""}`.toLowerCase().includes(query.toLowerCase()),
   );
@@ -74,7 +85,7 @@ export function CollaborationHub({
         )}
         <nav className="min-h-0 flex-1 overflow-y-auto py-2">
           {filtered.map((channel) => (
-            <button className={`flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-white/10 ${selected?.id === channel.id ? "bg-white/10" : ""}`} key={channel.id} onClick={() => setSelectedId(channel.id)} type="button">
+            <button className={`flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-white/10 ${selected?.id === channel.id ? "bg-white/10" : ""}`} key={channel.id} onClick={() => { setSelectedId(channel.id); setThreadId(""); }} type="button">
               {channel.type === "CUSTOMER" ? <Users className="mt-0.5 shrink-0" size={15} /> : <Hash className="mt-0.5 shrink-0" size={15} />}
               <span className="min-w-0"><strong className="block truncate text-sm">{channel.name}</strong><span className="block truncate text-xs text-white/50">{channel.description ?? channel.type.replaceAll("_", " ")}</span></span>
             </button>
@@ -97,7 +108,24 @@ export function CollaborationHub({
               {selected.messages.map((message) => (
                 <div className="grid grid-cols-[36px_1fr] gap-3" key={message.id}>
                   <div className="grid size-9 place-items-center bg-slate-900 text-xs font-semibold text-white">{message.author.slice(0, 2).toUpperCase()}</div>
-                  <div><div className="flex items-baseline gap-2"><strong className="text-sm">{message.author}</strong><span className="text-[11px] text-slate-400">{new Date(message.createdAt).toLocaleString()}</span></div><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{message.body}</p></div>
+                  <div>
+                    <div className="flex items-baseline gap-2"><strong className="text-sm">{message.author}</strong><span className="text-[11px] text-slate-400">{new Date(message.createdAt).toLocaleString()}</span></div>
+                    <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{message.body}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-1">
+                      <button className="flex h-7 items-center gap-1 border px-2 text-xs hover:bg-white" onClick={() => setThreadId(message.id)} type="button"><MessageCircle size={13} /> {message.replies?.length ?? 0}</button>
+                      {(["thumbs-up", "heart", "check", "eyes"] as const).map((emoji) => {
+                        const count = message.reactions?.filter((reaction) => reaction.emoji === emoji).length ?? 0;
+                        const Icon = emoji === "thumbs-up" ? ThumbsUp : emoji === "heart" ? Heart : emoji === "check" ? Check : Eye;
+                        return (
+                          <form action={toggleCollaborationReaction} key={emoji}>
+                            <input name="organizationSlug" type="hidden" value={organizationSlug} />
+                            <input name="messageId" type="hidden" value={message.id} />
+                            <button aria-label={`React ${emoji}`} className="flex h-7 items-center gap-1 border px-2 text-xs hover:bg-white" name="emoji" type="submit" value={emoji}><Icon size={13} />{count > 0 ? count : null}</button>
+                          </form>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               ))}
               {!selected.messages.length && <div className="grid h-full place-items-center text-sm text-slate-500">Start the conversation in {selected.name}.</div>}
@@ -112,8 +140,29 @@ export function CollaborationHub({
         ) : <div className="grid h-full place-items-center text-sm text-slate-500">Create a channel to begin collaborating.</div>}
       </main>
 
-      <aside className="min-h-0 overflow-y-auto border-l p-5">
-        {selected && <><div className="text-xs font-semibold uppercase text-slate-500">Channel details</div><h3 className="mt-2 text-lg font-semibold">{selected.name}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{selected.description ?? "No channel description has been added."}</p><dl className="mt-5 divide-y border-y text-sm"><div className="flex justify-between py-3"><dt className="text-slate-500">Type</dt><dd>{selected.type}</dd></div><div className="flex justify-between py-3"><dt className="text-slate-500">Visibility</dt><dd>{selected.visibility}</dd></div><div className="flex justify-between py-3"><dt className="text-slate-500">Messages</dt><dd>{selected.messages.length}</dd></div></dl></>}
+      <aside className="flex min-h-0 flex-col overflow-hidden border-l">
+        {thread && selected ? (
+          <>
+            <header className="flex items-center border-b px-4 py-3"><strong className="text-sm">Thread</strong><button aria-label="Close thread" className="ml-auto p-1 hover:bg-slate-100" onClick={() => setThreadId("")} type="button"><X size={16} /></button></header>
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+              {[thread, ...(thread.replies ?? [])].map((message, index) => (
+                <div className={index === 0 ? "border-b pb-4" : ""} key={message.id}>
+                  <div className="flex items-baseline gap-2"><strong className="text-sm">{message.author}</strong><span className="text-[10px] text-slate-400">{new Date(message.createdAt).toLocaleString()}</span></div>
+                  <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{message.body}</p>
+                </div>
+              ))}
+            </div>
+            <form action={sendCollaborationMessage} className="border-t p-3">
+              <input name="organizationSlug" type="hidden" value={organizationSlug} />
+              <input name="channelId" type="hidden" value={selected.id} />
+              <input name="parentMessageId" type="hidden" value={thread.id} />
+              <textarea className="ck-input min-h-20 resize-none" name="body" placeholder="Reply in thread" required />
+              <button className="ck-button mt-2 w-full" type="submit"><Send size={14} /> Reply</button>
+            </form>
+          </>
+        ) : selected ? (
+          <div className="overflow-y-auto p-5"><div className="text-xs font-semibold uppercase text-slate-500">Channel details</div><h3 className="mt-2 text-lg font-semibold">{selected.name}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{selected.description ?? "No channel description has been added."}</p><dl className="mt-5 divide-y border-y text-sm"><div className="flex justify-between py-3"><dt className="text-slate-500">Type</dt><dd>{selected.type}</dd></div><div className="flex justify-between py-3"><dt className="text-slate-500">Visibility</dt><dd>{selected.visibility}</dd></div><div className="flex justify-between py-3"><dt className="text-slate-500">Messages</dt><dd>{selected.messages.length}</dd></div></dl></div>
+        ) : null}
       </aside>
     </div>
   );

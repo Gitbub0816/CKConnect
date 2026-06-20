@@ -123,6 +123,12 @@ export async function getWorkspaceDashboard(slug: string, userId?: string) {
         config: {
           ...(dashboard.layoutJson as Record<string, unknown>),
           widgets: dashboard.widgets.map((widget) => widget.metricKey),
+          widgetSettings: Object.fromEntries(
+            dashboard.widgets.map((widget) => [
+              widget.metricKey,
+              { chartType: widget.chartType, title: widget.title },
+            ]),
+          ),
           chartStyle: dashboard.widgets[0]?.chartType ?? "bar",
           dateRange: dashboard.dateRange,
           comparison: dashboard.comparison,
@@ -2782,8 +2788,16 @@ export async function getModuleData(slug: string, module: string) {
           where: { organizationId, archivedAt: null },
           include: {
             messages: {
-              where: { deletedAt: null },
-              include: { author: true },
+              where: { deletedAt: null, parentMessageId: null },
+              include: {
+                author: true,
+                reactions: true,
+                replies: {
+                  where: { deletedAt: null },
+                  include: { author: true, reactions: true },
+                  orderBy: { createdAt: "asc" },
+                },
+              },
               orderBy: { createdAt: "asc" },
               take: 50,
             },
@@ -2841,6 +2855,27 @@ export async function getModuleData(slug: string, module: string) {
               : "Customer",
             authorType: message.authorUserId ? "MEMBER" : "CUSTOMER",
             createdAt: iso(message.createdAt),
+            attachments: message.attachmentsJson,
+            reactions: message.reactions.map((reaction) => ({
+              id: reaction.id,
+              emoji: reaction.emoji,
+              userId: reaction.userId,
+            })),
+            replies: message.replies.map((reply) => ({
+              id: reply.id,
+              body: reply.body,
+              author: reply.author
+                ? `${reply.author.firstName ?? ""} ${reply.author.lastName ?? ""}`.trim() ||
+                  reply.author.email
+                : "Customer",
+              authorType: reply.authorUserId ? "MEMBER" : "CUSTOMER",
+              createdAt: iso(reply.createdAt),
+              reactions: reply.reactions.map((reaction) => ({
+                id: reaction.id,
+                emoji: reaction.emoji,
+                userId: reaction.userId,
+              })),
+            })),
           })),
         })),
         calendar: calendar.map((event) => ({
