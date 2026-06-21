@@ -1,13 +1,10 @@
 import { notFound } from "next/navigation";
 import { AppearanceStudio } from "@/components/appearance-studio";
+import { getAccountingSection } from "@/components/accounting-suite";
 import { AppShell } from "@/components/app-shell";
-import { AccountingSuite } from "@/components/accounting-suite";
-import {
-  AccountingAddendumWorkspace,
-  CrmAddendumWorkspace,
-} from "@/components/addendum-workspaces";
-import { CrmSuite } from "@/components/crm-suite";
+import { getCrmSection } from "@/components/crm-suite";
 import { ModulePage } from "@/components/module-page";
+import { NativeBusinessWorkspace } from "@/components/native-workspaces";
 import { getModuleData, getPublishedEndpoint } from "@/lib/workspace-data";
 import { requireOrganizationAccess } from "@/lib/authorization";
 
@@ -116,17 +113,9 @@ export async function renderWorkspaceModulePage({
       : null;
   const bundleModules =
     module === "crm"
-      ? ["leads", "accounts", "contacts", "deals", "cases", "tasks", "invoices"]
+      ? [getCrmSection(activeSection).module]
       : module === "accounting"
-        ? [
-            "accounting",
-            "invoices",
-            "payments",
-            "vendors",
-            "expenses",
-            "banking",
-            "products",
-          ]
+        ? [getAccountingSection(activeSection).module]
         : [];
   const bundle = bundleModules.length
     ? Object.fromEntries(
@@ -152,7 +141,7 @@ export async function renderWorkspaceModulePage({
   if (module !== "appearance" && !bundle && !data) notFound();
 
   return (
-    <AppShell active={module} organizationSlug={organizationSlug}>
+    <AppShell active={module} fullViewport={["crm", "accounting"].includes(module)} organizationSlug={organizationSlug}>
       {module === "appearance" ? (
         <AppearanceStudio
           initialBlocks={endpoint!.endpointPages[0].blocksJson as never[]}
@@ -165,22 +154,9 @@ export async function renderWorkspaceModulePage({
         />
       ) : (
         module === "crm" ? (
-          <CrmSuite activeSection={activeSection} organizationSlug={organizationSlug}>
-            <CrmAddendumWorkspace
-              data={bundle!}
-              organizationSlug={organizationSlug}
-            />
-          </CrmSuite>
+          <NativeBusinessWorkspace activeSection={activeSection} bundle={bundle!} mode="crm" organizationSlug={organizationSlug} />
         ) : module === "accounting" ? (
-          <AccountingSuite
-            activeSection={activeSection}
-            organizationSlug={organizationSlug}
-          >
-            <AccountingAddendumWorkspace
-              data={bundle!}
-              organizationSlug={organizationSlug}
-            />
-          </AccountingSuite>
+          <NativeBusinessWorkspace activeSection={activeSection} bundle={bundle!} mode="accounting" organizationSlug={organizationSlug} />
         ) : (
           <ModulePage
             activeTab={activeTab}
